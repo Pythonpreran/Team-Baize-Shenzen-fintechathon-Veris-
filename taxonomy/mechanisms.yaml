@@ -1,0 +1,259 @@
+# PROVEN — coverage mechanisms, defined by STRUCTURE rather than by name.
+#
+# WHY THIS FILE EXISTS
+# -------------------
+# The exact (carrier, clause_ref) map in account.py is precise and does not scale: a
+# human must read each wording before the engine can say anything about it. Three
+# carriers took a week. Forty would take a year.
+#
+# The reason a map is needed at all is that carriers give the same mechanism different
+# names. Proportionate reduction for under-insurance is called:
+#     "Average"            Chubb Select+ cl 4.2
+#     "UNDERINSURANCE"     MSIG SUMO GC12
+#     "Average"            Liberty SMECare GC4        (value basis, no threshold)
+#     "Average Relief"     Liberty SMECare p.7/p.26   (reinstatement basis, 85%)
+# A clause-number map cannot find these. Neither can a heading keyword list, because
+# "Average Relief" is named as a relief and behaves as an average.
+#
+# So a mechanism is defined here by the STRUCTURAL SLOTS its text must contain. The
+# name is recorded as a hint and is never load-bearing.
+#
+# HOW IT IS USED  (see align.py)
+#   PROPOSE  a candidate span is offered for a mechanism        - may be wrong
+#   VERIFY   every mandatory slot must match, no negative slot may match  - decides
+#   BIND     only a verified alignment becomes a fact a rule may rest on
+#
+# The proposer gets no vote. A rejected proposal is recorded and displayed, because
+# the rejections are the evidence that the verifier is load-bearing rather than
+# decorative.
+#
+# SLOT SEMANTICS
+#   mandatory_slots  ALL must match inside the candidate span, or the span is rejected
+#   negative_slots   ANY match rejects the span. These separate mechanisms that share
+#                    vocabulary — see MEASURED NOTE on ADEQ.PROPORTIONATE_REDUCTION
+#   optional_slots   extracted when present; absence is a finding, never a default
+#
+# Every pattern below was run against the seven published wordings in the document
+# corpus before being committed. Patterns are case-insensitive and whitespace-tolerant,
+# because pypdf emits hard newlines mid-sentence.
+
+meta:
+  version: 1
+  # Corpus ids. corpus/manifest.yaml records the publisher, source URL and sha256 of
+  # the exact bytes each pattern was tested against; the documents themselves are
+  # third-party material and live outside git.
+  tested_against:
+    - sg-chubb-selectplus-lite-wording       # verified by hand
+    - sg-msig-sumo-wording                   # verified by hand
+    - sg-liberty-smecare-wording             # verified by hand
+    - my-aig-sme-fire-and-perils-wording     # never hand-mapped
+    - my-qbe-retail-package-wording          # never hand-mapped
+    - my-qbe-industrial-all-risk-wording     # never hand-mapped
+    - my-aig-all-risks-and-bi-wording        # never hand-mapped
+  note: >
+    Malaysian wordings are included to test whether the method generalises to a
+    carrier nobody has read. They must never be cited as Singapore market positions.
+
+mechanisms:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  ADEQ.PROPORTIONATE_REDUCTION:
+    label: Proportionate reduction of payment for under-insurance
+    taxonomy_code: ADEQ.AVERAGE_CONDITION
+    known_names:
+      - Average
+      - Average Relief
+      - Underinsurance
+      - Under-insurance
+      - Condition of Average
+      - Basis of Settlement
+      - Pro-rata condition
+    # MEASURED NOTE — why negative_slots exist at all.
+    # A first version of this mechanism used only the two mandatory slots below and
+    # wrongly verified a CONTRIBUTION clause in the QBE industrial wording.
+    # Contribution apportions a loss between two INSURERS and shares the phrase
+    # "rateable proportion" with average. Average apportions a loss between the
+    # insurer and the INSURED, by reference to a value at risk. The vocabulary
+    # overlaps; the comparison does not. Hence: a mandatory comparison against a
+    # value at risk, and a negative slot for the other-insurance framing.
+    mandatory_slots:
+      comparison_to_value_at_risk:
+        description: >
+          A comparison of the sum insured against the value actually at risk. This is
+          what separates average from contribution.
+        any_of:
+          - 'greater value than the sum insured'
+          - 'exceeds? the sum insured'
+          - 'less than \s*\d{2}\s*%? of the (?:actual|replacement|reinstatement)'
+          - 'value of all property'
+          - 'total value of the property insured'
+          - 'collectively of greater value'
+          - 'sum insured (?:bears|shall bear) to the value'
+          - 'value of the property (?:insured )?at the time of'
+          - 'representing \d{2}\s*%? of the total reinstatement'
+      reduction_consequence:
+        description: A consequence that reduces the amount otherwise payable.
+        any_of:
+          - 'proportionately reduced'
+          - 'rate-?able proportion'
+          - 'proportionate(?:ly)? share'
+          - 'bear a (?:rate-?able )?(?:proportion|share)'
+          - 'own insurer'
+          - 'considered as being (?:his|its) own insurer'
+    negative_slots:
+      other_insurance_apportionment:
+        description: >
+          Contribution / other-insurance framing. Apportionment between insurers is a
+          different mechanism and must not verify as average.
+        any_of:
+          - 'any other insurance'
+          - 'other insurances?\b'
+          - 'double insurance'
+          - 'contribute more than its rate-?able proportion'
+          - 'covered by any other'
+    optional_slots:
+      threshold_pct:
+        scope: clause          # a percentage from an adjacent clause is not this one's
+        description: The percentage below which the mechanism engages.
+        capture: '(\d{2})\s*(?:%|per cent)'
+      stated_formula:
+        description: >
+          The arithmetic itself, where the wording states it. Liberty states it;
+          Chubb and MSIG say "proportionately reduced" and stop.
+        any_of:
+          - 'such proportion of the loss(?: or damage)? as the sum insured bears'
+          - 'which the said difference bears'
+      settlement_basis:
+        scope: clause          # must NOT be read from a neighbouring provision
+        description: >
+          Which valuation basis the mechanism attaches to. MEASURED NOTE: an earlier
+          version matched the bare word "reinstatement" anywhere in the candidate
+          window, and reported Chubb cl 4.2 as REINSTATEMENT when its own text says
+          "the actual value". The window spans neighbouring clauses, so a loose
+          keyword picks up the wrong clause's basis. The patterns below are therefore
+          tied to the COMPARISON language itself — the basis is a property of what the
+          clause compares against, not of a word appearing nearby.
+        map:
+          REINSTATEMENT: 'of the total reinstatement cost|reinstatement cost which would have been incurred|% of the reinstatement'
+          ACTUAL_VALUE: 'of the actual value|actual value of the (?:property|insured)'
+          VALUE: 'value of all property|total value of the property insured|collectively of greater value'
+
+  # ───────────────────────────────────────────────────────────────────────────
+  COND.PREMIUM_PAYMENT_WARRANTY:
+    label: Premium payment warranty with automatic termination
+    taxonomy_code: COND.PREMIUM_PAYMENT_WARRANTY
+    known_names:
+      - Premium Payment Warranty
+      - Premium Warranty
+      - Payment of Premium
+    note: >
+      The one market-uniform mechanism in the Singapore corpus, because the General
+      Insurance Association of Singapore standardised it. Identical to the dollar
+      across Chubb, MSIG and Liberty. Expect near-verbatim matches.
+    mandatory_slots:
+      period:
+        description: The payment window.
+        any_of:
+          - '\b60\s*(?:\(sixty\)\s*)?days?'
+          - 'sixty\s*\(?60\)?\s*days?'
+      automatic_consequence:
+        description: Automatic termination of cover on expiry of the window.
+        any_of:
+          - 'automatically terminat'
+          - 'deemed to be cancelled'
+          - 'cover .{0,40}(?:shall|is) (?:be )?terminated'
+    optional_slots:
+      minimum_premium:
+        capture: 'minimum of \s*(?:S\$|SGD)\s*([\d,]+(?:\.\d{2})?)'
+      without_prejudice:
+        any_of:
+          - 'without prejudice to any liability incurred'
+      section_carve_out:
+        description: MSIG excludes Work Injury Compensation; WICA cover is compulsory.
+        any_of:
+          - 'except Section \d+.{0,40}Work Injury'
+          - 'apply to whole policy except'
+
+  # ───────────────────────────────────────────────────────────────────────────
+  COND.UNOCCUPANCY:
+    label: Unoccupancy or vacancy trigger
+    taxonomy_code: COND.UNOCCUPANCY
+    known_names:
+      - Vacant
+      - Unoccupied
+      - Unoccupancy
+      - Untenanted
+    note: >
+      The day count is NOT a market constant. Chubb 14, MSIG 30, Liberty 30 in most
+      sections and 7 in another. Every alignment carries its own count; nothing here
+      may be lifted to a carrier-level default.
+    mandatory_slots:
+      unoccupancy_state:
+        any_of:
+          - '\bvacant\b'
+          - 'un-?occupied'
+          - 'untenanted'
+          - 'without an inhabitant'
+      duration:
+        description: A stated period. A trigger with no period is not this mechanism.
+        any_of:
+          - '\b(?:\d{1,3}|seven|fourteen|thirty|sixty)\s*(?:consecutive\s*)?days?'
+    optional_slots:
+      days:
+        scope: clause          # Liberty states 30 and 7 in different sections
+        capture: '\b(\d{1,3})\s*(?:consecutive\s*)?days?'
+      days_word:
+        scope: clause
+        map:
+          '7': 'seven\s*(?:consecutive\s*)?days'
+          '14': 'fourteen\s*(?:consecutive\s*)?days'
+          '30': 'thirty\s*(?:consecutive\s*)?days'
+          '60': 'sixty\s*(?:consecutive\s*)?days'
+      instrument:
+        description: >
+          An exclusion narrows one peril. An alteration or avoidance provision can
+          reach the whole policy. The distinction changes the consequence.
+        map:
+          ALTERATION_AVOIDANCE: 'alter|avoid|cease to attach|no liability under this'
+          PERIL_EXCLUSION: 'exclud|shall not (?:be liable|cover)|not insured'
+
+  # ───────────────────────────────────────────────────────────────────────────
+  COND.DECLARATION_CLAUSE_GENERAL:
+    label: General clause making compliance a condition precedent to liability
+    taxonomy_code: COND.DECLARATION_CLAUSE_GENERAL
+    known_names:
+      - Conditions Precedent
+      - Observance of Conditions
+      - Basis of Contract
+      - General Declaration
+    note: >
+      Present in MSIG (sweeping), absent in Chubb, arbitration-only in Liberty. This
+      mechanism is located and quoted and NEVER adjudicated: Grace Electrical v EQ
+      Insurance [2016] SGHC 233 at [17]-[25] holds the label is not decisive and each
+      clause must be construed individually.
+    mandatory_slots:
+      condition_precedent_language:
+        any_of:
+          - 'conditions? precedent to any liability'
+          - 'conditions? precedent to (?:the )?liability'
+          - 'shall be conditions? precedent'
+      scope_is_general:
+        description: >
+          It must attach to the terms generally, not to a single discrete obligation.
+          An arbitration-award precondition is not this mechanism.
+        any_of:
+          - 'due observance'
+          - 'terms and conditions of (?:the|this) polic'
+          - 'anything to be done or complied with'
+          - 'truth of the statements'
+    negative_slots:
+      arbitration_only:
+        description: >
+          Liberty and MSIG both make an arbitration award a condition precedent to
+          suing. That is a procedural precondition, not a general compliance
+          declaration, and must not verify as one.
+        any_of:
+          - 'making of an? (?:award|Award)'
+          - 'arbitration award shall be first obtained'
+    engine_behaviour: LOCATE_QUOTE_ESCALATE
+    never: ADJUDICATE

@@ -1,0 +1,482 @@
+# VERIS document corpus — manifest
+#
+# WHAT THIS IS. Every third-party document the engine reads but MUST NOT redistribute:
+# insurer policy wordings, schedules, brochures, statute text and one judgment. The
+# files themselves live OUTSIDE this repository, in the corpus directory
+# (`VERIS_CORPUS_DIR`, default `../veris-corpus`), which is gitignored. This manifest
+# is the committed part: it records what each document is, who published it, where it
+# came from, and the exact bytes we read — so any figure the product quotes can be
+# re-fetched and re-checked at source by someone who has only the repository.
+#
+# WHY NOT COMMIT THE DOCUMENTS. They are other people's copyrighted material. We have
+# a reader's right to them, not a publisher's. `redistribute: false` is on every entry
+# and `scripts/scan_repo.py` fails the build if one of them is ever committed.
+#
+# HOW IT IS POPULATED. `scripts/fetch_corpus.py --seed-from <dir>` copies from a local
+# directory (the primary path, and the one CI and a new machine use), verifies the
+# sha256 below, and extracts page-marked text. With no `--seed-from` it downloads from
+# `source_url` instead. Either way a hash that does not match is reported, never
+# silently accepted.
+#
+# FIELDS
+#   id                  stable key. Code resolves documents by this, never by path.
+#   title/publisher     what it is and who wrote it. `publisher` is also the basis of
+#                       the document's author class, which is what evidence class
+#                       derives from — so it is never guessed.
+#   source_url          the URL the file was retrieved from.
+#   source_url_status   RECORDED when the team captured the URL at retrieval time;
+#                       UNRECORDED when it did not. An UNRECORDED entry can still be
+#                       seeded from a local copy but CANNOT be downloaded, and it is
+#                       logged in the team's action log for re-sourcing.
+#                       We do not invent a URL to fill the field.
+#   country             jurisdiction the document belongs to. Load-bearing: a Malaysian
+#                       wording must never be cited for a Singapore question.
+#   line_of_business    SME_PACKAGE | HOME | MARINE | NOT_APPLICABLE
+#   document_class      POLICY_WORDING | BENEFITS_SCHEDULE | PROPOSAL_FORM | FACTSHEET
+#                       | BROCHURE | WEBPAGE | STATUTE | JUDGMENT | PRACTICE_GUIDE
+#                       Load-bearing in the same way: a brochure is not authority for
+#                       what a policy says, and the class is what stops it being used
+#                       as one.
+#   media_type          application/pdf (original is a PDF, text is extracted) or
+#                       text/plain (the retrieval itself was text).
+#   seed_path           path relative to the seed directory (default `../06-evidence`).
+#   sha256/bytes        of the file at `seed_path`. Verified on every fetch.
+#   pages               counted `=== PAGE n ===` markers, not an estimate. 0 means the
+#                       retrieval was HTML and has no pagination.
+#   redistribute        always false. There is no entry for which this is true.
+#   usage_note          what the document is used for, and what it is not authority for.
+#   text                optional. A text extraction the team has already verified, used
+#                       in preference to re-extracting. Only set where one exists.
+
+version: 1
+
+documents:
+
+  # ── Singapore SME package wordings ────────────────────────────────────────
+  # The three full Singapore wordings the engine was built and measured against.
+
+  - id: sg-chubb-selectplus-wording
+    title: "Select+ Insurance Policy wording (Singapore, 07/2020)"
+    publisher: "Chubb Insurance Singapore Limited"
+    source_url: "https://www.dbs.com.sg/sme/pdf/oaos-selectpluslite-policywording.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/chubb-selectplus-wording.pdf"
+    sha256: "b181e695905c3c0652f369356e65ba3e05b19f2a081de4f29b8f674836b64c43"
+    bytes: 306349
+    pages: 28
+    redistribute: false
+    usage_note: >
+      The base wording of the worked SME example. Read in full and page-cited. Eight of
+      that example's findings quote it, so it is attached server-side from the corpus
+      rather than served to a browser.
+    text:
+      seed_path: "extracted-text/chubb-selectplus-fulltext.txt"
+      sha256: "3dcd69da5ac6de9bea30dee9d346f43781094270400167a8c1a1f3a68495945a"
+      pages: 28
+
+  - id: sg-chubb-selectplus-lite-wording
+    title: "Select+ (Lite) Insurance Policy wording, as distributed by DBS"
+    publisher: "Chubb Insurance Singapore Limited"
+    source_url: "https://www.dbs.com.sg/sme/pdf/oaos-selectpluslite-policywording.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-chubb-selectplus-lite-wording-DUPLICATE.txt"
+    sha256: "e0d2cc66bf73058531fb56c1aa69f6a314cca788a978ad45e3fc9311d5ce2514"
+    bytes: 72309
+    pages: 28
+    redistribute: false
+    usage_note: >
+      The same document as sg-chubb-selectplus-wording, retrieved as text from a second
+      host. Kept separate because independent corroboration of a wording from a
+      different publisher's site is worth having. Used in the clause comparison.
+
+  - id: sg-msig-sumo-wording
+    title: "SUMO Insurance Policy, form SMO022401 (2024-01)"
+    publisher: "MSIG Insurance (Singapore) Pte. Ltd."
+    source_url: "https://www.msig.com.sg/sites/msig_sg/files/2024-01/SMO022401_SUMO_Insurance_Policy.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-msig-sumo-sme-policy-wording.txt"
+    sha256: "96c801763a5c5963b3452a17704b883036dd297ea81958222fcc3ca0f4148906"
+    bytes: 127329
+    pages: 41
+    redistribute: false
+    usage_note: >
+      Read by the team on four targeted topics only, and the clause comparison says so.
+      Not authority for any topic outside those four.
+
+  - id: sg-liberty-smecare-wording
+    title: "SMECare policy wording (May 2025)"
+    publisher: "Liberty Insurance Pte Ltd (Singapore)"
+    source_url: "https://www.libertyinsurance.com.sg/sites/libertysg/files/documents/SMECare/pw_SMECare.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-liberty-smecare-policy-wording.txt"
+    sha256: "94a99f358abf66faa200188769e5ee4657bdce5891431b59e61a04e0bf8581c4"
+    bytes: 141737
+    pages: 49
+    redistribute: false
+    usage_note: >
+      Read by the team on four targeted topics only. The most recent full Singapore SME
+      wording held.
+
+  # ── Singapore home ────────────────────────────────────────────────────────
+
+  - id: sg-aig-homes-advantage-wording
+    title: "Homes Advantage policy wording (Singapore)"
+    publisher: "AIG Asia Pacific Insurance Pte. Ltd."
+    source_url: null
+    source_url_status: UNRECORDED
+    country: SG
+    line_of_business: HOME
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/aig-sg-homes-advantage-wording.pdf"
+    sha256: "d82adbeaa7d8e9dcc0b814941bf6a84a447f16761f3c1fe7eff3acafc5b6d143"
+    bytes: 779699
+    pages: 13
+    redistribute: false
+    usage_note: >
+      Held for the home line of business. The retrieval URL was not captured at the
+      time, so this entry cannot be downloaded and is logged for re-sourcing. Until it
+      is re-sourced it is a reference wording only.
+
+  # ── Singapore schedules, forms, factsheets and brochures ──────────────────
+  # Real primary documents, but NOT contract wordings. Structural templates and
+  # corroboration of limits. Never authority for what a policy says.
+
+  - id: sg-chubb-select-factsheet
+    title: "Select factsheet"
+    publisher: "Chubb Insurance Singapore Limited"
+    source_url: null
+    source_url_status: UNRECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: FACTSHEET
+    media_type: application/pdf
+    seed_path: "policy-wordings/chubb-select-factsheet.pdf"
+    sha256: "935fa79a2930688e1fe841a541eda8fb33b560e6ee5eb1c41427c02336657bbb"
+    bytes: 96333
+    pages: 2
+    redistribute: false
+    usage_note: >
+      Product factsheet. Corroborates the existence and headline limits of the product;
+      not the contract. Retrieval URL not captured, logged for re-sourcing.
+
+  - id: sg-chubb-select-factsheet-fb
+    title: "Select factsheet, food and beverage"
+    publisher: "Chubb Insurance Singapore Limited"
+    source_url: "https://www.chubb.com/content/dam/chubb-sites/chubb-com/sg-en/customer-service-pdfs/select-factsheet-fb.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: FACTSHEET
+    media_type: application/pdf
+    seed_path: "policy-wordings/chubb-select-factsheet-fb.pdf"
+    sha256: "36c9cb8ecff8eb63ac9715b508f67277f73c316dc171018208d4f7ae20b6c3fa"
+    bytes: 113063
+    pages: 2
+    redistribute: false
+    usage_note: >
+      The food-and-beverage variant of the factsheet, matching the occupation of the
+      worked example. Not the contract.
+
+  - id: sg-chubb-select-factsheet-fb-text
+    title: "Select factsheet, food and beverage (text retrieval)"
+    publisher: "Chubb Insurance Singapore Limited"
+    source_url: "https://www.chubb.com/content/dam/chubb-sites/chubb-com/sg-en/customer-service-pdfs/select-factsheet-fb.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: FACTSHEET
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-chubb-select-factsheet-fb-DUPLICATE.txt"
+    sha256: "f15aa7aab4ce5731433c53075c24ec4fdb76c2c7bba74a6652152101dceb0ed7"
+    bytes: 5036
+    pages: 2
+    redistribute: false
+    usage_note: >
+      Text of the same factsheet as sg-chubb-select-factsheet-fb. Kept because the text
+      retrieval is what the corpus scan reads.
+
+  - id: sg-aig-sme-restaurant-proposal-form
+    title: "SME restaurant and food stall package proposal form"
+    publisher: "AIG Asia Pacific Insurance Pte. Ltd."
+    source_url: "https://www.aig.sg/content/dam/aig/apac/singapore/documents/forms/aig-singapore-sme-restaurant-and-food-stall-package.pdf.coredownload.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: PROPOSAL_FORM
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-aig-sme-restaurant-food-stall-PROPOSAL-FORM.txt"
+    sha256: "263b333f5897c91926a04781b6c76e7f38b56ca838d1442aed36aa20f50a1ee8"
+    bytes: 15031
+    pages: 8
+    redistribute: false
+    usage_note: >
+      A proposal form, which is the document class the engine reads DECLARED values
+      from. Used as a structural template for that class. Not a wording.
+
+  - id: sg-greateastern-bizprotect-restaurant-benefits
+    title: "BizProtect restaurant benefits schedule, Standard and Deluxe"
+    publisher: "The Great Eastern General Insurance Limited"
+    source_url: "https://www.ocbc.com/iwov-resources/sg/ocbc/business/pdf/business-insurance/bizprotect_plus_obs_%20restaurant.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: BENEFITS_SCHEDULE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-greateastern-bizprotect-restaurant-BENEFITS-SCHEDULE.txt"
+    sha256: "6c49bec5a4f7b9950057a31adb9147e36f2921b9cccdfa5f580ba8dd02b8fe8d"
+    bytes: 13460
+    pages: 5
+    redistribute: false
+    usage_note: >
+      A benefits and limits schedule. The underwriter is Great Eastern; the document is
+      hosted by the distributing bank, and attributing it to the distributor would be
+      wrong. Corroborates limits, not wording.
+
+  - id: sg-great-eastern-bizsupreme-education-brochure
+    title: "BizSupreme education brochure"
+    publisher: "The Great Eastern General Insurance Limited"
+    source_url: "https://www.greateasternlife.com/content/dam/corp-site/great-eastern/sg/homepage/corporate-solutions/general-insurance/bizsupreme/geg-bizsupreme-education.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: BROCHURE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-great-eastern-bizsupreme-education-BROCHURE-not-wording.txt"
+    sha256: "fb1f2a8a5de1c9710c9ab0e693d0d5e4437b3b0913ae359d6d54cb5acfae9bf6"
+    bytes: 11708
+    pages: 3
+    redistribute: false
+    usage_note: "Marketing brochure. Product-existence evidence only."
+
+  - id: sg-qbe-business-insurance-brochure
+    title: "Business insurance brochure (08/07/24)"
+    publisher: "QBE Insurance (Singapore) Pte Ltd"
+    source_url: "https://www.qbe.com/media/qbe/asia/singapore/files/sme-insurance/qbe_bis-brochure_080724.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: BROCHURE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-qbe-business-insurance-BROCHURE-not-wording.txt"
+    sha256: "f52a53507a60a24741ed68be0da2bec0d6374e86364a7aa925af6437c10bb363"
+    bytes: 6998
+    pages: 3
+    redistribute: false
+    usage_note: "Marketing brochure. Product-existence evidence only."
+
+  # ── Singapore product web pages ───────────────────────────────────────────
+  # HTML retrievals. No pagination, so pages is 0.
+
+  - id: sg-chubb-select-webpage
+    title: "Select product page"
+    publisher: "Chubb Insurance Singapore Limited"
+    source_url: "https://www.chubb.com/sg-en/business/select.html"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: WEBPAGE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-chubb-select-WEBPAGE-not-wording.txt"
+    sha256: "8532b5a242566ebb5de206e0c49108a3283b096da07e6b6d035c2ec5e45579b9"
+    bytes: 16952
+    pages: 0
+    redistribute: false
+    usage_note: "Marketing page. Product-existence evidence only."
+
+  - id: sg-msig-sumo-webpage
+    title: "SUMO SME insurance product page"
+    publisher: "MSIG Insurance (Singapore) Pte. Ltd."
+    source_url: "https://www.msig.com.sg/commercial/sumo-sme-insurance"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: WEBPAGE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-msig-sumo-WEBPAGE-not-wording.txt"
+    sha256: "c35062fe16ac3723c9ff0ac251e8f4872035053ee01fe52b1b9db519292fa58e"
+    bytes: 16995
+    pages: 0
+    redistribute: false
+    usage_note: "Marketing page. Product-existence evidence only."
+
+  - id: sg-allied-world-sme-webpage
+    title: "Singapore SME package solutions product page"
+    publisher: "Allied World Assurance Company, Ltd (Singapore Branch)"
+    source_url: "https://alliedworldinsurance.com/products/small-business-sme-singapore/singapore-sme-package-solutions/"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: SME_PACKAGE
+    document_class: WEBPAGE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-allied-world-sme-WEBPAGE-not-wording.txt"
+    sha256: "d966e5863569052226bd94fb420b4e632e46ef160387c99a8c52403abe8e781b"
+    bytes: 10942
+    pages: 0
+    redistribute: false
+    usage_note: "Marketing page. Product-existence evidence only."
+
+  # ── Singapore statute and practice material ───────────────────────────────
+
+  - id: sg-marine-insurance-act-1906-pdf
+    title: "Marine Insurance Act 1906, revised edition as at 31 December 2021 (PDF)"
+    publisher: "Attorney-General's Chambers, Singapore Statutes Online"
+    source_url: "https://sso.agc.gov.sg/Act-Rev/MIA1906/Published/20211231?DocDate=20211231&ViewType=Pdf&_=20260225183101"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: MARINE
+    document_class: STATUTE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-statute-marine-insurance-act-1906-pdf.txt"
+    sha256: "0d11372cbd5098c3fc2b650c34728d382022e872d93b5c6d920896d93b7e54c1"
+    bytes: 72391
+    pages: 43
+    redistribute: false
+    usage_note: >
+      Primary legislation, retrieved from the legislature's own publisher. The paginated
+      retrieval, so a section can be cited to a page.
+
+  - id: sg-marine-insurance-act-1906-html
+    title: "Marine Insurance Act 1906 (HTML)"
+    publisher: "Attorney-General's Chambers, Singapore Statutes Online"
+    source_url: "https://sso.agc.gov.sg/Act/MIA1906"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: MARINE
+    document_class: STATUTE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-statute-marine-insurance-act-1906-html.txt"
+    sha256: "e1fcccc2e931c579d2c5b6c6a66c0dee4e50f68280f2d3bb1dca4c268ad22c9e"
+    bytes: 17757
+    pages: 0
+    redistribute: false
+    usage_note: >
+      The same Act as sg-marine-insurance-act-1906-pdf, retrieved as HTML. No
+      pagination, so it corroborates text but cannot carry a page citation.
+
+  - id: sg-case-grace-electrical-2016
+    title: "Grace Electrical Engineering Pte Ltd v EQ Insurance Co Ltd [2016] SGHC 233"
+    publisher: "Supreme Court of Singapore"
+    source_url: null
+    source_url_status: UNRECORDED
+    country: SG
+    line_of_business: NOT_APPLICABLE
+    document_class: JUDGMENT
+    media_type: application/pdf
+    seed_path: "case-law/sghc-grace-electrical-2016.pdf"
+    sha256: "cca3d40f90f592cfda9eb3614cab3ebac46f43cfd107ddb72f05673036c1e771"
+    bytes: 151973
+    pages: 18
+    redistribute: false
+    usage_note: >
+      The authority behind the locate-quote-escalate rule on conditions precedent: the
+      engine quotes the condition and escalates rather than deciding whether it was
+      met. Retrieval URL not captured, logged for re-sourcing.
+    text:
+      seed_path: "case-law/grace-electrical-fulltext.txt"
+      sha256: "9586eaf7587b4549b6905a2208740e7cbec21d9fd015cce0edb101e2b21decb4"
+      pages: 18
+
+  - id: sg-chambers-practice-guide-transport-distribution
+    title: "Practice guide: transport and distribution, Singapore"
+    publisher: "Chambers and Partners"
+    source_url: "https://chambers.com/downloads/gpg/813/016_singapore-t&d.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: NOT_APPLICABLE
+    document_class: PRACTICE_GUIDE
+    media_type: text/plain
+    seed_path: "wording-corpus/sg-chambers-practice-guide-transport-distribution.txt"
+    sha256: "8ad418ede8c39366c1beebb6c9658de83c04d2d18bcbf54cc269c767cbb2a203"
+    bytes: 31841
+    pages: 11
+    redistribute: false
+    usage_note: >
+      Secondary commentary. Background only. Never cited as authority for a statutory
+      position; the statute itself is in the corpus for that.
+
+  # ── Malaysia. NOT Singapore. ──────────────────────────────────────────────
+  # Retained to test whether structural alignment generalises to wordings nobody on the
+  # team has hand-mapped. Malaysian general insurance sits under a different statute and
+  # different conduct rules, so `country: MY` travels with every row these produce and
+  # they are excluded from any Singapore ordering.
+
+  - id: my-aig-sme-fire-and-perils-wording
+    title: "SME fire and perils policy wording (Malaysia)"
+    publisher: "AIG Malaysia Insurance Berhad"
+    source_url: "https://orgn-aigmy.dmp.aig.com/content/dam/aig/apac/malaysia/documents/Business/sme-package/sme-fire-and-perils-policywording.pdf.coredownload.pdf"
+    source_url_status: RECORDED
+    country: MY
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/MY-aig-sme-fire-and-perils-wording.txt"
+    sha256: "fee9004f5e4fe33a5cd657f0e83977508e14fe83b6be870b921af6434b923f28"
+    bytes: 372757
+    pages: 72
+    redistribute: false
+    usage_note: "Never hand-mapped. Generalisation test only. Not a Singapore position."
+
+  - id: my-aig-all-risks-and-bi-wording
+    title: "All risks and business interruption policy wording (Malaysia)"
+    publisher: "AIG Malaysia Insurance Berhad"
+    source_url: "https://www.aig.my/content/dam/aig/apac/malaysia/documents/Business/Property/all-risks-and-business-interruption-policywording.pdf"
+    source_url_status: RECORDED
+    country: MY
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/MY-aig-all-risks-and-bi-wording.txt"
+    sha256: "64e87d9c517c5c1376ea37c0cf645f141a9049dc6d38f838bba6aa480f6aeee3"
+    bytes: 204041
+    pages: 32
+    redistribute: false
+    usage_note: "Never hand-mapped. Generalisation test only. Not a Singapore position."
+
+  - id: my-qbe-retail-package-wording
+    title: "Retail package policy wording, BPKQRI000-Q-1006 (Malaysia)"
+    publisher: "QBE Insurance (Malaysia) Berhad"
+    source_url: "https://qbe.com/media/qbe/asia/malaysia/files/business-insurance-v2/policy-wordings/sme-insurance/retail-package-policy-wording-bpkqri000-q-1006.pdf"
+    source_url_status: RECORDED
+    country: MY
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/MY-qbe-retail-package-wording.txt"
+    sha256: "5f1cfca59be5be323ef9cd9448932b02f8d2125a53237e9c5a58a37bdbc55e21"
+    bytes: 149857
+    pages: 35
+    redistribute: false
+    usage_note: "Never hand-mapped. Generalisation test only. Not a Singapore position."
+
+  - id: my-qbe-industrial-all-risk-wording
+    title: "Industrial all risk policy wording (Malaysia)"
+    publisher: "QBE Insurance (Malaysia) Berhad"
+    source_url: "https://www.qbe.com/media/qbe/asia/malaysia/files/business-insurance-v2/policy-wordings/commercial-property/industrial-all-risk-policy-wording.pdf"
+    source_url_status: RECORDED
+    country: MY
+    line_of_business: SME_PACKAGE
+    document_class: POLICY_WORDING
+    media_type: text/plain
+    seed_path: "wording-corpus/MY-qbe-industrial-all-risk-wording.txt"
+    sha256: "a620d2ce5c8cddf1d5b57b81259b01467db70aef0604095dc7b96b83b75f3105"
+    bytes: 125711
+    pages: 34
+    redistribute: false
+    usage_note: "Never hand-mapped. Generalisation test only. Not a Singapore position."

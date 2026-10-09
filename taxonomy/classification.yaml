@@ -1,0 +1,205 @@
+# PROVEN — Layer 2 step 2: heading-keyword classification.
+#
+# DATA, not code, so a domain reviewer can audit the classifier without reading
+# Python. Loaded by src/proven/classify.py.
+#
+# WHY THIS FILE EXISTS. Step 1 is the exact (carrier, clause_ref) map in
+# account.py: hand-verified against a wording somebody actually read, and the only
+# path that may feed a demo finding. It classified 9 of Chubb's 92 detected
+# provisions, which left 83 in UNACCOUNTED and meant the engine could say nothing
+# about 90% of a document it had already parsed.
+#
+# This file is step 2. It classifies by what the provision calls itself. That is
+# weaker evidence than a verified reference and it is labelled as such everywhere
+# it surfaces: every provision records `classifier = HEADING_KEYWORD`, the
+# accounting header reports the two counts separately, and
+# `verified_classified_count` — the number a coverage claim may be based on —
+# counts ONLY step 1.
+#
+# THREE RULES THAT KEEP IT HONEST.
+#
+#   1. A keyword match may NOT feed a finding. Rules read the exact map. Step 2
+#      classification exists to shrink the unaccounted bucket truthfully, not to
+#      manufacture findings from a guess. Enforced in rules.py, tested in
+#      test_classification.py.
+#   2. Ambiguity is not resolved. If two codes match one provision, it stays
+#      UNACCOUNTED and records both candidates. Picking the first would be exactly
+#      the guess the abstention gate exists to prevent.
+#   3. Step 3 (constrained model classification) is NOT IMPLEMENTED and is not
+#      claimed anywhere. There is no model in this codebase.
+#
+# Match semantics (classify.py):
+#   heading_any_of   at least one phrase appears in the provision's heading
+#   body_any_of      at least one phrase appears in the quoted body
+#   body_regex       the quoted body matches this pattern
+#   exclude_any_of   none of these appear anywhere (negative guard)
+# Conditions that are present must ALL hold; within a condition it is any-of.
+
+meta:
+  step: 2
+  method: HEADING_KEYWORD
+  feeds_findings: false
+  counts_toward_verified_coverage: false
+  note: >
+    Phrases are drawn from headings observed in the three Singapore SME wordings held
+    in the document corpus (Chubb Select+, MSIG SUMO, Liberty SMECare) plus the general-
+    condition vocabulary those wordings share. Precision is preferred to recall
+    throughout: a provision left in UNACCOUNTED is quoted on screen and costs the
+    reader a read, whereas a provision mislabelled is a wrong answer.
+
+codes:
+  # ── definitions ───────────────────────────────────────────────────────────
+  # A defined term IS a provision type, and "2.35 Vacant means..." is classified
+  # correctly rather than generously. The regex requires the definitional form.
+  - code: DEFN.DEFINED_TERM
+    body_regex: '^\s*\S{1,12}\s+[A-Z][A-Za-z'' \-/()]{1,48}\s+(?:means|shall mean)\b'
+    label: Defined term
+
+  # ── adequacy / average ────────────────────────────────────────────────────
+  - code: ADEQ.AVERAGE_CONDITION
+    heading_any_of: [average, underinsurance, "under insurance", "under-insurance"]
+    exclude_any_of: ["average relief"]
+    label: Condition of average
+  - code: ADEQ.AVERAGE_FORMULA
+    heading_any_of: ["basis of settlement", "basis of insurance", "basis of loss settlement"]
+    label: Average arithmetic stated in the wording
+  - code: ADEQ.REINSTATEMENT_BASIS
+    heading_any_of: [reinstatement, "replacement basis"]
+    label: Reinstatement basis
+  - code: ADEQ.INDEMNITY_BASIS
+    heading_any_of: ["basis of indemnity", "indemnity basis"]
+    label: Indemnity basis
+
+  # ── limits ────────────────────────────────────────────────────────────────
+  - code: LIMIT.DEDUCTIBLE
+    heading_any_of: [deductible, deductibles, excess]
+    label: Deductible or excess
+  - code: LIMIT.AGGREGATE
+    heading_any_of: ["limits of liability", "limit of liability", "aggregate limit"]
+    label: Limit of liability
+  - code: LIMIT.SUB_LIMIT
+    heading_any_of: ["sub-limit", "sublimit", "sub limit"]
+    label: Sub-limit
+  - code: LIMIT.INDEMNITY_PERIOD
+    heading_any_of: ["indemnity period", "maximum indemnity period"]
+    label: Indemnity period
+
+  # ── conditions ────────────────────────────────────────────────────────────
+  - code: COND.PREMIUM_PAYMENT_WARRANTY
+    heading_any_of: ["premium payment warranty", "premium warranty", "payment of premium",
+                     "premium payment"]
+    label: Premium payment warranty
+  - code: COND.ALTERATION_NOTICE
+    heading_any_of: [alteration, alterations, "change in circumstances",
+                     "material change", "changes to the risk"]
+    label: Notice of alteration
+  - code: COND.CLAIM_TIME_LIMIT
+    heading_any_of: ["time limit", "limitation of time", "time bar"]
+    label: Claim time limit
+  - code: COND.MINIMUM_SECURITY
+    heading_any_of: ["minimum security", "security condition", "protection of property"]
+    label: Minimum security
+  - code: COND.DISCLOSURE
+    heading_any_of: [disclosure, "duty of disclosure", misrepresentation,
+                     "material facts"]
+    label: Pre-contractual disclosure
+  - code: COND.CLAIMS_PROCEDURE
+    heading_any_of: ["claims procedure", "claim procedure", "claims notification",
+                     "notification of claim", "claims conditions", "action by the insured"]
+    label: Claims procedure
+  - code: COND.STATUTORY_COMPLIANCE_GENERAL
+    heading_any_of: ["safety and maintenance", "statutory requirements",
+                     "statutory provisions", "reasonable precautions", precautions]
+    label: Statutory compliance and precautions
+  - code: COND.UNOCCUPANCY
+    heading_any_of: [unoccupancy, unoccupied, vacancy, "vacant possession"]
+    label: Unoccupancy trigger
+  - code: COND.DECLARATION_CLAUSE_GENERAL
+    heading_any_of: ["condition precedent", "conditions precedent",
+                     "observance of conditions"]
+    label: General declaration clause
+  - code: COND.DEDUCTIBLE_NON_INSURANCE_WARRANTY
+    heading_any_of: ["non-insurance of deductible", "warranty as to deductible"]
+    label: Deductible non-insurance warranty
+  - code: COND.CANCELLATION
+    heading_any_of: [cancellation, "cancellation of policy", termination]
+    label: Cancellation
+  - code: COND.ARBITRATION
+    heading_any_of: [arbitration, "dispute resolution", "governing law",
+                     jurisdiction]
+    label: Arbitration and jurisdiction
+  - code: COND.FRAUDULENT_CLAIM
+    heading_any_of: ["fraudulent claim", "fraudulent claims", "fraud"]
+    label: Fraudulent claim condition
+  - code: COND.SUBROGATION
+    heading_any_of: [subrogation, "rights of recovery"]
+    label: Subrogation
+  - code: COND.CONTRIBUTION
+    heading_any_of: [contribution, "other insurance", "dual insurance"]
+    label: Contribution and other insurance
+  - code: COND.REASONABLE_CARE
+    heading_any_of: ["reasonable care", "duty of care", "care of property"]
+    label: Reasonable care
+
+  # ── exclusions ────────────────────────────────────────────────────────────
+  - code: EXCL.THEFT_FORCIBLE_ENTRY
+    heading_any_of: [theft, burglary, larceny]
+    body_any_of: ["forcible", "violent", "forcible entry"]
+    label: Theft conditional on forcible entry
+  - code: EXCL.WEAR_AND_TEAR
+    heading_any_of: ["wear and tear", "gradual deterioration", "inherent vice"]
+    label: Wear and tear
+  - code: EXCL.MECHANICAL_BREAKDOWN
+    heading_any_of: ["mechanical breakdown", "electrical breakdown", derangement]
+    label: Mechanical or electrical breakdown
+  - code: EXCL.FRAUD_DISHONESTY
+    heading_any_of: [dishonesty, "infidelity of employees", "employee dishonesty"]
+    label: Fraud and dishonesty exclusion
+  - code: EXCL.INVENTORY_SHORTAGE
+    heading_any_of: ["inventory shortage", "unexplained disappearance", shortage]
+    label: Inventory shortage
+  - code: EXCL.COMMUNICABLE_DISEASE
+    heading_any_of: ["communicable disease", "infectious disease", pandemic]
+    label: Communicable disease exclusion
+  - code: EXCL.EMPLOYMENT_LIABILITY
+    heading_any_of: ["employment liability", "employer's liability",
+                     "employers liability"]
+    label: Employment liability exclusion
+  - code: EXCL.WAR_TERRORISM
+    heading_any_of: [war, terrorism, "war and terrorism", "civil commotion"]
+    label: War and terrorism exclusion
+  - code: EXCL.CYBER
+    heading_any_of: [cyber, "cyber risk", "electronic data", "data exclusion"]
+    label: Cyber and electronic data exclusion
+  - code: EXCL.NUCLEAR_RADIOACTIVE
+    heading_any_of: [radioactive, nuclear, "ionising radiation"]
+    label: Nuclear and radioactive exclusion
+  - code: EXCL.POLLUTION
+    heading_any_of: [pollution, contamination, "seepage"]
+    label: Pollution and contamination exclusion
+  - code: EXCL.CONSEQUENTIAL_LOSS
+    heading_any_of: ["consequential loss", "indirect loss", "loss of use"]
+    label: Consequential loss exclusion
+  - code: EXCL.SANCTIONS
+    heading_any_of: [sanction, sanctions, "sanctions limitation"]
+    label: Sanctions limitation
+
+  # ── extensions ────────────────────────────────────────────────────────────
+  - code: EXT.SPRINKLER_LEAKAGE
+    heading_any_of: ["sprinkler leakage", "sprinkler"]
+    label: Sprinkler leakage extension
+  - code: EXT.THEFT_DAMAGE_BUILDINGS
+    heading_any_of: ["theft damage to building", "damage to buildings"]
+    label: Theft damage to buildings
+  - code: EXT.FOOD_POISONING
+    heading_any_of: ["food poisoning", "food and drink"]
+    label: Food poisoning extension
+  - code: EXT.PROFESSIONAL_FEES
+    heading_any_of: ["professional fees", "architects", "surveyors fees"]
+    label: Professional fees extension
+  - code: EXT.REMOVAL_OF_DEBRIS
+    heading_any_of: ["removal of debris", "debris removal", "clearance of debris"]
+    label: Removal of debris extension
+  - code: EXT.TEMPORARY_REMOVAL
+    heading_any_of: ["temporary removal", "property temporarily removed"]
+    label: Temporary removal extension

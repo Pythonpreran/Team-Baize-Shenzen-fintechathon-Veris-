@@ -1,0 +1,56 @@
+# VERIS — runtime and dev dependencies, PINNED.
+#
+# Pinned rather than ranged on purpose. An open range means the build that passes
+# today can fail on demo day because a transitive dependency shipped overnight, and
+# no amount of convenience is worth that. `pyproject.toml` carries the same pins as
+# the authoritative source; this file exists for `pip install -r`.
+#
+# Every component's role in the system and its licence: OPEN-SOURCE.md.
+# Generated licence texts for everything installed: THIRD_PARTY_NOTICES.md.
+
+# ── runtime ────────────────────────────────────────────────────────────────
+fastapi==0.136.3
+uvicorn==0.34.0
+pydantic==2.12.4
+PyYAML==6.0.3
+pypdf==6.10.2
+python-multipart==0.0.22
+
+# PDF page rendering for the evidence viewer and for OCR of pages drawn as vectors.
+# PDFium (BSD-3-Clause / Apache-2.0) through its pypdfium2 binding (Apache-2.0 /
+# BSD-3-Clause): permissive, unlike the copyleft renderer it replaced. PDFium is not
+# thread-safe, so every call goes through one lock in `src/proven/pdfrender.py`, and no
+# other module imports it. Optional at runtime: without it the viewer shows the
+# quotation and says the picture of the page is unavailable.
+pypdfium2==5.14.0
+
+# ── the AI layer (OPTIONAL) ────────────────────────────────────────────────
+# Both are optional at runtime and the product is tested without them. `config.py`
+# returns None from `openai_client()` when the package or the key is absent, and
+# `Retriever.ensure_embeddings()` falls back to BM25 when numpy is missing — so a
+# judge who clones this repo without a key still gets every finding, every figure and
+# real page-anchored evidence. Nothing consequential is downstream of either package.
+openai==2.29.0
+numpy==2.4.6
+
+# ── the OCR layer (OPTIONAL) ───────────────────────────────────────────────
+# Also optional, and `ocr.status()` reports availability by DETECTION rather than by
+# assertion — so with these absent the product runs identically and reports scanned pages
+# as unreadable instead of guessing at them.
+#
+# `pytesseract` is only a wrapper: it shells out to a `tesseract` binary that pip cannot
+# supply. Install that separately, and note it needs to be on PATH:
+#     winget install --id UB-Mannheim.TesseractOCR
+#     then add C:\Program Files\Tesseract-OCR to PATH
+#
+# A page drawn as vectors (most machine-made "scanned-looking" paperwork) has no embedded
+# raster to read; it is rendered to pixels through pypdfium2 above before OCR runs.
+pytesseract==0.3.13
+Pillow==12.3.0
+
+# ── development and tests ──────────────────────────────────────────────────
+pytest==9.1.1
+hypothesis==6.155.6
+httpx==0.28.1
+# Generates THIRD_PARTY_NOTICES.md (licence texts of everything installed). Dev only.
+pip-licenses==5.5.5

@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# The internal package keeps its working name, `proven`; the product is VERIS. Renaming
+# the package would touch every import for no behavioural gain.
+name = "proven"
+version = "2.0.0"
+description = "VERIS: an evidence-bound insurance agent for households and small businesses."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+
+# PINNED, not ranged. An unpinned range means the build that works today can break on
+# demo day because a transitive dependency shipped a release overnight, and there is
+# no version of that failure that is worth the convenience. Bump deliberately, re-run
+# the suite, commit the new pin.
+#
+# Every component's role and licence is declared in OPEN-SOURCE.md.
+dependencies = [
+  "fastapi==0.136.3",
+  "uvicorn==0.34.0",
+  "pydantic==2.12.4",
+  "PyYAML==6.0.3",
+  "pypdf==6.10.2",
+  "python-multipart==0.0.22",  # required by FastAPI for multipart upload
+  "pypdfium2==5.14.0",         # page rendering; see src/proven/pdfrender.py
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.1.1",
+  "hypothesis==6.155.6",
+  "httpx==0.28.1",             # fastapi.testclient transport
+  "pip-licenses==5.5.5",       # generates THIRD_PARTY_NOTICES.md
+]
+
+[project.urls]
+Homepage = "https://github.com/"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Non-Python assets the engine loads at runtime. Without these the taxonomy and the
+# rule files are missing from an installed package and every import fails at load.
+[tool.setuptools.package-data]
+proven = ["rules/*.yaml"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+# `tests/` is on the path so tests can import the local pdfbuild helper, and `src/`
+# is added by tests/conftest.py.
+pythonpath = ["src", "tests"]
+addopts = "-q --strict-markers"
+markers = [
+  # Needs a published third-party document from the corpus, which lives outside git
+  # because it is somebody else's copyrighted material. With no arguments the whole
+  # corpus must be present; with ids, only those. conftest.py turns an absent document
+  # into a skip that names it, so the run reports what it did NOT measure rather than
+  # passing quietly with fewer assertions.
+  "requires_corpus: needs documents from the corpus (see corpus/manifest.yaml)",
+]
+filterwarnings = [
+  "ignore::DeprecationWarning:starlette.*",
+  # starlette's TestClient warns about httpx2; it is a transport detail of the test
+  # harness and not something this project controls.
+  "ignore:Using `httpx` with `starlette.testclient`:Warning",
+]

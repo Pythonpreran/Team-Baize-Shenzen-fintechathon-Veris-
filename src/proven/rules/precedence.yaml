@@ -1,0 +1,23 @@
+# PROVEN — precedence rules. When two provisions govern the same code at the same
+# authority rank with no order between them, the engine refuses to pick. Escalation
+# is a correct answer; a guess is not.
+
+- id: SUBLIMIT-CONFLICTING-ENDORSEMENTS
+  version: 1
+  title: Two endorsements set the same sub-limit to different figures
+  requires:
+    - operand: endorsement_a
+      from: {document_kind: ENDORSEMENT, taxonomy_code: LIMIT.SUB_LIMIT}
+    - operand: endorsement_b
+      from: {document_kind: ENDORSEMENT, taxonomy_code: LIMIT.SUB_LIMIT}
+  test: two ENDORSEMENT provisions carry LIMIT.SUB_LIMIT at the same rank and conflict
+  output_state: REQUIRES_AUTHORISED_REVIEW
+  escalate: true
+  headline: >
+    Two endorsements amend the food-and-drink liability sub-limit to different
+    figures ({values}) at the same authority rank, with neither stating it
+    supersedes the other. Precedence could not be established from the documents,
+    so this is routed to a licensed adviser rather than resolved by the engine.
+  cite:
+    - {clause: "Additional Extension 2.5", document_kind: ENDORSEMENT}
+  never: [assert_breach, assert_claim_outcome]

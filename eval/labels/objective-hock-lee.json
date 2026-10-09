@@ -1,0 +1,84 @@
+{
+  "label_id": "OBJECTIVE-hock-lee-001",
+  "derivation": "INDEPENDENT_OBJECTIVE",
+  "scope": "PARTIAL",
+  "reviewer": null,
+  "reviewed_at": null,
+  "_status": "INDEPENDENT_OBJECTIVE — expectations derived from the documents by counting, comparison and date arithmetic. NOT reviewed by an insurance-qualified expert.",
+  "_method": "Each expectation below was set by reading the source documents and applying an operation with exactly one defensible answer: comparing two integers, subtracting two dates, dividing two currency amounts, or observing that a field is absent. No expectation required deciding whether a term is a warranty or a condition precedent, whether an alteration is material, or whether a breach would forfeit cover. Every finding that DOES require such a judgement is listed in out_of_scope_rules and is excluded from both precision and recall.",
+  "_what_this_number_is_not": "This is not a general accuracy rate and must not be compared with one. Stanford's 17-33% figure covers open-ended legal research, which is dominated by exactly the constructional judgements excluded here. Reporting this alongside that figure without stating the scope would be the overstatement this product exists to avoid.",
+  "_basis": {
+    "WICA-HEADCOUNT-UNDERDECLARED": "CPF contribution record lists 14 contributors; WIC schedule declares 11. 14 > 11. Integer comparison between two documents neither of which the business authored, so PROVEN. DOCUMENTED because the discrepancy is a fact about the documents, not a conclusion about liability.",
+    "WORKPASS-MEDICAL-BELOW-MINIMUM": "Work pass list shows WP-04 carrying medical insurance of 45,000 against the 60,000 annual minimum per Work Permit holder. 45000 < 60000. Authority-authored list, so PROVEN.",
+    "PREMIUM-PAYMENT-WARRANTY-TIMING": "Schedule states inception 2026-03-01 and premium received 2026-05-11. (2026-05-11 - 2026-03-01) = 71 days, and 71 > 60. Date arithmetic only. REQUIRES_AUTHORISED_REVIEW rather than DOCUMENTED because the CONSEQUENCE of the day count is a matter for a licensed person, even though the count itself is arithmetic.",
+    "AVERAGE-ADEQUACY-BELOW-THRESHOLD": "Stock sum insured 100,000 (schedule, insurer-authored); stock value 150,000 (management accounts, business-authored). 100000/150000 = 66.7% < 85%. Class must be MARKET_CONVENTION, not PROVEN, because Chubb cl 4.2 states the trigger and not the arithmetic — verifiable by searching all 28 pages for a formula and finding none.",
+    "BUILDINGS-VALUE-UNESTABLISHED": "Schedule states buildings_sum_insured_sgd as null and no reinstatement cost assessment is in the bundle. A required input with no document behind it is UNESTABLISHED by definition.",
+    "PLANT-ADEQUACY-UNESTABLISHED": "Plant sum insured 180,000 is on the schedule and one supplier invoice for 62,000 is on record, but no asset register establishes total plant value. The denominator has no document, so the ratio is UNESTABLISHED.",
+    "BUSINESS-INTERRUPTION-NOT-CONFIRMED": "Schedule lists operative sections PROPERTY and PUBLIC_AND_PRODUCTS_LIABILITY. No business interruption section is present. Set membership over a stated list. NOT_CONFIRMED, not 'not covered'.",
+    "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK": "Schedule records Additional Extension 2.17 as 'not applicable'. Reading an election off the schedule is observation, not construction. Both source documents are insurer-authored, so PROVEN.",
+    "ENDORSEMENT-ILLEGIBLE-ABSTAIN": "END-02 page 2 extraction is marked unreadable in the source document. An input that could not be read is UNESTABLISHED, and the only honest state is INFORMATION_MISSING.",
+    "SUBLIMIT-CONFLICTING-ENDORSEMENTS": "END-03 sets the food-and-drink sub-limit to 5,000 and END-04 sets it to 25,000. Same document kind (so same authority rank), same effective date, neither stating it supersedes the other. That two endorsements conflict is observation; which one governs is not, hence REQUIRES_AUTHORISED_REVIEW.",
+    "CYBER-DATA-COVER-ABSENT": "ACRA profile records secondary_ssic_description 'Retail sale via online platforms'; schedule lists operative_sections [PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY]. The first is string containment over an authority-authored field, the second is set membership over an insurer-authored list. Both operations have exactly one defensible answer. DOCUMENTED because the absence of a responsive section is a fact about the schedule, not a conclusion about liability. PROVEN because both operands are authority- or insurer-authored with nothing self-declared in the chain. Note: that the PDPA applies to an organisation holding personal data is statute, not construction, so no judgement is being scored here.",
+    "DEPENDENCY-COVER-NOT-POSSIBLE": "Supplier invoice names a supplier and the tenancy names two demised units, so at least one external dependency is evidenced by a document that names a counterparty. Schedule lists operative_sections [PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY], which contains no business interruption section. Both halves are observation over stated lists. Only state and class are scored, and both follow from that observation; the market-convention premise about how contingent business interruption is conventionally written travels in the consequence note and is explicitly labelled MARKET_CONVENTION rather than being scored as fact."
+  },
+  "bundle": "hock-lee-foods",
+  "carrier": "CHUBB",
+  "out_of_scope_rules": [
+    "ACTIVITY-SSIC-NOT-DECLARED",
+    "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
+    "CLAIM-TIME-LIMIT",
+    "MINIMUM-SECURITY",
+    "UNOCCUPANCY-WATER-EXCLUSION"
+  ],
+  "_out_of_scope_reason": "ACTIVITY-SSIC and ALTERATION both turn on whether a change is material under cl 3.1 — a question of construction, and the exact question the engine escalates rather than answers. CLAIM-TIME-LIMIT, MINIMUM-SECURITY and UNOCCUPANCY-WATER-EXCLUSION are locate-and-quote findings whose correctness depends on whether the quoted clause is the operative one for this insured's circumstances, which needs a reader. Scoring them here would be scoring our own reading.",
+  "expected_findings": {
+    "AVERAGE-ADEQUACY-BELOW-THRESHOLD": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "MARKET_CONVENTION"
+    },
+    "BUILDINGS-VALUE-UNESTABLISHED": {
+      "output_state": "INFORMATION_MISSING",
+      "evidence_class": "UNESTABLISHED"
+    },
+    "BUSINESS-INTERRUPTION-NOT-CONFIRMED": {
+      "output_state": "NOT_CONFIRMED",
+      "evidence_class": "PROVEN"
+    },
+    "CYBER-DATA-COVER-ABSENT": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "DEPENDENCY-COVER-NOT-POSSIBLE": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "ENDORSEMENT-ILLEGIBLE-ABSTAIN": {
+      "output_state": "INFORMATION_MISSING",
+      "evidence_class": "UNESTABLISHED"
+    },
+    "PLANT-ADEQUACY-UNESTABLISHED": {
+      "output_state": "INFORMATION_MISSING",
+      "evidence_class": "UNESTABLISHED"
+    },
+    "PREMIUM-PAYMENT-WARRANTY-TIMING": {
+      "output_state": "REQUIRES_AUTHORISED_REVIEW",
+      "evidence_class": "PROVEN"
+    },
+    "SUBLIMIT-CONFLICTING-ENDORSEMENTS": {
+      "output_state": "REQUIRES_AUTHORISED_REVIEW",
+      "evidence_class": "PROVEN"
+    },
+    "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "WICA-HEADCOUNT-UNDERDECLARED": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "WORKPASS-MEDICAL-BELOW-MINIMUM": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    }
+  }
+}

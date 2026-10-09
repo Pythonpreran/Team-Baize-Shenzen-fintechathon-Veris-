@@ -1,0 +1,159 @@
+# PROVEN — property-section rules. Data, not code, so a domain reviewer can read
+# them without reading Python. The consequential evaluation lives in rules.py, keyed
+# by id; this file is the auditable specification of each rule.
+#
+# `never:` flags are enforced in the renderer (brief.py), not left to prompt wording.
+# A rule carrying assert_breach physically cannot emit a breach conclusion.
+
+- id: THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK
+  version: 1
+  title: Theft outside cover — Full Theft extension not elected
+  requires:
+    - operand: theft_exclusion
+      from: {document_kind: BASE_WORDING, taxonomy_code: EXCL.THEFT_FORCIBLE_ENTRY}
+    - operand: full_theft_elected
+      from: {document_kind: SCHEDULE, taxonomy_code: EXT.THEFT_FULL}
+  test: full_theft_elected != "applicable"
+  output_state: DOCUMENTED
+  headline: >
+    Theft is covered only where there was violent or forcible entry to a Building.
+    Your Schedule does not elect Additional Extension 2.17, so shoplifting and
+    employee theft are outside cover.
+  cite:
+    - {clause: "5.1(c)(i)", document_kind: BASE_WORDING}
+    - {clause: "Additional Extensions", document_kind: SCHEDULE}
+
+- id: AVERAGE-ADEQUACY-BELOW-THRESHOLD
+  version: 1
+  title: Sum insured below the policy's stated average threshold
+  requires:
+    - operand: sum_insured
+      from: {document_kind: SCHEDULE, taxonomy_code: LIMIT.SUM_INSURED_ITEM}
+    - operand: value_at_risk
+      from: {taxonomy_code: ACCOUNTS.STOCK_VALUE}      # SELF -> DECLARED
+    - operand: threshold_pct
+      from: {document_kind: BASE_WORDING, taxonomy_code: ADEQ.AVERAGE_CONDITION}
+      nullable: true          # MSIG GC12 states no threshold. null != missing.
+      on_null: ANY_SHORTFALL_TRIGGERS
+    - operand: formula_span
+      from: {document_kind: BASE_WORDING, taxonomy_code: ADEQ.AVERAGE_FORMULA}
+      nullable: true          # Liberty states it; Chubb cl 4.2 and MSIG GC12 do not
+  test: >
+    sum_insured < (threshold_pct * value_at_risk)
+    if threshold_pct is not null else sum_insured < value_at_risk
+  output_state: DOCUMENTED
+  headline: >
+    Your stock sum insured is below the level the policy's average condition
+    requires. The stock value is self-authored (DECLARED), so under-insurance
+    proportionately reduces any stock claim. The figure shown is an illustration —
+    where the wording states no formula it is labelled market convention, never
+    "amount payable".
+  compute:
+    adequacy_ratio: sum_insured / value_at_risk
+    payout_illustration:
+      formula: loss * (sum_insured / value_at_risk)
+      basis: derive_from(formula_span)
+      label_on_screen: derive_from(formula_span)
+  cite:
+    - {clause: "4.2",  document_kind: BASE_WORDING, carrier: CHUBB}
+    - {clause: "GC12", document_kind: BASE_WORDING, carrier: MSIG}
+    - {clause: "GC4",  document_kind: BASE_WORDING, carrier: LIBERTY}
+    - {clause: "5",    document_kind: BASE_WORDING, carrier: LIBERTY, note: "Basis of Settlement, states the formula"}
+
+- id: BUILDINGS-VALUE-UNESTABLISHED
+  version: 1
+  title: Buildings reinstatement value never assessed
+  requires:
+    - operand: building_value
+      from: {taxonomy_code: RCA.BUILDING_VALUE}
+      nullable: true
+      on_null: UNESTABLISHED
+  test: building_value is null
+  output_state: INFORMATION_MISSING
+  headline: >
+    No reinstatement cost assessment for the building is on record. We report the
+    value as UNESTABLISHED rather than computing a figure with no basis.
+  cite:
+    - {clause: "4.11", document_kind: BASE_WORDING, note: "Reinstatement"}
+
+- id: UNOCCUPANCY-WATER-EXCLUSION
+  version: 1
+  title: Water-escape cover narrows when premises are Vacant
+  requires:
+    - operand: vacancy_exclusion
+      from: {document_kind: BASE_WORDING, taxonomy_code: EXCL.VACANCY_WATER}
+  test: located
+  output_state: DOCUMENTED
+  headline: >
+    Escape-of-water cover is excluded once the premises are Vacant beyond the day
+    count this policy states (Chubb: 14 days, cl 5.1(b)(v)). "Vacant" is defined
+    broadly at cl 2.35 — non-occupation during normal working hours counts. The
+    day count is read from this clause instance, never generalised across carriers.
+  cite:
+    - {clause: "5.1(b)(v)", document_kind: BASE_WORDING}
+    - {clause: "2.35", document_kind: BASE_WORDING, note: "definition of Vacant"}
+
+- id: CLAIM-TIME-LIMIT
+  version: 1
+  title: Twelve-month claim time limit
+  requires:
+    - operand: time_limit
+      from: {document_kind: BASE_WORDING, taxonomy_code: COND.CLAIM_TIME_LIMIT}
+  test: located
+  output_state: DOCUMENTED
+  headline: >
+    No payment is made for damage more than twelve months after it happened unless
+    the claim is the subject of pending action or arbitration (cl 4.13). A dispute
+    that runs past a year can put the claim outside this limit.
+  cite: [{clause: "4.13", document_kind: BASE_WORDING}]
+
+- id: MINIMUM-SECURITY
+  version: 1
+  title: Minimum security condition when unoccupied
+  requires:
+    - operand: min_security
+      from: {document_kind: BASE_WORDING, taxonomy_code: COND.MINIMUM_SECURITY}
+  test: located
+  output_state: DOCUMENTED
+  headline: >
+    When no one is on the premises, all external doors and internal doors to common
+    areas must be locked and secured and all ground-floor and accessible windows
+    securely closed (cl 4.9). This is a physically verifiable control that interacts
+    with the theft exclusion.
+  cite: [{clause: "4.9", document_kind: BASE_WORDING}]
+
+- id: BUSINESS-INTERRUPTION-NOT-CONFIRMED
+  version: 1
+  title: Business interruption cover not confirmed in reviewed documents
+  requires:
+    - operand: operative_sections
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+  test: no BUSINESS_INTERRUPTION section in operative_sections
+  output_state: NOT_CONFIRMED
+  headline: >
+    Business-interruption cover was searched for and not confirmed. The Schedule's
+    operative sections list Property and Public/Products Liability only; no business
+    interruption section is present in this variant. "Not confirmed" is not "not
+    covered" — it states exactly what the reviewed documents do and do not show.
+  cite: [{clause: "Operative Sections", document_kind: SCHEDULE}]
+
+- id: PLANT-ADEQUACY-UNESTABLISHED
+  version: 1
+  title: Plant and machinery value at risk not established
+  requires:
+    - operand: plant_sum_insured
+      from: {document_kind: SCHEDULE, taxonomy_code: LIMIT.SUM_INSURED_ITEM}
+    - operand: invoice_value
+      from: {document_kind: SUPPLIER_INVOICE, taxonomy_code: INVOICE.EQUIPMENT_VALUE}
+    - operand: total_plant_value
+      from: {taxonomy_code: RCA.BUILDING_VALUE}   # asset register — not on record
+      nullable: true
+      on_null: UNESTABLISHED
+  test: total_plant_value is null
+  output_state: INFORMATION_MISSING
+  headline: >
+    Plant and machinery are insured for a fixed sum, and one third-party invoice is
+    on record (PROVEN for that item), but no complete asset register establishes the
+    total plant value at risk. We report the plant adequacy as UNESTABLISHED rather
+    than computing a ratio against an unknown denominator.
+  cite: [{clause: "4.2", document_kind: BASE_WORDING, note: "Average would apply once value is established"}]

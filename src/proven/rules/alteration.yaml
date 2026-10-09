@@ -1,0 +1,54 @@
+# PROVEN — alteration / change-of-use rules (Chubb cl 3.1, self-executing).
+
+- id: ALTERATION-PREMISES-NOT-ON-SCHEDULE
+  version: 1
+  title: Premises occupied but not on the Schedule
+  requires:
+    - operand: scheduled_premises
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+    - operand: demised_premises
+      from: {document_kind: TENANCY, taxonomy_code: TENANCY.PERMITTED_USE}
+    - operand: alteration_clause
+      from: {document_kind: BASE_WORDING, taxonomy_code: COND.ALTERATION_NOTICE}
+  test: any(p not in scheduled_premises for p in demised_premises)
+  output_state: REQUIRES_AUTHORISED_REVIEW
+  escalate: true
+  headline: >
+    Your tenancy covers a unit that does not appear on the policy Schedule, and no
+    endorsement adds it. cl 3.1 provides that until Chubb agrees in writing to
+    accept an altered risk, there is no liability under the Policy for that altered
+    risk. This is self-executing; we locate and quote it, and route to a licensed
+    adviser rather than concluding breach.
+  cite: [{clause: "3.1", document_kind: BASE_WORDING}]
+  never: [assert_breach, assert_claim_outcome]
+
+- id: ACTIVITY-SSIC-NOT-DECLARED
+  version: 1
+  title: Business activity on the ACRA profile not reflected in the policy
+  requires:
+    - operand: acra_secondary
+      from: {document_kind: ACRA_PROFILE, taxonomy_code: ACRA.SSIC_CODE}
+    - operand: schedule_description
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+    - operand: alteration_clause
+      from: {document_kind: BASE_WORDING, taxonomy_code: COND.ALTERATION_NOTICE}
+  test: acra_secondary_activity not reflected in schedule_description
+  output_state: REQUIRES_AUTHORISED_REVIEW
+  escalate: true
+  # {activity} and {description} are substituted from the documents at render time.
+  # An earlier revision hardcoded "(online retail)" and "mentions wholesale only"
+  # into this sentence, so the headline asserted specifics that came from the fixture
+  # rather than from the bundle in hand — and on a real upload the quoted evidence
+  # did not support the words on screen. A headline may only restate what was
+  # extracted. Note: these comments must stay OUTSIDE the block scalar below, because
+  # YAML does not treat '#' as a comment inside one; putting them in printed the
+  # commentary to the user as part of the finding.
+  headline: >
+    The ACRA profile carries a secondary activity ({activity}) that the policy's
+    business description ({description}) does not reflect. Whether this is a material
+    alteration under cl 3.1 or a disclosure question under cl 3.13 is a judgement for
+    a licensed adviser. We locate and quote; we do not conclude.
+  cite:
+    - {clause: "3.1", document_kind: BASE_WORDING}
+    - {clause: "3.13", document_kind: BASE_WORDING, note: "Disclosure"}
+  never: [assert_breach, assert_claim_outcome]

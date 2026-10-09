@@ -1,0 +1,87 @@
+name: ci
+
+# Pull requests and pushes to the default branch. Nothing here reaches a deployment:
+# this workflow proves the repository is clean and the suite is green, and that is all.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      # The suite must be deterministic and offline. conftest.py forces this off for the
+      # whole process as well, but setting it here means a log reader can see that the
+      # run never had live sources available in the first place.
+      PROVEN_LIVE_SOURCES: '0'
+      # The corpus lives outside the checkout, same as on a developer machine.
+      VERIS_CORPUS_DIR: ${{ github.workspace }}/../veris-corpus
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── repository hygiene, BEFORE the suite ─────────────────────────────
+      # Ordered first on purpose. A leaked key or a committed third-party wording is a
+      # disclosure problem, not a test failure, and finding it after a 10-minute suite
+      # wastes the ten minutes and buries the finding under the test log.
+      - name: Scan for secrets, forbidden files and forbidden strings
+        run: python scripts/scan_repo.py
+
+      - name: Check the front end parses
+        run: |
+          set -e
+          for f in web/*.js web/landing/*.js; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      # ── the corpus ───────────────────────────────────────────────────────
+      # ATTEMPTED, NOT REQUIRED. The documents are third-party publications that cannot
+      # be committed, and insurer sites move files, rate-limit and sit behind bot
+      # protection. A CI run that needs twenty live downloads to go green is a CI run
+      # that fails for reasons nothing to do with the change under test.
+      #
+      # So the fetch is allowed to fail, and `requires_corpus` turns each absent
+      # document into a SKIP THAT NAMES IT. The run reports what it could not measure
+      # instead of passing quietly with fewer assertions.
+      - name: Fetch the document corpus (best effort)
+        continue-on-error: true
+        run: python scripts/fetch_corpus.py
+
+      - name: Report what the corpus holds
+        run: python scripts/fetch_corpus.py --status
+
+      # ── the suite ────────────────────────────────────────────────────────
+      # `-rs` prints every skip reason. Without it an absent corpus is invisible in the
+      # log and the run looks identical to one that read every wording.
+      - name: Tests
+        run: python -m pytest -p no:warnings -rs
+
+      - name: Front-end smoke test in a real DOM
+        run: node tools/smoke_frontend.mjs

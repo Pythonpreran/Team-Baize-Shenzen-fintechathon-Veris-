@@ -1,0 +1,154 @@
+{
+  "_fixture": true,
+  "_synthetic_notice": "SYNTHETIC DOCUMENTS — fictional business. Label as synthetic on screen, every time.",
+  "_note": "Bundled in one file for convenience. The loader splits these into separate `document` rows, each with its own author_class, because author_class is what derives evidence_class.",
+
+  "documents": [
+    {
+      "_document_kind": "CPF_RECORD",
+      "_author_class": "AUTHORITY",
+      "_grades_as": "PROVEN",
+      "title": "CPF contribution record, month ended 2026-07-31",
+      "employer_uen": "T09FIXTURE1A",
+      "contributor_count": 14,
+      "contributors": [
+        { "ref": "E-01", "monthly_wage_sgd": 2200, "role": "Production operator", "manual_work": true },
+        { "ref": "E-02", "monthly_wage_sgd": 2250, "role": "Production operator", "manual_work": true },
+        { "ref": "E-03", "monthly_wage_sgd": 2400, "role": "Production operator", "manual_work": true },
+        { "ref": "E-04", "monthly_wage_sgd": 2300, "role": "Packing", "manual_work": true },
+        { "ref": "E-05", "monthly_wage_sgd": 2150, "role": "Packing", "manual_work": true },
+        { "ref": "E-06", "monthly_wage_sgd": 2600, "role": "Kitchen hand", "manual_work": true },
+        { "ref": "E-07", "monthly_wage_sgd": 2800, "role": "Chef de partie", "manual_work": true },
+        { "ref": "E-08", "monthly_wage_sgd": 3100, "role": "Production supervisor", "manual_work": true },
+        { "ref": "E-09", "monthly_wage_sgd": 2500, "role": "Driver", "manual_work": true },
+        { "ref": "E-10", "monthly_wage_sgd": 3400, "role": "Logistics coordinator", "manual_work": false },
+        { "ref": "E-11", "monthly_wage_sgd": 3800, "role": "Accounts executive", "manual_work": false },
+        { "ref": "E-12", "monthly_wage_sgd": 4200, "role": "Sales manager", "manual_work": false },
+        { "ref": "E-13", "monthly_wage_sgd": 2450, "role": "Production operator", "manual_work": true },
+        { "ref": "E-14", "monthly_wage_sgd": 2380, "role": "Packing", "manual_work": true }
+      ],
+      "_planted_defect": "14 contributors. The WIC schedule declares 11. E-13 and E-14 do manual work and are undeclared; E-12 is non-manual above the $2,600 WICA threshold so is not compulsorily insurable."
+    },
+
+    {
+      "_document_kind": "WIC_SCHEDULE",
+      "_author_class": "INSURER",
+      "_grades_as": "PROVEN",
+      "title": "Work Injury Compensation policy schedule 2026/27",
+      "insurer": "SYNTHETIC INSURER (do not imply a real carrier)",
+      "policy_period": { "inception": "2026-04-01", "expiry": "2027-03-31" },
+      "declared_employee_count": 11,
+      "declared_annual_wages_sgd": 402000,
+      "declared_occupational_class": "Food manufacturing — light, no heavy machinery",
+      "_planted_defect": "Understates headcount by 3 against the CPF record. MOM warns that under-declaration leaves employees uninsured and that wrongful declaration may affect all claims. Renewal information is due at least 21 days before commencement."
+    },
+
+    {
+      "_document_kind": "WORK_PASS_LIST",
+      "_author_class": "AUTHORITY",
+      "_grades_as": "PROVEN",
+      "title": "Work Permit holders, current",
+      "holders": [
+        { "ref": "WP-01", "pass_type": "Work Permit", "nationality_group": "non-Malaysian", "age": 41, "medical_insurance_sum_sgd": 60000 },
+        { "ref": "WP-02", "pass_type": "Work Permit", "nationality_group": "non-Malaysian", "age": 38, "medical_insurance_sum_sgd": 60000 },
+        { "ref": "WP-03", "pass_type": "Work Permit", "nationality_group": "non-Malaysian", "age": 52, "medical_insurance_sum_sgd": 60000 },
+        { "ref": "WP-04", "pass_type": "Work Permit", "nationality_group": "non-Malaysian", "age": 61, "medical_insurance_sum_sgd": 45000 }
+      ],
+      "_planted_defect": "WP-04 carries 45000, below the 60000 annual minimum per Work Permit holder. WP-03 and WP-04 are above 50, engaging the age-banded premium bands introduced 1 July 2025. WP-04 at 61 sits inside the raised maximum employment age of 63."
+    },
+
+    {
+      "_document_kind": "ACCOUNTS",
+      "_author_class": "SELF",
+      "_grades_as": "DECLARED",
+      "title": "Balance sheet extract, management accounts, as at 2026-06-30",
+      "prepared_by": "Hock Lee Foods Pte Ltd (internal)",
+      "current_assets": {
+        "inventory_sgd": 150000,
+        "trade_receivables_sgd": 88000,
+        "cash_sgd": 41000
+      },
+      "_grading_note": "Self-authored. Stock therefore grades DECLARED, not PROVEN. This is the grading scheme working, not a weakness. Do NOT source stock from a GST F5 return — the F5 has no closing stock figure.",
+      "_planted_defect": "Inventory 150000 against a stock sum insured of 100000. Adequacy 66.7%, under the 85% threshold in cl 4.2."
+    },
+
+    {
+      "_document_kind": "SUPPLIER_INVOICE",
+      "_author_class": "THIRD_PARTY",
+      "_grades_as": "PROVEN",
+      "title": "Supplier invoice — blast freezer",
+      "supplier": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "invoice_date": "2026-05-18",
+      "item": "Blast freezer, 8-tray",
+      "amount_sgd": 62000,
+      "_note": "Third-party authored, so equipment value grades PROVEN. Supports a plant and machinery adequacy check against the 180000 sum insured."
+    },
+
+    {
+      "_document_kind": "TENANCY",
+      "_author_class": "THIRD_PARTY",
+      "_grades_as": "PROVEN",
+      "title": "Tenancy agreement extract — permitted use and demised premises",
+      "landlord": "SYNTHETIC INDUSTRIAL LANDLORD",
+      "demised_premises": [
+        "Unit 03-11, 21 Tai Seng Avenue",
+        "Unit 03-12, 21 Tai Seng Avenue"
+      ],
+      "commencement_unit_03_12": "2026-06-01",
+      "permitted_use": "Light food manufacturing, cold storage and ancillary office use",
+      "lease_expiry": "2029-05-31",
+      "_planted_defect": "The tenancy covers TWO units from 2026-06-01. The policy schedule lists only 03-11 and no endorsement adds 03-12. cl 3.1 Alteration: no liability for the altered risk until Chubb agrees in writing."
+    },
+
+    {
+      "_document_kind": "ACRA_PROFILE",
+      "_author_class": "AUTHORITY",
+      "_grades_as": "PROVEN",
+      "title": "ACRA business profile extract",
+      "uen": "T09FIXTURE1A",
+      "primary_ssic_2025": "10740",
+      "primary_ssic_description": "Manufacture of prepared meals and dishes",
+      "secondary_ssic_2025": "47190",
+      "secondary_ssic_description": "Retail sale via online platforms",
+      "_planted_defect": "A secondary retail/online activity code was added. The policy schedule's business description mentions wholesale only. Feeds the alteration finding and a cyber exposure question."
+    },
+
+    {
+      "_document_kind": "ENDORSEMENT",
+      "_author_class": "INSURER",
+      "_grades_as": "PROVEN",
+      "endorsement_ref": "END-01",
+      "title": "Endorsement 01 — sum insured adjustment, plant and machinery",
+      "effective_date": "2026-05-25",
+      "effect": "Plant, machinery and equipment sum insured increased from 118000 to 180000",
+      "_note": "A real endorsement that does NOT cure the alteration. It adjusts a sum insured only. Its presence proves the insured knows how to endorse and still did not add unit 03-12 — which strengthens the alteration finding rather than weakening it."
+    },
+
+    {
+      "_document_kind": "ENDORSEMENT",
+      "_author_class": "INSURER",
+      "_grades_as": "PROVEN",
+      "endorsement_ref": "END-02",
+      "title": "Endorsement 02 — DELIBERATELY ILLEGIBLE FIXTURE",
+      "effective_date": "2026-06-15",
+      "page_2_extraction": "<<<UNREADABLE — simulated poor scan. Extraction confidence below threshold.>>>",
+      "_planted_defect": "This fixture exists so the abstention gate can be shown firing live. Expected engine output: INFORMATION_MISSING — 'The endorsement page 2 scan is illegible. Upload a clearer copy or request the wording from your insurer.' Demo beat 5 depends on this file.",
+      "_must_not": "The engine must NOT guess this endorsement's effect, and must NOT assume it cures the alteration."
+    }
+  ],
+
+  "loss_scenario_for_demo": {
+    "_note": "Used to drive the settlement illustration in demo beat 4. Not a document — a hypothetical.",
+    "peril": "Fire",
+    "date_of_loss": "2026-09-14",
+    "assessed_stock_loss_sgd": 60000,
+    "expected_engine_behaviour": [
+      "Report stock adequacy ratio 66.7% against the 85% threshold in cl 4.2 — PROVEN from schedule, DECLARED from accounts.",
+      "State that proportionate reduction is triggered.",
+      "Show a conventional illustration of roughly 40000, LABELLED as market convention.",
+      "Record formula_basis_class as UNESTABLISHED, because cl 4.2 states no formula.",
+      "Apply the order verified at cl 3.12: average first, then sub-limits, then the 5000 deductible.",
+      "Never present the illustration as the amount payable."
+    ]
+  }
+}

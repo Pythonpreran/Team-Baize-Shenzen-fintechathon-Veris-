@@ -1,0 +1,78 @@
+# PROVEN — exposure rules for risk classes the policy does not reach.
+#
+# WHY THESE TWO RULES ARE DIFFERENT FROM THE OTHERS.
+#
+# Every other rule file asks "is the cover you hold adequate?". These two ask "is
+# there any cover at all?", and that changes what counts as evidence. An adequacy
+# finding subtracts one documented figure from another. An absence finding is
+# established by reading a closed list — the operative sections on the schedule — and
+# finding that nothing in it responds.
+#
+# That makes the operative sections list load-bearing in a way it is not elsewhere. If
+# we cannot read it, these rules must abstain rather than conclude absence, because
+# "we could not find your sections" and "your sections do not include this" are
+# different statements and only one of them is a finding. The evaluators enforce that
+# through the standard _guard, so an unreadable schedule produces INFORMATION_MISSING.
+#
+# Neither rule adjudicates. Neither says a claim would be declined. Both say what the
+# schedule contains, what the business demonstrably does, and that the two do not meet.
+
+- id: CYBER-DATA-COVER-ABSENT
+  version: 1
+  title: Personal data held with no section that responds to its loss
+  requires:
+    - operand: sections
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+    - operand: activity
+      from: {document_kind: ACRA_PROFILE, taxonomy_code: ACRA.SSIC_CODE}
+  test: >
+    An online or retail activity is on the ACRA register AND no operative section on
+    the schedule responds to loss of electronic data.
+  output_state: DOCUMENTED
+  headline: >
+    Your ACRA profile records an online activity, so you collect customer personal
+    data. The operative sections on your schedule are {sections} — none of which
+    responds to a data breach. Both figures are from an authority document and an
+    insurer document, so this is a PROVEN absence rather than an assumption.
+  cite:
+    - authority: PDPC
+      proposition: >
+        Organisations must protect personal data in their possession or control, and
+        must notify the Commission of a data breach that is likely to result in
+        significant harm to affected individuals or that affects at least 500
+        individuals.
+  consequence_note: >
+    From 1 October 2022 the maximum financial penalty under the PDPA is S$1 million,
+    or 10% of annual turnover in Singapore where that turnover exceeds S$10 million,
+    whichever is higher. That is a statutory ceiling and not a prediction: the
+    Commission assesses harm and culpability case by case.
+  never: [assert_breach, assert_claim_outcome]
+
+- id: DEPENDENCY-COVER-NOT-POSSIBLE
+  version: 1
+  title: Income depends on outside parties with no business interruption section
+  requires:
+    - operand: sections
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+  test: >
+    An external dependency is evidenced by a document AND no business interruption
+    section is present, so no supplier or customer extension can attach to one.
+  output_state: DOCUMENTED
+  headline: >
+    Your documents evidence {dependency_count} outside dependency/dependencies that
+    your income relies on. The operative sections on your schedule are {sections},
+    which include no business interruption section. Cover for income lost when a
+    supplier, utility or landlord fails is normally an extension to that section, so
+    there is nothing for it to attach to.
+  cite:
+    - authority: MARKET_CONVENTION
+      proposition: >
+        Contingent business interruption is conventionally written as an extension to
+        a business interruption section, is commonly limited to suppliers named in the
+        policy, and conventionally responds only to physical damage at the supplier's
+        premises.
+  consequence_note: >
+    This is a structural observation about your schedule, not a statement that a claim
+    would fail. Your own wording governs, and an extension we were not given may
+    exist.
+  never: [assert_breach, assert_claim_outcome]

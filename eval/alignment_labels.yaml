@@ -1,0 +1,191 @@
+# Ground truth for coverage-mechanism alignment.
+#
+# WHY THIS FILE IS DIFFERENT FROM eval/labels/
+# --------------------------------------------
+# The labels in eval/labels/ score FINDINGS, and a finding's ground truth needs an
+# insurance-qualified reviewer: deciding whether a term is a warranty or a condition
+# precedent is legal construction, which is precisely what the engine refuses to do.
+# That reviewer does not exist yet, so the harness there refuses to print a general
+# accuracy rate.
+#
+# Alignment ground truth is different in kind. The question is not "what does this
+# clause mean in law" but "does this span contain the structural elements the mechanism
+# requires". A second reader can check that in seconds against the page, with no
+# insurance qualification, because every entry below cites the clause and the page.
+#
+# So this is a defensible measurement available TODAY. It is narrower than accuracy
+# and must never be presented as accuracy. It says: when the engine claims a span
+# implements a mechanism, is it right, and does it find the mechanisms that are there.
+#
+# DERIVATION of every entry: read from the published wordings by the team, and
+# cross-checked against the team's own cross-carrier page-cited notes. The three
+# Singapore carriers were read by hand. The Malaysian wordings were read only for the
+# mechanisms listed here.
+#
+# `corpus_id` names an entry in corpus/manifest.yaml, which records the publisher, the
+# source URL and the sha256 of the exact bytes each label was read against. The
+# documents themselves are third-party copyrighted material and live outside git, so a
+# reviewer re-fetches them with scripts/fetch_corpus.py rather than finding them here.
+
+meta:
+  version: 1
+  derivation: READ_FROM_SOURCE_BY_TEAM
+  reviewed_by_expert: false
+  scoring_note: >
+    Precision = verified alignments that are correct. Recall = expected mechanisms
+    that were found. A duplicate alignment of a mechanism already found is neither a
+    hit nor a false positive; distinct VALUES are separate expectations, because
+    Liberty's two thresholds are two real provisions.
+  jurisdiction_note: >
+    MY-* wordings are Malaysian. They are scored to test whether the method
+    generalises to a carrier nobody has read. They must never be cited as Singapore
+    market positions.
+
+documents:
+
+  # ── Singapore, read in full by the team ─────────────────────────────────
+  - carrier: CHUBB
+    corpus_id: sg-chubb-selectplus-lite-wording
+    jurisdiction: SG
+    read_depth: FULL
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: cl 4.2 Average, p.15
+        values:
+          threshold_pct: '85'
+          settlement_basis: ACTUAL_VALUE
+        note: >
+          States the trigger and the words "proportionately reduced". States NO
+          formula — all 28 pages searched. Basis is "the actual value", not
+          reinstatement.
+      - mechanism: COND.UNOCCUPANCY
+        cite: cl 5.1(b)(v), definition at cl 2.35, p.17
+        values:
+          days: '14'
+        note: Water escape excluded once Vacant beyond 14 days.
+      - mechanism: COND.PREMIUM_PAYMENT_WARRANTY
+        cite: cl 3.20, p.8
+        note: 60 days, automatic termination, pro-rata minimum SGD 25.00.
+    expect_absent:
+      - mechanism: COND.DECLARATION_CLAUSE_GENERAL
+        note: >
+          VERIFIED ABSENT. Zero hits for "condition precedent" across all 28 pages.
+          A verified alignment here would be a false positive.
+
+  - carrier: MSIG
+    corpus_id: sg-msig-sumo-wording
+    jurisdiction: SG
+    read_depth: FOUR_TOPICS
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: General Condition 12 UNDERINSURANCE, p.38
+        values:
+          threshold_pct: null
+        note: >
+          NO threshold stated — any shortfall bites. Harsher than Chubb. A threshold
+          value here would be a wrong answer in the direction that costs the insured.
+      - mechanism: COND.DECLARATION_CLAUSE_GENERAL
+        cite: preamble p.1, repeated as general condition p.36
+        note: Sweeping. Compliance and truth of proposal made conditions precedent.
+      - mechanism: COND.PREMIUM_PAYMENT_WARRANTY
+        cite: PREMIUM PAYMENT WARRANTY, p.41
+        values:
+          minimum_premium: '25'
+        note: Carves out Section 4 Work Injury Compensation.
+      - mechanism: COND.UNOCCUPANCY
+        cite: general condition p.37(b)
+        values:
+          days: '30'
+        note: Alteration/avoidance provision, not merely a peril exclusion.
+
+  - carrier: LIBERTY
+    corpus_id: sg-liberty-smecare-wording
+    jurisdiction: SG
+    read_depth: FOUR_TOPICS
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: General Condition 4 Average, p.46
+        values:
+          threshold_pct: null
+          settlement_basis: VALUE
+        note: >
+          Value basis, no threshold, and it STATES the arithmetic
+          ("which the said difference bears").
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: Average Relief, p.7 cl 7 and p.26 cl 6
+        values:
+          threshold_pct: '85'
+        note: >
+          Named a relief, behaves as an average. Trigger is sum insured below 85% of
+          reinstatement cost. Losing this provision over-reports every Liberty
+          insured on a reinstatement claim.
+      - mechanism: COND.PREMIUM_PAYMENT_WARRANTY
+        cite: cl 14, p.40, restated p.48
+      - mechanism: COND.UNOCCUPANCY
+        cite: p.45(b) alteration, p.13 and p.30 peril exclusions
+        values:
+          days: '30'
+      - mechanism: COND.UNOCCUPANCY
+        cite: p.31, a different section
+        values:
+          days: '7'
+        note: >
+          SEVEN days in the same wording that uses thirty elsewhere. This entry is the
+          regression test for the whole per-clause-instance design.
+
+  # ── Malaysia, never hand-mapped. Generalisation test. ───────────────────
+  - carrier: MY_AIG_FIRE
+    corpus_id: my-aig-sme-fire-and-perils-wording
+    jurisdiction: MY
+    read_depth: MECHANISM_SPOT_CHECK
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: average condition present in this wording
+      - mechanism: COND.DECLARATION_CLAUSE_GENERAL
+        cite: conditions precedent language present
+
+  - carrier: MY_QBE_RETAIL
+    corpus_id: my-qbe-retail-package-wording
+    jurisdiction: MY
+    read_depth: MECHANISM_SPOT_CHECK
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: average condition present in this wording
+      - mechanism: COND.DECLARATION_CLAUSE_GENERAL
+        cite: '"PROVIDED ALWAYS that the due observance..." operative clause'
+        note: >
+          LABEL CORRECTED. This was first scored as a false positive because the label
+          set did not list it. Reading the bound quote showed the clause is genuinely
+          present: "PROVIDED ALWAYS that the due observance and fulfillment of the
+          terms conditions and endorsements of this Policy in so far as they relate to
+          anything to be done or complied with by the Insured..." made a condition
+          precedent to liability. The engine was right and the label was wrong.
+          Recorded because a harness that is never corrected by its own output is not
+          measuring anything.
+
+  - carrier: MY_QBE_IAR
+    corpus_id: my-qbe-industrial-all-risk-wording
+    jurisdiction: MY
+    read_depth: MECHANISM_SPOT_CHECK
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: average condition present in this wording
+      - mechanism: COND.UNOCCUPANCY
+        cite: unoccupancy provision present
+        values:
+          days: '30'
+    note_on_this_document: >
+      This wording ALSO contains a CONTRIBUTION clause sharing the phrase "rateable
+      proportion" with average. An earlier build wrongly verified it as an average.
+      A verified alignment whose quote contains other-insurance language is scored as
+      a false positive here.
+
+  - carrier: MY_AIG_ALLRISK
+    corpus_id: my-aig-all-risks-and-bi-wording
+    jurisdiction: MY
+    read_depth: MECHANISM_SPOT_CHECK
+    expect:
+      - mechanism: ADEQ.PROPORTIONATE_REDUCTION
+        cite: average condition present in this wording
+      - mechanism: COND.DECLARATION_CLAUSE_GENERAL
+        cite: conditions precedent language present

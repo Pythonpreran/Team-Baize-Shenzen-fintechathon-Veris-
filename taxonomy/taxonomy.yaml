@@ -1,0 +1,653 @@
+# PROVEN — clause taxonomy v1
+#
+# Derived from real documents, not invented. Every code below with a
+# `verified_in` field was read from an actual published Singapore wording:
+#
+# Documents are named by CORPUS ID. corpus/manifest.yaml records each one's publisher,
+# source URL, page count and the sha256 of the exact bytes it was read from; the
+# documents themselves are third-party copyrighted material and live outside git.
+#
+#   CHUBB    Chubb Select+ Insurance Policy Wording, Singapore, 07/2020, 28pp
+#            corpus id: sg-chubb-selectplus-wording
+#            Read in full.
+#   MSIG     MSIG SUMO Insurance Policy, form SMO022401, 2024-01, 41pp
+#            corpus id: sg-msig-sumo-wording
+#            Read on four targeted topics only.
+#   LIBERTY  Liberty SMECare, May 2025, 49pp
+#            corpus id: sg-liberty-smecare-wording
+#            Read on four targeted topics only.
+#
+# Cross-carrier results are page-cited in the team's own research notes, which are not
+# part of this repository. Every code below carries its own carrier and clause_ref, so
+# a reader re-checks it against the wording rather than against those notes.
+#
+# CODES ARE KEYED BY (carrier, clause_ref), NEVER BY clause_ref ALONE.
+# The same behaviour sits at different references in different wordings, carries
+# different thresholds, and in one measured case differs BETWEEN SECTIONS OF THE
+# SAME WORDING (Liberty unoccupancy: 30 consecutive days in most sections, 7 in
+# another). Any code that stores a threshold or day count as a single global value
+# is therefore wrong by construction.
+#
+# Codes WITHOUT `verified_in` are structural placeholders for lines we have not
+# yet obtained a wording for. They must not be used in a demo finding until a
+# real clause is attached. That rule is the taxonomy's own version of
+# UNESTABLISHED.
+#
+# Layer 2 assigns exactly one code per operative provision, or marks it
+# UNACCOUNTED. classified + unaccounted == detected, always.
+
+meta:
+  version: 2
+  sources:
+    - carrier: CHUBB
+      document: "Chubb Select+ Insurance Policy, Policy Wording, Singapore, 07/2020"
+      pages: 28
+      depth: FULL_READ
+    - carrier: MSIG
+      document: "MSIG SUMO Insurance Policy, form SMO022401, 2024-01"
+      pages: 41
+      depth: FOUR_TOPICS_ONLY
+    - carrier: LIBERTY
+      document: "Liberty SMECare, May 2025"
+      pages: 49
+      depth: FOUR_TOPICS_ONLY
+  total_pages_read: 118
+  topics_scanned_cross_carrier:
+    - average / underinsurance formula and threshold
+    - condition-precedent declaration clause
+    - premium payment warranty consequence
+    - unoccupancy / vacancy day count
+  anchored_to:
+    - ACORD commercial section structure (programme shape)
+    - SSIC 2025 (activity to exposure mapping)
+    - WICA statutory schedule (work injury limb)
+    - RICS reinstatement cost assessment (valuation basis)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DOC.*  — document identity and authority. Drives precedence and grading.
+# ─────────────────────────────────────────────────────────────────────────────
+DOC:
+  DOC.BASE_WORDING:
+    label: Base policy wording
+    authority_rank: 3
+  DOC.SCHEDULE:
+    label: Schedule / declarations
+    authority_rank: 2
+  DOC.ENDORSEMENT:
+    label: Endorsement
+    authority_rank: 1
+  DOC.PROPOSAL:
+    label: Proposal form
+    authority_rank: 4
+  DOC.CONSTRUCTION_CLAUSE:
+    label: Policy's own order-of-precedence clause
+    note: >
+      Read FIRST. If absent, precedence is asserted by market convention only
+      and every conflict must be reported as unresolved. Chubb Select+ has no
+      express construction clause — searched, not found.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LIMIT.* — sums insured, limits, deductibles. Operands for arithmetic.
+# ─────────────────────────────────────────────────────────────────────────────
+LIMIT:
+  LIMIT.TOTAL_SUM_INSURED:
+    label: Total Sum Insured for a section
+    operand: true
+  LIMIT.SUM_INSURED_ITEM:
+    label: Sum insured for a specific item or category
+    operand: true
+  LIMIT.SUB_LIMIT:
+    label: Sub-limit capping a slice inside a main limit
+    operand: true
+    verified_in:
+      - "Additional Extension, theft: SGD1,000 each and every loss and in the aggregate"
+      - "Food and drink liability: SGD10,000 any one Occurrence"
+      - "Professional fees: 10% of Total Sum Insured"
+  LIMIT.AGGREGATE:
+    label: Aggregate limit for the period
+    operand: true
+    verified_in: "cl 4.6 Limits of Liability (Products Liability, aggregate for all Occurrences)"
+  LIMIT.ANY_ONE_OCCURRENCE:
+    label: Any-one-occurrence limit
+    operand: true
+    verified_in: "cl 4.6 Limits of Liability (Public Liability, any one Occurrence)"
+  LIMIT.DEDUCTIBLE:
+    label: Deductible / excess
+    operand: true
+    verified_in: "cl 3.12 Deductibles"
+    ordering_note: >
+      VERIFIED ORDER OF OPERATIONS. cl 3.12 states the deductible applies to each
+      loss "as ascertained after the application of all other terms, Conditions,
+      Exclusions and limitations of the Policy, including any condition of
+      average." Therefore: apply average FIRST, then sub-limits, then deductible.
+      This sequence is read from the document, not assumed.
+  LIMIT.INDEMNITY_PERIOD:
+    label: Maximum indemnity period (business interruption)
+    operand: true
+    verified_in: null
+    note: >
+      NOT PRESENT in Chubb Select+ Lite — business interruption is not an
+      operative section in this variant. Placeholder only. Do not emit a finding
+      on this code until a wording containing a BI section is ingested.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADEQ.* — the average / underinsurance mechanism.
+# ─────────────────────────────────────────────────────────────────────────────
+ADEQ:
+  ADEQ.AVERAGE_CONDITION:
+    label: Condition of average / proportionate reduction
+    # THRESHOLD AND FORMULA ARE PER-CARRIER FACTS. Measured, not assumed.
+    # Do NOT lift a threshold_pct to this level. There is no market-wide value.
+    instances:
+      - carrier: CHUBB
+        settlement_basis: ANY
+        verified_in: "cl 4.2 Average (p.15)"
+        threshold_pct: 0.85
+        formula_stated_in_document: false
+        formula_basis_class: MARKET_CONVENTION
+        quote: >
+          If at the time of Damage the Total Sum Insured represents less than 85%
+          of the actual value of the Property Insured under this Section, the
+          amount payable by Chubb in respect of Damage to Property Insured under
+          this Section shall be proportionately reduced.
+      - carrier: MSIG
+        settlement_basis: ANY
+        verified_in: "General Condition 12 UNDERINSURANCE (p.38)"
+        threshold_pct: null          # NO THRESHOLD STATED. Any shortfall bites.
+        on_null_threshold: ANY_SHORTFALL_TRIGGERS
+        formula_stated_in_document: false
+        formula_basis_class: MARKET_CONVENTION
+        quote: >
+          If any property insured shall at the time of the occurrence be
+          collectively of greater value than the sum insured, the amount payable
+          by the Company in respect of the loss or damage shall be
+          proportionately reduced.
+        note: >
+          HARSHER THAN CHUBB. There is no 85% cushion. A tool that defaulted
+          threshold_pct to 0.85 would under-report every MSIG insured whose
+          adequacy sits between 85% and 100% — a wrong answer in the direction
+          that costs the business money at claim time.
+      - carrier: LIBERTY
+        settlement_basis: VALUE
+        verified_in: "General Condition 4 Average (p.46)"
+        threshold_pct: null          # GC4 states no threshold
+        on_null_threshold: ANY_SHORTFALL_TRIGGERS
+        formula_stated_in_document: true
+        formula_basis_class: PROVEN
+        formula_code: ADEQ.AVERAGE_FORMULA
+        quote: >
+          If the property hereby insured under Section 1 shall at the happening of
+          any fire or insured perils be collectively of greater value than the sum
+          insured thereon, or if the total number of your employees shall, at the
+          happening of any accident be collectively greater than that specified in
+          Fire, All Risk, Workmen Injury Compensation and Fidelity Guarantee
+          sections, you shall be considered to be responsible for the difference
+          and shall bear a rateable proportion of such loss which the said
+          difference bears to the total value of the property insured, number of
+          employees or annual wages as the case may be.
+        note: >
+          Applies on a VALUE basis: "collectively of greater value than the sum
+          insured". Liberty ALSO has an 85% average on a REINSTATEMENT basis — the
+          next instance. Two average provisions in one wording on two different
+          bases. This is why threshold is an instance fact and not a carrier fact.
+      - carrier: LIBERTY
+        settlement_basis: REINSTATEMENT
+        verified_in: '"Average Relief", p.7 cl 7 and p.26 cl 6'
+        threshold_pct: 0.85
+        formula_stated_in_document: true
+        formula_basis_class: PROVEN
+        formula_code: ADEQ.AVERAGE_FORMULA
+        quote: >
+          If at the time of reinstatement, the sum representing 85% of the total
+          reinstatement cost which would have been incurred, if the whole of the
+          Insured Property had been destroyed, exceeds the sum insured thereon at
+          the time of loss, then the Insured shall be considered as being his own
+          insurer for the difference and shall bear a rateable proportion of the
+          loss accordingly. Every item, if more than one, of this Section shall
+          separately be subject to this condition.
+        note: >
+          NAMED "Average Relief" BUT IT IS AN AVERAGE CONDITION, NOT A RELIEF FROM
+          ONE. The trigger is 0.85 x reinstatement cost > sum insured, i.e. the sum
+          insured is below 85% of reinstatement cost — functionally the same test as
+          Chubb cl 4.2, on a different valuation basis. The clause name is
+          misleading and a reader who trusted the heading would get this backwards.
+          Recorded because it was nearly missed: an earlier revision of this file
+          treated Liberty as having no threshold at all, which would OVER-report
+          every Liberty insured on a reinstatement claim by removing an 85% cushion
+          the policy actually grants. That is the exact mirror of the MSIG error
+          this taxonomy was built to prevent, and it was caught by external review
+          rather than by us.
+
+  ADEQ.AVERAGE_FORMULA:
+    label: The average arithmetic, stated in the wording itself
+    # This code exists BECAUSE one carrier populates it and two leave it null.
+    # Null here is a finding, not a gap in our data.
+    instances:
+      - carrier: LIBERTY
+        verified_in: >
+          "Basis of Insurance" p.6, repeated verbatim as cl 5 "Basis of
+          Settlement" p.46
+        quote: >
+          Payment shall not exceed such proportion of the loss or damage as the
+          sum insured bears to the value of all property at the time of loss or
+          damage. Each item, if any, as declared in the Policy Schedule is
+          separately subject to this provision.
+        arithmetic: "payment <= loss * (sum_insured / value_of_all_property)"
+        formula_basis_class: PROVEN
+        note: >
+          The insurer wrote the arithmetic down. Quoting it is not inventing it.
+          This is the ONLY carrier of the three that states it.
+      - carrier: CHUBB
+        verified_in: "ABSENT — all 28 pages searched"
+        formula_basis_class: MARKET_CONVENTION
+      - carrier: MSIG
+        verified_in: "ABSENT — GC12 states 'proportionately reduced' and stops"
+        formula_basis_class: MARKET_CONVENTION
+    note: >
+      Where this code is null for a carrier, the engine may still SHOW the
+      conventional computation loss x (sum insured / value) but must label it an
+      illustration and must never call it "amount payable". Where it is populated,
+      the insurer's own words are quoted beside the figure.
+  ADEQ.REINSTATEMENT_BASIS:
+    label: Reinstatement basis of settlement
+    verified_in: "cl 4.11 Reinstatement; definition at cl 3.3"
+  ADEQ.INDEMNITY_BASIS:
+    label: Indemnity basis of settlement
+    verified_in: "cl 4.10 Indemnity"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXCL.* — exclusions. Conditional ones carry satisfaction conditions.
+# ─────────────────────────────────────────────────────────────────────────────
+EXCL:
+  EXCL.THEFT_FORCIBLE_ENTRY:
+    label: Theft excluded unless forcible entry, or Schedule elects Full Theft
+    verified_in: "cl 5.1(c)(i) Damage to Property Exclusion"
+    conditional: true
+    satisfaction_any_of:
+      - "theft is from a Building AND there is violent or forcible entry to or exit from that Building"
+      - "'applicable' is selected in the Schedule for Additional Extension 2.17 Theft Endorsement (Full Theft)"
+    resolves_against: DOC.SCHEDULE
+    note: >
+      The cleanest PROVEN finding available. Two insurer-authored documents,
+      no owner input, no formula, no legal interpretation. Shoplifting and
+      employee theft are outside cover by default.
+  EXCL.VACANCY_WATER:
+    label: Water escape excluded when premises Vacant beyond 14 days
+    verified_in: "cl 5.1(b)(v); 'Vacant' defined at cl 2.35"
+    conditional: true
+    threshold_days: 14
+    definition_quote: >
+      Vacant means any building or portion of a building that is: (a) Not
+      physically occupied by the Insured or any of the Insured's Employees during
+      the Insured's normal working hours; or (b) Not used for the purpose of the
+      Business and/or empty, disused untenanted; or (c) Awaiting refurbishment,
+      redevelopment, renovation, or demolition.
+    note: >
+      Limb (a) is broader than most owners would assume — non-occupation during
+      normal working hours, not merely an empty building.
+  EXCL.WEAR_AND_TEAR:
+    label: Wear, tear, gradual deterioration, inherent vice, faulty workmanship
+    verified_in: "cl 5.1(a)(i)"
+  EXCL.MECHANICAL_BREAKDOWN:
+    label: Mechanical or electrical breakdown or derangement
+    verified_in: "cl 5.1(b)(iv)"
+  EXCL.FRAUD_DISHONESTY:
+    label: Acts of fraud or dishonesty
+    verified_in: "cl 5.1(c)(ii)"
+  EXCL.INVENTORY_SHORTAGE:
+    label: Unexplained disappearance or inventory shortage
+    verified_in: "cl 5.1(c)(iii)"
+  EXCL.COMMUNICABLE_DISEASE:
+    label: Communicable disease exclusion
+    verified_in: "cl 5.15"
+  EXCL.EMPLOYMENT_LIABILITY:
+    label: Employer's liability excluded from public liability section
+    verified_in: "Liability section cl 5.5 Employment Liability Exclusion"
+    note: >
+      Directs the work-injury exposure to a separate WICA policy. This is the
+      bridge between the property/liability findings and the WICA rules.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COND.* — conditions and obligations on the insured.
+#
+# CRITICAL, AND MEASURED ACROSS THREE CARRIERS:
+#
+#   CHUBB    NO general declaration clause. All 28 pages searched for
+#            "condition precedent" — zero hits.
+#   MSIG     HAS a sweeping one, in the preamble (p.1) and repeated as a general
+#            condition (p.36). Plus a discrete GC17 CONDITION PRECEDENT (p.39).
+#   LIBERTY  "condition precedent" appears ONLY as the arbitration precondition
+#            (p.39, p.46). No general compliance declaration.
+#
+# So the consequence of breaching a COND.* obligation is NOT a property of the
+# obligation. It is a property of (obligation, carrier, and judicial construction).
+# Read it from the clause. Never infer it from a declaration clause that may or
+# may not exist, and never infer it from the label — Grace Electrical [2016]
+# SGHC 233 at [17]-[25] holds the label is not decisive.
+# ─────────────────────────────────────────────────────────────────────────────
+COND:
+  COND.DECLARATION_CLAUSE_GENERAL:
+    label: General clause declaring compliance a condition precedent to liability
+    # The single most consequential divergence in the corpus.
+    instances:
+      - carrier: MSIG
+        verified_in: "Preamble p.1; repeated as general condition p.36"
+        present: true
+        quote: >
+          ...the due observance and fulfilment of the terms and conditions of the
+          Policy, in so far as they relate to anything to be done or complied with
+          by the Insured and the truth of the statements and answers in the said
+          Proposal shall be conditions precedent to any liability of the Company
+          to make any payment under this Policy.
+        note: >
+          Structurally the same as GC13 in Grace Electrical, where breach of a
+          statutory-compliance condition precedent barred a S$1m indemnity and the
+          action was dismissed ([72](a), [73]). BUT the label is NOT decisive:
+          at [17]-[25] the court held a general declaration clause must be tested
+          against each specified clause individually, and part of a clause may be
+          a condition precedent while another part is not.
+      - carrier: CHUBB
+        verified_in: "ABSENT — all 28 pages searched, zero hits"
+        present: false
+      - carrier: LIBERTY
+        verified_in: "ABSENT as a general clause; arbitration only (p.39, p.46)"
+        present: false
+        scope: ARBITRATION_AWARD_ONLY
+    engine_behaviour: LOCATE_QUOTE_ESCALATE
+    never: ADJUDICATE
+    note: >
+      The engine MUST NOT answer "does breach of this obligation forfeit cover?"
+      for ANY carrier — not even MSIG, where a sweeping clause exists, because
+      Grace Electrical requires clause-by-clause construction that software
+      cannot perform. Output state is REQUIRES_AUTHORISED_REVIEW. This is the
+      abstention the corpus proves necessary rather than merely prudent.
+
+  COND.PRECEDENT_PREMIUM_HISTORY:
+    label: Validity conditional on prior premium-payment history with other insurers
+    instances:
+      - carrier: MSIG
+        verified_in: "General Condition 17 CONDITION PRECEDENT (p.39)"
+        quote: >
+          The validity of this Policy is subject to the condition precedent that:
+          a) for the risk insured, the name Insured has never had any insurance
+          terminated in the last twelve (12) months due to solely or in part to a
+          breach of any premium payment condition; or b) if the named Insured has
+          declared that it has breached any premium payment condition in respect
+          of a previous policy taken up with another insurer in the last twelve
+          (12) months: i) the named Insured has fully paid all outstanding premium
+          for time on risk calculated by the previous insurer based on the
+          customary short period rate in respect of the previous policy; and ii) a
+          copy of the written confirmation from the previous insurer to his effect
+          is first provided by the named insured to the Company before cover
+          incepts.
+    detectable_from_documents: PARTIAL
+    note: >
+      Detectable only where the SME holds prior policy documents or termination
+      correspondence. Where it does not, this is INFORMATION_MISSING, not a clean
+      finding. Flagged because it interacts with COND.PREMIUM_PAYMENT_WARRANTY:
+      a lapse under the warranty on a PRIOR policy can invalidate the CURRENT one.
+
+  COND.UNOCCUPANCY:
+    label: Unoccupancy / vacancy trigger
+    # THE CLEAREST PROOF THAT DAY COUNTS CANNOT BE STORED PER POLICY.
+    instances:
+      - carrier: CHUBB
+        verified_in: "cl 5.1(b)(v); 'Vacant' defined cl 2.35 (three limbs)"
+        days: 14
+        instrument: PERIL_EXCLUSION
+        scope: "escape of water only"
+      - carrier: MSIG
+        verified_in: "General condition p.37(b)"
+        days: 30
+        instrument: ALTERATION_AVOIDANCE
+        quote: >
+          If the building insured or containing the property insured becomes
+          unoccupied and so remains for a period of more than 30 days.
+        note: >
+          Reaches further than an exclusion. An alteration/avoidance provision can
+          affect the policy far more broadly than narrowing one peril.
+      - carrier: LIBERTY
+        verified_in: "p.45(b) alteration provision"
+        days: 30
+        instrument: ALTERATION_AVOIDANCE
+      - carrier: LIBERTY
+        verified_in: "p.13 and p.30 peril exclusions"
+        days: 30
+        instrument: PERIL_EXCLUSION
+        quote: >
+          whilst the premises are left without an inhabitant actually in them if
+          the premises have been left for a continuous period exceeding 30
+          consecutive days and nights unless written consent has been obtained
+          from the Company
+      - carrier: LIBERTY
+        verified_in: "p.31, a different section"
+        days: 7
+        instrument: PERIL_EXCLUSION
+        quote: >
+          loss or damage happening whilst your premises are left without an
+          inhabitant actually in them if the premises have been so left for
+          continuous period exceeding seven consecutive days and nights
+        note: >
+          SEVEN, not thirty, IN THE SAME WORDING. One insured, one document, two
+          unoccupancy tripwires. This single row is why COND.UNOCCUPANCY has no
+          top-level `days` field and why the data model stores day counts on
+          clause_instance rows. If a schema migration ever adds
+          policy.unoccupancy_days, this row is the regression test.
+    forbidden_storage: "policy.unoccupancy_days — cannot represent Liberty"
+  COND.ALTERATION_NOTICE:
+    label: Notice of material alteration or change in circumstances
+    verified_in: "cl 3.1 Alteration"
+    self_executing: true
+    quote: >
+      The Insured shall give notice to Chubb, of any material alteration or
+      change in circumstances affecting the risk covered and until Chubb agrees
+      in writing to accept liability for such altered risk, Chubb shall have no
+      liability under this Policy for such altered risk.
+    note: >
+      THE STRONGEST FINDING IN THE DOCUMENT. Self-executing: the clause states
+      its own consequence — no liability for the altered risk until Chubb agrees
+      in writing. It needs no condition-precedent declaration clause to bite.
+      Detectable from documents: schedule business/premises description against
+      tenancy permitted use, SSIC code and declared operations, plus the absence
+      of an endorsement evidencing written agreement.
+  COND.STATUTORY_COMPLIANCE_GENERAL:
+    label: Enforce observance of statutory provisions (general conditions)
+    verified_in: "cl 3.21 Safety and Maintenance"
+    self_executing: false
+    quote: >
+      The Insured must at all times take all reasonable steps to safeguard the
+      Property Insured and maintain it in a proper state of repair. The Insured
+      must also take steps to enforce the observance of all statutory provisions,
+      manufacturer's recommendations and other regulations relating to the
+      safety, use and inspection.
+  COND.STATUTORY_COMPLIANCE_LIABILITY:
+    label: Comply with statutory obligations (liability section)
+    verified_in: "Liability section cl 4.3 Statutory Requirements"
+    self_executing: false
+    quote: >
+      The Insured must take reasonable measures to comply with all statutory
+      obligations and regulations imposed by any statutory or governmental
+      authority.
+  COND.PRECAUTIONS:
+    label: Reasonable precautions; maintain plant in good order
+    verified_in: "Liability section cl 4.4 Precautions"
+    self_executing: false
+    note: >
+      cl 4.4(a) — "maintain its ways, works, machinery, plant and Insured
+      Premises in good order and repair" — is near-identical in substance to
+      GC9 in Grace Electrical v EQ Insurance. Same obligation family, different
+      consequence, because Chubb has no declaration clause and EQ did.
+  COND.MINIMUM_SECURITY:
+    label: Lock and secure premises when unoccupied
+    verified_in: "cl 4.9 Minimum Security"
+    self_executing: false
+    physically_verifiable: true
+    quote: >
+      The Insured must ensure when no Insured Person is on the Insured Premises
+      all external doors and internal doors leading to common areas, or other
+      premises are locked and secured and all ground floor and accessible
+      windows are securely closed.
+    note: >
+      A genuinely verifiable physical control in a real Singapore SME wording.
+      Interacts with EXCL.THEFT_FORCIBLE_ENTRY: cover for theft needs forcible
+      entry, AND the insured must have secured the premises. Partially
+      rehabilitates the physical-verification roadmap — a lock and closure
+      condition rather than a fire-suppression warranty.
+  COND.PREMIUM_PAYMENT_WARRANTY:
+    label: Premium payment warranty, 60 days from inception
+    # THE ONLY CLAUSE IN THIS TAXONOMY THAT IS UNIFORM ACROSS ALL THREE CARRIERS.
+    # It is uniform because the General Insurance Association of Singapore
+    # standardised it, not by coincidence. Safe to treat the day count and the
+    # consequence as market-wide — the ONE place in this file where that is true.
+    self_executing: true
+    cover_defeating: true
+    threshold_days: 60
+    market_standard: true
+    market_standard_body: "General Insurance Association of Singapore (GIA)"
+    uniform_across: [CHUBB, MSIG, LIBERTY]
+    instances:
+      - carrier: CHUBB
+        verified_in: "cl 3.20 Premium Payment Warranty (p.8)"
+        consequence_quote: >
+          (a) the cover under the Policy is automatically terminated immediately
+          after the expiry of that 60-day period; (b) the automatic termination of
+          the cover shall be without prejudice to any liability incurred within
+          that 60-day period; and (c) Chubb shall be entitled to a pro-rata time
+          on risk premium subject to a minimum of SGD25.00 or as quoted in the
+          Policy whichever is greater.
+      - carrier: MSIG
+        verified_in: "PREMIUM PAYMENT WARRANTY (p.41)"
+        section_scope_excluded: ["Section 4 — Work Injury Compensation"]
+        consequence_quote: >
+          a) the cover under the Policy, Renewal Certificate or Cover Note is
+          automatically terminated immediately after the expiry of the said sixty
+          (60) day period; b) the automatic termination of the cover shall be
+          without prejudice to any liability incurred within the said sixty (60)
+          day period; and c) the Company shall be entitled to a pro-rata time on
+          risk premium subject to a minimum of S$25.00.
+        note: >
+          NOTE THE CARVE-OUT. MSIG's warranty applies to the whole policy EXCEPT
+          Section 4 Work Injury Compensation. WICA cover is compulsory and cannot
+          simply evaporate for non-payment. The rule MUST respect
+          section_scope_excluded or it will wrongly report a business as having no
+          work injury cover.
+      - carrier: LIBERTY
+        verified_in: "cl 14 (p.40), restated p.48"
+        consequence_quote: >
+          (a) The cover under the Policy, Renewal Certificate or Cover Note is
+          automatically terminated immediately after the expiry of the said 60-day
+          period (b) The automatic termination of the cover shall be without
+          prejudice to any liability incurred within the said 60-day period; and
+          (c) The Company shall be entitled to a pro-rata time on risk premium
+          subject to a minimum of S$25
+    sub_60_day_variant: >
+      All three carry the same variant: if the period of insurance is less than 60
+      days, premium must be paid within the period of insurance.
+    note: >
+      HIGHEST-CONFIDENCE RULE IN THE PRODUCT. Identical across three carriers to
+      the dollar, pure date arithmetic, no legal judgement, PROVEN class, and NO
+      abstention path is required. The consequence is not a reduced payout but no
+      policy at all — a missed instalment on day 61 leaves the business uninsured
+      and nothing in its own records would say so. Build this rule first.
+  COND.CLAIM_TIME_LIMIT:
+    label: No payment for damage 12 months after the event
+    verified_in: "cl 4.13 Time Limit"
+    self_executing: true
+    threshold_months: 12
+  COND.DISCLOSURE:
+    label: Pre-contractual disclosure; insurer may void
+    verified_in: "cl 3.13 Disclosure"
+    self_executing: true
+    quote_summary: >
+      Insured must disclose all facts and matters which might be relevant. If
+      not, Chubb is entitled to void the Policy, unless three cumulative
+      conditions are met (prior continuous insurance, innocent misrepresentation,
+      no prejudice to Chubb's interests).
+    note: >
+      The documentary hook for undisclosed change of use, and stronger than an
+      analogy to Grace Electrical because the avoidance right is stated here.
+  COND.DEDUCTIBLE_NON_INSURANCE_WARRANTY:
+    label: Warranted not to insure the deductible amounts
+    verified_in: "cl 3.12, warranty paragraph"
+  COND.CLAIMS_PROCEDURE:
+    label: Claims notification procedure
+    verified_in: "cl 3.7 Claims Procedure"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXT.* — extensions, elected in the Schedule.
+# ─────────────────────────────────────────────────────────────────────────────
+EXT:
+  EXT.THEFT_FULL:
+    label: Additional Extension 2.17 Theft Endorsement (Full Theft)
+    verified_in: "referenced at cl 5.1(c)(i)3"
+    elected_via: DOC.SCHEDULE
+  EXT.SPRINKLER_LEAKAGE:
+    label: Sprinkler leakage
+    verified_in: "Property section cl 2.4"
+  EXT.THEFT_DAMAGE_BUILDINGS:
+    label: Theft damage to buildings
+    verified_in: "Property section cl 2.7"
+  EXT.FOOD_POISONING:
+    label: Food poisoning
+    verified_in: "Liability section cl 2.5"
+    note: Directly relevant to the food-manufacturing demo persona.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NON-INSURANCE DOCUMENTS — the operands that make PROVEN findings possible.
+# ─────────────────────────────────────────────────────────────────────────────
+EXPOSURE:
+  CPF.CONTRIBUTOR_COUNT:
+    label: Employee count from CPF contribution record
+    author_class: AUTHORITY
+    grades_as: PROVEN
+  WIC.DECLARED_HEADCOUNT:
+    label: Headcount declared on the work injury policy schedule
+    author_class: INSURER
+    grades_as: PROVEN
+  WIC.OCCUPATIONAL_CLASS:
+    label: Occupational class declared to the work injury insurer
+    author_class: INSURER
+    grades_as: PROVEN
+  WORKPASS.HOLDER_LIST:
+    label: Work Permit / S Pass holder list
+    author_class: AUTHORITY
+    grades_as: PROVEN
+  TENANCY.PERMITTED_USE:
+    label: Permitted use covenant in the tenancy agreement
+    author_class: THIRD_PARTY
+    grades_as: PROVEN
+  ACRA.SSIC_CODE:
+    label: SSIC 2025 activity code from ACRA
+    author_class: AUTHORITY
+    grades_as: PROVEN
+  INVOICE.EQUIPMENT_VALUE:
+    label: Equipment or plant value from a supplier invoice
+    author_class: THIRD_PARTY
+    grades_as: PROVEN
+  ACCOUNTS.STOCK_VALUE:
+    label: Stock / inventory value from balance sheet or management accounts
+    author_class: SELF
+    grades_as: DECLARED
+    note: >
+      Deliberately DECLARED, not PROVEN. The business authored it. The GST F5
+      return does NOT carry a closing stock figure — its boxes cover supplies,
+      taxable purchases and output/input tax only. Do not source stock from F5.
+  GST.TURNOVER:
+    label: Declared supplies / turnover from GST F5 return
+    author_class: AUTHORITY
+    grades_as: PROVEN
+    note: What the F5 does report.
+  RCA.BUILDING_VALUE:
+    label: Building reinstatement cost on a RICS basis
+    author_class: THIRD_PARTY
+    grades_as: PROVEN
+    if_absent: UNESTABLISHED
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UNACCOUNTED — the bucket that makes the completeness metric real.
+# ─────────────────────────────────────────────────────────────────────────────
+UNACCOUNTED:
+  label: Operative provision detected but not classified
+  must_be_quoted: true
+  must_be_counted: true
+  invariant: "classified + unaccounted == detected"

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VERIS — what your documents actually establish</title>
+<meta name="description" content="VERIS is an evidence-bound insurance agent for households and small businesses. It reads the policies you already hold, answers with page-cited evidence, and grades every answer by who wrote the evidence behind it.">
+<!-- Absolute, not relative. This file is served from TWO paths: `/` (the front door, for a
+     visitor with no session) and `/static/landing/index.html` (direct, and where the demo
+     recording is fetched from). A relative "landing.css" resolves against the document URL,
+     so at `/` it would ask for `/landing.css` and 404 — the page would render unstyled at
+     exactly the moment it matters most. Absolute paths resolve the same from both. -->
+<link rel="stylesheet" href="/static/landing/landing.css">
+</head>
+<body>
+
+<!-- grain + scanline film over everything -->
+<div class="film" aria-hidden="true"></div>
+<div class="cursor-glow" aria-hidden="true"></div>
+<div class="progress" aria-hidden="true"><i></i></div>
+
+<a class="skip" href="#hero">Skip to content</a>
+
+<!-- ─── ribbon ─────────────────────────────────────────────────────────── -->
+<div class="ribbon">
+  <span class="ribbon__dot" aria-hidden="true"></span>
+  <span>Evidence-bound insurance agent &middot; households and small businesses</span>
+  <a href="#demo">Watch the demo <em>&rarr;</em></a>
+</div>
+
+<!-- ─── nav ────────────────────────────────────────────────────────────── -->
+<header class="nav" id="nav">
+  <a class="mark" href="#hero" aria-label="VERIS home">
+    <span class="mark__glyph" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="26" height="26">
+        <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".35"/>
+        <path d="M9.5 16.6l4.3 4.4 8.7-9.6" fill="none" stroke="currentColor"
+              stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="mark__word">VERIS</span>
+  </a>
+
+  <nav class="nav__links" aria-label="Sections">
+    <a href="#demo">Demo</a>
+    <a href="#ladder">Evidence</a>
+    <a href="#engine">Engine</a>
+    <a href="#numbers">Measured</a>
+    <a href="#trust">Trust</a>
+  </nav>
+
+  <!-- Points at the product, not at an anchor. The section links to the left are anchors and
+       stay that way; this button says "Open the demo", and the only door into the product
+       used to be one button at the very bottom of the page. A visitor who wants to sign in
+       should not have to scroll the whole story to find out how. -->
+  <a class="btn btn--solid magnet" href="/login">
+    <span>Open the demo</span><em aria-hidden="true">&rarr;</em>
+  </a>
+</header>
+
+<main>
+
+<!-- ─── hero ───────────────────────────────────────────────────────────── -->
+<section class="hero" id="hero">
+  <canvas class="lattice" id="lattice" aria-hidden="true"></canvas>
+
+  <div class="hero__grid">
+
+    <div class="hero__copy">
+      <p class="eyebrow reveal"><i aria-hidden="true"></i>Evidence-bound insurance agent</p>
+
+      <h1 class="display" data-split>Know what your policies actually say.</h1>
+
+      <p class="lede reveal" data-d="1">
+        Veris reads the policies a household or a small business already holds, answers
+        with the page it read, and grades every answer by who wrote the evidence behind it.
+      </p>
+
+      <div class="hero__cta reveal" data-d="2">
+        <a class="btn btn--solid btn--lg magnet" href="#brief">
+          <span>See it read a policy</span><em aria-hidden="true">&rarr;</em>
+        </a>
+        <a class="btn btn--ghost btn--lg magnet" href="#ladder">
+          <span>The evidence ladder</span>
+        </a>
+      </div>
+
+      <p class="hero__foot reveal" data-d="3">
+        No estimated figures. No advice. No model decides your cover.
+      </p>
+    </div>
+
+    <!-- the signature piece: a scanner reading a stack of documents -->
+    <div class="scene reveal" data-d="2" id="scene" aria-hidden="true">
+      <div class="scene__stage" id="stage">
+
+        <div class="sheet sheet--c"><div class="sheet__lines"></div></div>
+        <div class="sheet sheet--b"><div class="sheet__lines"></div></div>
+
+        <div class="sheet sheet--a">
+          <div class="sheet__head">
+            <span class="sheet__kind">BASE WORDING</span>
+            <span class="sheet__pg">p.15</span>
+          </div>
+          <div class="sheet__lines" id="lines"></div>
+          <div class="beam" id="beam"></div>
+        </div>
+
+        <ul class="chips" id="chips">
+          <li class="chip chip--proven" style="--x:-46%;--y:-32%"><i></i>Proven</li>
+          <li class="chip chip--declared" style="--x:48%;--y:-6%"><i></i>Declared</li>
+          <li class="chip chip--conv" style="--x:-52%;--y:24%"><i></i>Convention</li>
+          <li class="chip chip--none" style="--x:44%;--y:44%"><i></i>Unestablished</li>
+        </ul>
+
+        <div class="readout" id="readout">
+          <span class="readout__k">reading</span>
+          <span class="readout__v" id="readoutVal">clause 4.2</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="hero__scroll" aria-hidden="true"><i></i></div>
+</section>
+
+<!-- ─── marquee ────────────────────────────────────────────────────────── -->
+<section class="strip" aria-label="Wordings read">
+  <p class="strip__label">Read from real published wordings</p>
+  <!-- One copy of each row only. landing.js repeats it to fill the viewport and
+       measures the exact cycle width, so the loop has no seam. -->
+  <div class="marquee">
+    <div class="marquee__row" data-dir="1" data-speed="46">
+      <span>Chubb Select+</span><span>&middot;</span><span>MSIG SUMO</span><span>&middot;</span>
+      <span>Liberty SMECare</span><span>&middot;</span><span>AIG</span><span>&middot;</span>
+      <span>QBE</span><span>&middot;</span><span>Great Eastern</span><span>&middot;</span>
+    </div>
+    <div class="marquee__row marquee__row--alt" data-dir="-1" data-speed="30">
+      <span>118 pages</span><span>&middot;</span><span>97 provisions</span><span>&middot;</span>
+      <span>7 wordings</span><span>&middot;</span><span>3 carriers verified</span><span>&middot;</span>
+      <span>page-cited</span><span>&middot;</span><span>verbatim</span><span>&middot;</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── demo ───────────────────────────────────────────────────────────── -->
+<section class="sec demo" id="demo">
+  <header class="sec__head sec__head--tight">
+    <p class="eyebrow reveal"><i aria-hidden="true"></i>Watch it work</p>
+  </header>
+
+  <div class="player reveal" data-d="2">
+
+    <div class="tabs" role="tablist" aria-label="Demo chapters">
+      <button class="tab is-on" role="tab" aria-selected="true" data-scene="0">
+        <b>01</b><span>Read</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-scene="1">
+        <b>02</b><span>Grade</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-scene="2">
+        <b>03</b><span>Refuse</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-scene="3">
+        <b>04</b><span>Route</span></button>
+    </div>
+
+    <div class="frame" id="frame">
+      <div class="frame__bar">
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="frame__ch" id="frameCh">Read</span>
+        <span class="frame__rec"><i aria-hidden="true"></i>live</span>
+      </div>
+
+      <div class="frame__body">
+        <span class="stagelight" aria-hidden="true"></span>
+        <span class="gridbg" aria-hidden="true"></span>
+        <span class="vignette" aria-hidden="true"></span>
+
+        <!-- Drop a recording at landing/media/veris-demo.mp4 (or .webm) and it
+             takes over automatically. Until then the scripted replay below runs. -->
+        <video class="shot" id="shot" muted loop playsinline preload="none"
+               aria-label="VERIS product demo">
+          <source src="/static/landing/media/veris-demo.webm" type="video/webm">
+          <source src="/static/landing/media/veris-demo.mp4" type="video/mp4">
+        </video>
+
+        <div class="replay" id="replay" aria-hidden="true">
+
+          <!-- 01 · READ ─ documents land, pages count, the illegible one is refused -->
+          <div class="chap is-on" data-chap="0" data-hue="jade" data-title="Read">
+            <div class="chap__top st" data-cx="14" data-cy="16">
+              <span class="chap__k">intake</span>
+              <span class="chap__badge">4 files &middot; 34 pp</span>
+            </div>
+
+            <ul class="files">
+              <li class="file st" data-cx="26" data-cy="34">
+                <span class="file__ico"></span>
+                <span class="file__n">base-wording.pdf</span>
+                <span class="file__pp"><b data-tally="28">0</b> pp</span>
+                <span class="tick tick--ok"></span>
+              </li>
+              <li class="file st" data-cx="26" data-cy="46">
+                <span class="file__ico"></span>
+                <span class="file__n">schedule.pdf</span>
+                <span class="file__pp"><b data-tally="4">0</b> pp</span>
+                <span class="tick tick--ok"></span>
+              </li>
+              <li class="file st" data-cx="26" data-cy="58">
+                <span class="file__ico"></span>
+                <span class="file__n">cpf-record.pdf</span>
+                <span class="file__pp"><b data-tally="2">0</b> pp</span>
+                <span class="tick tick--ok"></span>
+              </li>
+              <li class="file file--bad st" data-cx="26" data-cy="70">
+                <span class="file__ico file__ico--bad"></span>
+                <span class="file__n">endorsement-05.pdf</span>
+                <span class="file__pp file__pp--bad">no text layer</span>
+                <span class="tick tick--no"></span>
+              </li>
+            </ul>
+
+            <div class="acct st" data-cx="50" data-cy="88">
+              <span class="acct__bar">
+                <i class="acct__seg acct__seg--cl" style="--w:59.8%"></i>
+                <i class="acct__seg acct__seg--un" style="--w:40.2%"></i>
+              </span>
+              <span class="acct__legend">
+                <span><em class="dot dot--cl"></em>classified <b data-tally="58">0</b></span>
+                <span><em class="dot dot--un"></em>unaccounted <b data-tally="39">0</b></span>
+                <span class="acct__tot">detected <b data-tally="97">0</b></span>
+              </span>
+            </div>
+          </div>
+
+          <!-- 02 · GRADE ─ pills stamp in, one row opens its evidence drawer -->
+          <div class="chap" data-chap="1" data-hue="field" data-title="Grade">
+            <div class="chap__top st" data-cx="14" data-cy="16">
+              <span class="chap__k">findings</span>
+              <span class="chap__badge">15 &middot; 11 proven</span>
+            </div>
+
+            <ul class="finds">
+              <li class="find st" data-cx="30" data-cy="32">
+                <span class="find__t">Theft &middot; forcible entry</span>
+                <span class="pill pill--proven">Proven</span>
+              </li>
+              <li class="find st" data-cx="30" data-cy="44">
+                <span class="find__t">Premium &middot; day 71 of 60</span>
+                <span class="pill pill--proven">Proven</span>
+              </li>
+              <li class="find find--open st" data-cx="30" data-cy="56">
+                <span class="find__hd">
+                  <span class="find__t">Stock &middot; 66.7% adequate</span>
+                  <span class="pill pill--conv">Convention</span>
+                </span>
+                <span class="quote st" data-cx="52" data-cy="68">
+                  <span class="quote__cite">base-wording.pdf &middot; p.15 &middot; cl 4.2 &middot; ch 41208&ndash;41382</span>
+                  <span class="quote__q">&ldquo;the amount payable shall be
+                    <mark>proportionately reduced</mark>&rdquo;</span>
+                  <span class="quote__flag">formula not stated in this wording</span>
+                </span>
+              </li>
+              <li class="find find--none st" data-cx="30" data-cy="86">
+                <span class="find__t">Buildings</span>
+                <span class="blank" aria-hidden="true"></span>
+                <span class="pill pill--none">Unestablished</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 03 · REFUSE ─ the beam hunts for a winner, finds none, stamp lands -->
+          <div class="chap" data-chap="2" data-hue="clay" data-title="Refuse">
+            <div class="chap__top st" data-cx="14" data-cy="16">
+              <span class="chap__k">precedence</span>
+              <span class="chap__badge">2 candidates</span>
+            </div>
+
+            <div class="tug">
+              <div class="tug__card st" data-cx="22" data-cy="42">
+                <span>Endorsement 03</span><b>S$5,000</b><em>p.2</em>
+              </div>
+              <div class="tug__beam st" data-cx="50" data-cy="42"><i></i><span></span></div>
+              <div class="tug__card st" data-cx="78" data-cy="42">
+                <span>Endorsement 07</span><b>S$25,000</b><em>p.1</em>
+              </div>
+            </div>
+
+            <div class="verdict st" data-cx="50" data-cy="74">
+              <span class="ring" aria-hidden="true"></span>
+              <span class="stamp">Abstained</span>
+            </div>
+            <p class="chap__note st">Neither document says which governs.
+              Routed to a licensed adviser.</p>
+          </div>
+
+          <!-- 04 · ROUTE ─ named consent, then the chain assembles -->
+          <div class="chap" data-chap="3" data-hue="jade" data-title="Route">
+            <div class="chap__top st" data-cx="14" data-cy="16">
+              <span class="chap__k">disclosure</span>
+              <span class="chap__badge">granular</span>
+            </div>
+
+            <ul class="picks">
+              <li class="pick st" data-cx="24" data-cy="36">
+                <span class="box"></span>Schedule</li>
+              <li class="pick st" data-cx="24" data-cy="50">
+                <span class="box"></span>Base wording</li>
+              <li class="pick pick--off st" data-cx="24" data-cy="64">
+                <span class="box box--off"></span>CPF record<em>withheld</em></li>
+            </ul>
+
+            <div class="chain2 st" data-cx="50" data-cy="80">
+              <span class="lk"></span><span class="lk"></span>
+              <span class="lk"></span><span class="lk"></span>
+              <span class="chain2__t">chain valid</span>
+            </div>
+
+            <div class="sent st" data-cx="50" data-cy="92">
+              Brief delivered<em>2 of 3 documents</em>
+            </div>
+          </div>
+
+        </div>
+
+        <span class="ghost" id="ghost" aria-hidden="true"></span>
+      </div>
+
+      <div class="track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <button class="pp" id="pp" aria-label="Pause demo" aria-pressed="false">
+      <span class="pp__i" aria-hidden="true"></span>
+      <span class="pp__t">Pause</span>
+    </button>
+  </div>
+</section>
+
+<!-- ─── ladder ─────────────────────────────────────────────────────────── -->
+<section class="sec" id="ladder">
+  <header class="sec__head">
+    <p class="eyebrow reveal"><i aria-hidden="true"></i>The wedge</p>
+    <h2 class="display reveal" data-d="1">Four labels. One question:<br>who wrote it?</h2>
+  </header>
+
+  <ol class="ladder" id="ladderList">
+    <li class="rung rung--proven reveal" data-d="1">
+      <span class="rung__n">01</span>
+      <h3>Proven</h3>
+      <p>Every operand from a third party. The owner could not have made it up.</p>
+      <span class="rung__bar"><i></i></span>
+    </li>
+    <li class="rung rung--declared reveal" data-d="2">
+      <span class="rung__n">02</span>
+      <h3>Declared</h3>
+      <p>One operand the business authored. Real document, weaker evidence.</p>
+      <span class="rung__bar"><i></i></span>
+    </li>
+    <li class="rung rung--conv reveal" data-d="3">
+      <span class="rung__n">03</span>
+      <h3>Convention</h3>
+      <p>The wording states the trigger, never the formula. Illustration only.</p>
+      <span class="rung__bar"><i></i></span>
+    </li>
+    <li class="rung rung--none reveal" data-d="4">
+      <span class="rung__n">04</span>
+      <h3>Unestablished</h3>
+      <p>No span in any document. So no number appears at all.</p>
+      <span class="rung__bar"><i></i></span>
+    </li>
+  </ol>
+</section>
+
+<!-- ─── engine: two big cards ──────────────────────────────────────────── -->
+<section class="sec sec--deep" id="engine">
+  <header class="sec__head">
+    <p class="eyebrow reveal"><i aria-hidden="true"></i>How it works</p>
+    <h2 class="display reveal" data-d="1">Two parts, one refusal to guess.</h2>
+  </header>
+
+  <div class="duo">
+    <article class="big tilt reveal" data-d="1">
+      <div class="big__glow" aria-hidden="true"></div>
+      <p class="big__tag">Settlement arithmetic</p>
+      <h3>The wording's own arithmetic, line by line</h3>
+      <p class="big__p">Decimal arithmetic in the order the wording sets. An illustration, never an amount payable. No model touches a figure.</p>
+      <div class="waterfall" aria-hidden="true">
+        <div class="wf__row"><span>Loss</span><b>300,000</b></div>
+        <div class="wf__row"><span>Capped at sum insured</span><b>100,000</b></div>
+        <div class="wf__row wf__row--cut"><span>Average &times; 66.7%</span><b>66,700</b></div>
+        <div class="wf__row wf__row--cut"><span>Less deductible</span><b>61,700</b></div>
+        <div class="wf__row wf__row--out"><span>You absorb</span><b>238,300</b></div>
+      </div>
+      <span class="big__go">Explore the engine <em aria-hidden="true">&rarr;</em></span>
+    </article>
+
+    <article class="big big--alt tilt reveal" data-d="2">
+      <div class="big__glow" aria-hidden="true"></div>
+      <p class="big__tag">Review brief</p>
+      <h3>A prepared case, not a verdict</h3>
+      <p class="big__p">Where the documents fall silent it escalates to a licensed adviser instead of choosing.</p>
+      <div class="refuse" aria-hidden="true">
+        <div class="refuse__x">
+          <span>Endorsement A</span><b>S$5,000</b>
+        </div>
+        <div class="refuse__vs">vs</div>
+        <div class="refuse__x">
+          <span>Endorsement B</span><b>S$25,000</b>
+        </div>
+        <p class="refuse__say">Precedence could not be established.
+          <em>Routed to a licensed adviser.</em></p>
+      </div>
+      <span class="big__go">See the brief <em aria-hidden="true">&rarr;</em></span>
+    </article>
+  </div>
+</section>
+
+<!-- ─── numbers ────────────────────────────────────────────────────────── -->
+<section class="sec" id="numbers">
+  <header class="sec__head">
+    <p class="eyebrow reveal"><i aria-hidden="true"></i>Measured, not claimed</p>
+    <h2 class="display reveal" data-d="1">Numbers a reviewer can check.</h2>
+  </header>
+
+  <div class="stats">
+    <div class="stat reveal" data-d="1">
+      <b class="count" data-to="1" data-dp="1">0.0</b>
+      <span>Precision, clause identification</span>
+    </div>
+    <div class="stat reveal" data-d="2">
+      <b class="count" data-to="1" data-dp="1">0.0</b>
+      <span>Recall, seven real wordings</span>
+    </div>
+    <div class="stat reveal" data-d="3">
+      <b><span class="count" data-to="25">0</span>/25</b>
+      <span>Quotations verbatim at cited offsets</span>
+    </div>
+    <!-- Was a test count, which went stale the day after it was typed. The number of output
+         states is a property of the design and cannot drift. -->
+    <div class="stat reveal" data-d="4">
+      <b class="count" data-to="4">0</b>
+      <span>Output states. Never &ldquo;not covered&rdquo;</span>
+    </div>
+  </div>
+
+  <p class="disclaim reveal" data-d="4">
+    No general accuracy rate. The harness refuses to print one until a named
+    insurance-qualified reviewer has graded a set.
+  </p>
+</section>
+
+<!-- ─── divergence ─────────────────────────────────────────────────────── -->
+<section class="sec sec--deep" id="diverge">
+  <header class="sec__head">
+    <p class="eyebrow reveal"><i aria-hidden="true"></i>Why one wording is not enough</p>
+    <h2 class="display reveal" data-d="1">Same rule. Three carriers.<br>Three different answers.</h2>
+  </header>
+
+  <div class="div3">
+    <article class="dv reveal" data-d="1">
+      <p class="dv__c">Chubb</p>
+      <p class="dv__v"><span class="count" data-to="85">0</span>%</p>
+      <p class="dv__d">Cushion before payment is cut</p>
+      <span class="dv__track"><i style="--w:85%"></i></span>
+    </article>
+    <article class="dv dv--hot reveal" data-d="2">
+      <p class="dv__c">MSIG</p>
+      <p class="dv__v">First dollar</p>
+      <p class="dv__d">No cushion at all</p>
+      <span class="dv__track"><i style="--w:100%"></i></span>
+    </article>
+    <article class="dv reveal" data-d="3">
+      <p class="dv__c">Liberty</p>
+      <p class="dv__v">Two clauses</p>
+      <p class="dv__d">Threshold depends on the basis of settlement</p>
+      <span class="dv__track dv__track--split"><i style="--w:52%"></i><i style="--w:34%"></i></span>
+    </article>
+  </div>
+
+  <p class="disclaim reveal" data-d="3">
+    Hardcode one threshold and you are wrong in both directions. So thresholds live
+    per clause instance, never per carrier.
+  </p>
+</section>
+
+<!-- ─── trust ──────────────────────────────────────────────────────────── -->
+<section class="sec" id="trust">
+  <header class="sec__head">
+    <p class="eyebrow reveal"><i aria-hidden="true"></i>Trust architecture</p>
+    <h2 class="display reveal" data-d="1">There is no breach column.</h2>
+  </header>
+
+  <div class="chain" aria-hidden="true" id="chain">
+    <span class="link"><i></i></span><span class="link"><i></i></span>
+    <span class="link"><i></i></span><span class="link"><i></i></span>
+    <span class="link"><i></i></span>
+  </div>
+
+  <div class="trio">
+    <div class="tc reveal" data-d="1">
+      <h3>Hash-chained</h3>
+      <p>Established facts only. Export it, verify it. Change one byte and it fails.</p>
+    </div>
+    <div class="tc reveal" data-d="2">
+      <h3>Consent is a pull</h3>
+      <p>The owner names which documents an adviser may see. Everything else is withheld and counted.</p>
+    </div>
+    <div class="tc reveal" data-d="3">
+      <h3>Delete is real</h3>
+      <p>Negative findings go. Established facts survive. No score, no black mark, by schema.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── closing ────────────────────────────────────────────────────────── -->
+<section class="close" id="brief">
+  <canvas class="lattice lattice--close" id="lattice2" aria-hidden="true"></canvas>
+  <div class="close__in">
+    <h2 class="display" data-split>Give it a document. Watch it refuse to guess.</h2>
+    <div class="close__cta reveal" data-d="1">
+      <!-- Was href="/". That worked while this page lived at /static/landing/index.html and
+           `/` was the app. Now `/` serves THIS page to a visitor with no session, so "/"
+           would scroll to the top of the page the visitor is already on. `/login` is the
+           SPA's login form and is always the login form, whatever the session says. -->
+      <a class="btn btn--solid btn--lg magnet" href="/login">
+        <span>Open VERIS</span><em aria-hidden="true">&rarr;</em>
+      </a>
+      <a class="btn btn--ghost btn--lg magnet" href="#hero"><span>Back to top</span></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot__l">
+    <span class="mark__word">VERIS</span>
+    <p>What your documents actually establish.</p>
+  </div>
+  <p class="foot__r">Built by Preran S Gowda, Shamanth M S, Shreya Belavatha Jayaram and Shashank S</p>
+</footer>
+
+<script src="/static/landing/landing.js"></script>
+</body>
+</html>

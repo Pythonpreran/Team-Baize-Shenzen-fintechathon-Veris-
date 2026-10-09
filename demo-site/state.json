@@ -1,0 +1,55 @@
+{
+  "company": {
+    "name": "Hock Lee Foods Pte Ltd",
+    "uen": "T09HL1234A",
+    "tagline": "Singapore's trusted prepared meals manufacturer",
+    "since": 2009,
+    "phone": "6789 0123",
+    "email": "info@hockleefoods.com.sg"
+  },
+  "headcount": 14,
+  "locations": [
+    {
+      "id": "tai-seng-03-11",
+      "label": "Main Production Kitchen",
+      "unit": "#03-11",
+      "street": "21 Tai Seng Avenue",
+      "postal": "534054",
+      "opened": "March 2009",
+      "note": "Head office and primary production floor.",
+      "published": true
+    },
+    {
+      "id": "tai-seng-03-12",
+      "label": "Cold Storage & Distribution",
+      "unit": "#03-12",
+      "street": "21 Tai Seng Avenue",
+      "postal": "534054",
+      "opened": "June 2026",
+      "note": "Chilled and frozen holding, order consolidation.",
+      "published": true
+    }
+  ],
+  "activities": [
+    "Manufacture of prepared meals and dishes",
+    "Wholesale supply to food service and catering",
+    "Retail sale via internet and online ordering platforms",
+    "Cold-chain storage and distribution"
+  ],
+  "equipment": [
+    "8-tray blast freezer commissioned 2026",
+    "Two chilled delivery vans"
+  ],
+  "news": [
+    {
+      "date": "2026-06-01",
+      "title": "Cold storage unit now operating at Tai Seng",
+      "body": "Our new chilled and frozen holding area at #03-12 is now handling order consolidation for wholesale customers."
+    },
+    {
+      "date": "2026-03-14",
+      "title": "New blast freezer commissioned",
+      "body": "An 8-tray blast freezer has been installed at the main kitchen, increasing our frozen output capacity."
+    }
+  ]
+}

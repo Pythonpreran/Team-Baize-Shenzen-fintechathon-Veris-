@@ -1,0 +1,35 @@
+{
+  "_fixture": true,
+  "_synthetic_notice": "SYNTHETIC DOCUMENTS — fictional business. Label as synthetic on screen, every time.",
+  "_note": "Two endorsements that CONFLICT on the same election, at the SAME authority rank (both ENDORSEMENT), with the SAME effective date and neither stating it supersedes the other. This produces a genuine precedence TIE that the resolver must refuse to break — gate 4 (authority) escalates to REQUIRES_AUTHORISED_REVIEW rather than picking one. The election is the food-and-drink liability sub-limit, which no settlement computation in the demo consumes, so the tie is self-contained and creates no contradiction with the arithmetic elsewhere.",
+  "_demonstrates": "Definition-of-done item 5 — the fourth abstention gate firing on real data, not only in a unit test. Never resolve a tie; escalation is a correct answer, a guess is not.",
+
+  "documents": [
+    {
+      "_document_kind": "ENDORSEMENT",
+      "_author_class": "INSURER",
+      "_grades_as": "PROVEN",
+      "endorsement_ref": "END-03",
+      "title": "Endorsement 03 — food and drink liability sub-limit",
+      "effective_date": "2026-06-20",
+      "amends_taxonomy_code": "LIMIT.SUB_LIMIT",
+      "amends_clause_ref": "Additional Extension 2.5 food and drink liability",
+      "value_sgd": 5000,
+      "text": "Additional Extension 2.5 food and drink liability sub-limit is amended to SGD5,000 any one Occurrence.",
+      "_planted_defect": "Conflicts with END-04. Same effective date (2026-06-20), same rank, neither supersedes the other."
+    },
+    {
+      "_document_kind": "ENDORSEMENT",
+      "_author_class": "INSURER",
+      "_grades_as": "PROVEN",
+      "endorsement_ref": "END-04",
+      "title": "Endorsement 04 — food and drink liability sub-limit",
+      "effective_date": "2026-06-20",
+      "amends_taxonomy_code": "LIMIT.SUB_LIMIT",
+      "amends_clause_ref": "Additional Extension 2.5 food and drink liability",
+      "value_sgd": 25000,
+      "text": "Additional Extension 2.5 food and drink liability sub-limit is amended to SGD25,000 any one Occurrence.",
+      "_planted_defect": "Conflicts with END-03. The two endorsements set the same sub-limit to different figures at the same authority rank with no order of precedence between them."
+    }
+  ]
+}

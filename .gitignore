@@ -1,0 +1,59 @@
+# ── build and tooling ──────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ── local state ────────────────────────────────────────────────────────────
+# SQLite, including the -wal and -shm sidecars WAL mode creates. A committed database
+# carries whatever a developer uploaded while testing, which is the quiet way personal
+# data ends up in a public repository.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── secrets ────────────────────────────────────────────────────────────────
+# `config.py` reads model keys from `.env` when they are not already in the
+# environment, so this file WILL hold a live key on a demo machine. A submission that
+# ships a key in git history is a disclosure incident, not a style problem, and history
+# cannot be un-pushed. `.env.example` carries NAMES ONLY and is committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*_secret*
+*-secret*
+
+# ── the document corpus ────────────────────────────────────────────────────
+# The published insurer wordings, statute text and the judgment the engine reads. They
+# are third-party copyrighted material: this project has a reader's right to them, not
+# a publisher's. What IS committed is `corpus/manifest.yaml` — publisher, source URL and
+# sha256 per document — so anyone can reconstruct the corpus with
+# `scripts/fetch_corpus.py` and check any citation at source.
+veris-corpus/
+corpus/originals/
+corpus/text/
+corpus/fetch-log.json
+
+# ── agent working notes ────────────────────────────────────────────────────
+# Review requests and verdicts exchanged while building. Not product.
+.agents/
+
+# ── editor and OS noise ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

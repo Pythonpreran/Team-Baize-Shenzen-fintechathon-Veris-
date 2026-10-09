@@ -1,0 +1,79 @@
+{
+  "_fixture": true,
+  "_synthetic_notice": "SYNTHETIC DOCUMENT — fictional business. Label as synthetic on screen.",
+  "_author_class": "INSURER",
+  "_document_kind": "SCHEDULE",
+  "_pairs_with_base_wording": "Chubb Select+ Insurance Policy Wording, Singapore, 07/2020",
+
+  "policy_number": "SG-SELECT-FIXTURE-0001",
+  "insured_name": "Hock Lee Foods Pte Ltd",
+  "uen": "T09FIXTURE1A",
+  "business_description": "Manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade",
+  "ssic_declared": "10740",
+
+  "policy_period": {
+    "inception": "2026-03-01",
+    "expiry": "2027-02-28"
+  },
+  "premium": {
+    "amount_sgd": 4820.00,
+    "received_date": "2026-05-11",
+    "_planted_defect": "Received day 71 of the policy period. cl 3.20 gives 60 days. Cover automatically terminated after day 60 per 3.20(a)."
+  },
+
+  "insured_premises": [
+    {
+      "id": "PREM-1",
+      "address": "Unit 03-11, 21 Tai Seng Avenue, Singapore 534054",
+      "occupancy_description": "Food preparation and packing; ancillary office"
+    }
+  ],
+  "_planted_defect_premises": "Hock Lee occupies a SECOND unit (03-12) since 2026-06-01. It is not listed here and no endorsement adds it. cl 3.1 Alteration bites.",
+
+  "operative_sections": [
+    "PROPERTY",
+    "PUBLIC_AND_PRODUCTS_LIABILITY"
+  ],
+
+  "property_section": {
+    "total_sum_insured_sgd": 340000,
+    "items": [
+      {
+        "item": "Stock in trade",
+        "sum_insured_sgd": 100000,
+        "_planted_defect": "Accounts show stock at 150000. Adequacy 66.7%, below the 85% threshold in cl 4.2."
+      },
+      {
+        "item": "Plant, machinery and equipment",
+        "sum_insured_sgd": 180000
+      },
+      {
+        "item": "Furniture, fixtures and fittings",
+        "sum_insured_sgd": 60000
+      }
+    ],
+    "buildings_sum_insured_sgd": null,
+    "_buildings_note": "Leasehold — tenant does not insure the structure. No reinstatement cost assessment on record. Engine must return UNESTABLISHED, not a computed figure.",
+    "deductible_sgd": 5000,
+    "additional_extensions": {
+      "2.17_theft_endorsement_full_theft": "not applicable",
+      "_planted_defect": "NOT elected. Therefore cl 5.1(c)(i) stands: theft is excluded unless from a Building with violent or forcible entry. Shoplifting and employee theft are outside cover.",
+      "2.4_sprinkler_leakage": "applicable",
+      "2.7_theft_damage_to_buildings": "applicable"
+    }
+  },
+
+  "liability_section": {
+    "limit_any_one_occurrence_sgd": 1000000,
+    "products_liability_aggregate_sgd": 1000000,
+    "extensions": {
+      "2.5_food_poisoning": "applicable",
+      "food_and_drink_sublimit_sgd": 10000
+    }
+  },
+
+  "attaching_endorsements": [
+    "END-01",
+    "END-02"
+  ]
+}

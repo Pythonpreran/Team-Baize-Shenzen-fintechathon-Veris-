@@ -1,0 +1,87 @@
+{
+  "label_id": "EXAMPLE-hock-lee-001",
+  "_status": "EXAMPLE — synthetic, NOT reviewed by a domain expert. Not ground truth.",
+  "derivation": "ENGINE_OUTPUT",
+  "reviewer": null,
+  "reviewed_at": null,
+  "_why_this_measures_nothing": "This file mirrors the engine's own output. It is a regression baseline that catches a rule silently changing state or class; it is NOT an accuracy measurement, because the engine cannot be its own ground truth. The harness excludes every label whose derivation is ENGINE_OUTPUT from the headline precision and recall, and refuses to permit an accuracy claim while no independently derived label exists. See eval/README.md.",
+  "bundle": "hock-lee-foods",
+  "carrier": "CHUBB",
+  "expected_accounting": {
+    "detected": 97,
+    "classified": 58,
+    "verified_classified": 13,
+    "keyword_classified": 45,
+    "unaccounted": 39
+  },
+  "expected_findings": {
+    "ACTIVITY-SSIC-NOT-DECLARED": {
+      "output_state": "REQUIRES_AUTHORISED_REVIEW",
+      "evidence_class": "PROVEN"
+    },
+    "ALTERATION-PREMISES-NOT-ON-SCHEDULE": {
+      "output_state": "REQUIRES_AUTHORISED_REVIEW",
+      "evidence_class": "PROVEN"
+    },
+    "AVERAGE-ADEQUACY-BELOW-THRESHOLD": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "MARKET_CONVENTION"
+    },
+    "BUILDINGS-VALUE-UNESTABLISHED": {
+      "output_state": "INFORMATION_MISSING",
+      "evidence_class": "UNESTABLISHED"
+    },
+    "BUSINESS-INTERRUPTION-NOT-CONFIRMED": {
+      "output_state": "NOT_CONFIRMED",
+      "evidence_class": "PROVEN"
+    },
+    "CLAIM-TIME-LIMIT": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "CYBER-DATA-COVER-ABSENT": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "DEPENDENCY-COVER-NOT-POSSIBLE": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "ENDORSEMENT-ILLEGIBLE-ABSTAIN": {
+      "output_state": "INFORMATION_MISSING",
+      "evidence_class": "UNESTABLISHED"
+    },
+    "MINIMUM-SECURITY": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "PLANT-ADEQUACY-UNESTABLISHED": {
+      "output_state": "INFORMATION_MISSING",
+      "evidence_class": "UNESTABLISHED"
+    },
+    "PREMIUM-PAYMENT-WARRANTY-TIMING": {
+      "output_state": "REQUIRES_AUTHORISED_REVIEW",
+      "evidence_class": "PROVEN"
+    },
+    "SUBLIMIT-CONFLICTING-ENDORSEMENTS": {
+      "output_state": "REQUIRES_AUTHORISED_REVIEW",
+      "evidence_class": "PROVEN"
+    },
+    "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "UNOCCUPANCY-WATER-EXCLUSION": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "WICA-HEADCOUNT-UNDERDECLARED": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    },
+    "WORKPASS-MEDICAL-BELOW-MINIMUM": {
+      "output_state": "DOCUMENTED",
+      "evidence_class": "PROVEN"
+    }
+  }
+}

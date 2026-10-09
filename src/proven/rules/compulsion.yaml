@@ -1,0 +1,75 @@
+# PROVEN — compulsion and date-trigger rules (WICA, premium payment warranty).
+
+- id: WICA-HEADCOUNT-UNDERDECLARED
+  version: 1
+  title: Work injury declaration understated against the CPF record
+  requires:
+    - operand: declared
+      from: {document_kind: WIC_SCHEDULE, taxonomy_code: WIC.DECLARED_HEADCOUNT}
+    - operand: actual
+      from: {document_kind: CPF_RECORD, taxonomy_code: CPF.CONTRIBUTOR_COUNT}
+  test: actual > declared
+  output_state: DOCUMENTED
+  headline: >
+    Your work injury schedule declares {declared} employees; the CPF contribution
+    record shows {actual}. Both are third-party or insurer documents, so this is a
+    PROVEN discrepancy.
+  cite:
+    - authority: MOM
+      proposition: >
+        Employers must ensure declared headcount and occupational class are
+        accurate; wrongful declaration may affect claims.
+  consequence_note: >
+    WICA non-insurance penalty up to $10,000 and/or 12 months. Compulsory for all
+    employees doing manual work at any salary and non-manual employees earning
+    $2,600 or less monthly.
+  deadline: {basis: policy_inception, offset_days: -21}
+
+# RENAMED from PREMIUM-PAYMENT-WARRANTY-BREACHED. The old id asserted the thing this
+# product exists not to assert. `never: [assert_breach]` is enforced on every
+# rendered string, but a rule_id is rendered too — in the API payload, the eval
+# report and the UI tag — so an adjudicating id walked straight around the guard.
+# test_invariants.py now fails the build if any rule_id contains adjudicating
+# language. The finding is unchanged: day count located, clause quoted, escalated.
+- id: PREMIUM-PAYMENT-WARRANTY-TIMING
+  version: 2
+  title: Premium received outside the 60-day warranty period
+  threshold_days: 60
+  requires:
+    - operand: inception
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+    - operand: received
+      from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
+    - operand: ppw
+      from: {document_kind: BASE_WORDING, taxonomy_code: COND.PREMIUM_PAYMENT_WARRANTY}
+  test: (received - inception).days > 60
+  output_state: REQUIRES_AUTHORISED_REVIEW
+  escalate: true
+  headline: >
+    Premium appears to have been received on day {n} of the policy period. cl 3.20
+    provides that cover is automatically terminated immediately after the 60-day
+    period, without prejudice to liability incurred within it.
+  cite: [{clause: "3.20", document_kind: BASE_WORDING}]
+  never: [assert_breach, assert_claim_outcome]
+
+- id: WORKPASS-MEDICAL-BELOW-MINIMUM
+  version: 1
+  minimum_medical_sgd: 60000
+  title: Work Permit holder medical insurance below the required minimum
+  requires:
+    - operand: holders
+      from: {document_kind: WORK_PASS_LIST, taxonomy_code: WORKPASS.HOLDER_LIST}
+  test: any(holder.medical_insurance_sum_sgd < 60000)
+  output_state: DOCUMENTED
+  headline: >
+    At least one Work Permit holder carries medical insurance below the S$60,000
+    annual minimum required per migrant worker. Both figures are from the
+    authority-authored work pass list, so this is a PROVEN discrepancy.
+  cite:
+    - authority: MOM
+      proposition: >
+        Employers must provide each Work Permit and S Pass holder with medical
+        insurance meeting the prescribed annual minimum coverage.
+  consequence_note: >
+    Insufficient medical insurance for a migrant worker can affect work pass
+    renewal and leaves the employer exposed to the worker's medical costs.
