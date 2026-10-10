@@ -1047,8 +1047,8 @@
     "rule_id": "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
     "spans": [
      {
-      "char_end": 731,
-      "char_start": 714,
+      "char_end": 732,
+      "char_start": 715,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "insured_premises:",
@@ -1096,8 +1096,8 @@
     "rule_id": "BUSINESS-INTERRUPTION-NOT-CONFIRMED",
     "spans": [
      {
-      "char_end": 1069,
-      "char_start": 1050,
+      "char_end": 1070,
+      "char_start": 1051,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "operative_sections:",
@@ -1171,8 +1171,8 @@
       "span_id": "<id>"
      },
      {
-      "char_end": 1069,
-      "char_start": 1050,
+      "char_end": 1070,
+      "char_start": 1051,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "operative_sections:",
@@ -1213,8 +1213,8 @@
     "rule_id": "DEPENDENCY-COVER-NOT-POSSIBLE",
     "spans": [
      {
-      "char_end": 1069,
-      "char_start": 1050,
+      "char_end": 1070,
+      "char_start": 1051,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "operative_sections:",
@@ -1283,8 +1283,8 @@
       "span_id": "<id>"
      },
      {
-      "char_end": 576,
-      "char_start": 551,
+      "char_end": 577,
+      "char_start": 552,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "received_date: 2026-05-11",
@@ -1373,8 +1373,8 @@
       "span_id": "<id>"
      },
      {
-      "char_end": 1820,
-      "char_start": 1771,
+      "char_end": 1821,
+      "char_start": 1772,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "2.17_theft_endorsement_full_theft: not applicable",
@@ -1539,8 +1539,8 @@
     "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",
     "spans": [
      {
-      "char_end": 1242,
-      "char_start": 1219,
+      "char_end": 1243,
+      "char_start": 1220,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "sum_insured_sgd: 100000",
@@ -1623,8 +1623,8 @@
     "rule_id": "PLANT-ADEQUACY-UNESTABLISHED",
     "spans": [
      {
-      "char_end": 1430,
-      "char_start": 1407,
+      "char_end": 1431,
+      "char_start": 1408,
       "document_id": "<id>",
       "page_no": 1,
       "quote": "sum_insured_sgd: 180000",
@@ -2780,18 +2780,18 @@
     ],
     "headline_exposure": {
      "adequacy_ratio": "66.7%",
-     "amount_sgd": 25000.0,
-     "assessed_loss_sgd": 60000.0,
+     "amount_sgd": "25000.00",
+     "assessed_loss_sgd": "60000.00",
      "basis": "MARKET_CONVENTION",
      "caveat": "Illustrative. This policy states the trigger but not the formula, so this is market convention, not the amount payable.",
      "evidence_class": "MARKET_CONVENTION",
-     "illustrated_settlement_sgd": 35000.0,
+     "illustrated_settlement_sgd": "35000.00",
      "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD"
     },
     "issues": [
      {
       "evidence_class": "MARKET_CONVENTION",
-      "exposure_sgd": 25000.0,
+      "exposure_sgd": "25000.00",
       "headline": "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure shown is an illustration — where the wording states no formula it is labelled market convention, never \"amount payable\".",
       "missing_documents": [],
       "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",

@@ -27,6 +27,7 @@ state transition that causes it.
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -112,11 +113,12 @@ def test_the_core_bundle_produces_a_score_and_a_computed_exposure(client):
 
     exposure = result["exposure"]
     assert exposure is not None, "no exposure was computable from the core bundle"
-    assert exposure["amount_sgd"] > 0
+    assert Decimal(exposure["amount_sgd"]) > 0
     assert exposure["rule_id"] == "AVERAGE-ADEQUACY-BELOW-THRESHOLD"
     # The figure must arrive with the loss it was assessed against. A settlement
     # illustration with no stated basis is the one number this product must not show.
-    assert exposure["assessed_loss_sgd"] > exposure["illustrated_settlement_sgd"]
+    assert Decimal(exposure["assessed_loss_sgd"]) > Decimal(
+        exposure["illustrated_settlement_sgd"])
 
 
 def test_the_opening_bundle_states_what_it_did_not_read(client):

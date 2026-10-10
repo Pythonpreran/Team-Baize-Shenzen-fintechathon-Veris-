@@ -2941,18 +2941,18 @@
     ],
     "headline_exposure": {
      "adequacy_ratio": "66.7%",
-     "amount_sgd": 25000.0,
-     "assessed_loss_sgd": 60000.0,
+     "amount_sgd": "25000.00",
+     "assessed_loss_sgd": "60000.00",
      "basis": "MARKET_CONVENTION",
      "caveat": "Illustrative. This policy states the trigger but not the formula, so this is market convention, not the amount payable.",
      "evidence_class": "MARKET_CONVENTION",
-     "illustrated_settlement_sgd": 35000.0,
+     "illustrated_settlement_sgd": "35000.00",
      "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD"
     },
     "issues": [
      {
       "evidence_class": "MARKET_CONVENTION",
-      "exposure_sgd": 25000.0,
+      "exposure_sgd": "25000.00",
       "headline": "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure shown is an illustration — where the wording states no formula it is labelled market convention, never \"amount payable\".",
       "missing_documents": [],
       "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",

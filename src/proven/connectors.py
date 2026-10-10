@@ -40,6 +40,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 SIMULATED_NOTICE = (
@@ -58,7 +59,7 @@ class Signal:
     detected_on: str                 # ISO date
     kind: str                        # ASSET_ACQUIRED | HEADCOUNT | REVENUE_CHANNEL ...
     label: str
-    amount_sgd: Optional[float]
+    amount_sgd: Optional[Decimal]
     implies_event: Optional[str]     # a change-event code from events.py
     affects: tuple[str, ...]         # fact names whose value this moves
     asks_for: tuple[str, ...]        # document kinds that would evidence it
@@ -86,7 +87,8 @@ class Signal:
             "detected_on": self.detected_on,
             "kind": self.kind,
             "label": self.label,
-            "amount_sgd": self.amount_sgd,
+            "amount_sgd": (format(self.amount_sgd, "f")
+                           if self.amount_sgd is not None else None),
             "implies_event": self.implies_event,
             "affects": list(self.affects),
             "asks_for": list(self.asks_for),
@@ -107,7 +109,7 @@ _FEED: tuple[Signal, ...] = (
         id="SIG-001", connector="Accounting feed (simulated)",
         detected_on="2026-03-14", kind="ASSET_ACQUIRED",
         label="Blast freezer, 8-tray — capital purchase posted to fixed assets",
-        amount_sgd=62000.0, implies_event="BOUGHT_COSTLY_EQUIPMENT",
+        amount_sgd=Decimal("62000"), implies_event="BOUGHT_COSTLY_EQUIPMENT",
         affects=("plant_value_at_risk",),
         asks_for=("SUPPLIER_INVOICE", "ASSET_REGISTER"),
     ),
@@ -123,7 +125,7 @@ _FEED: tuple[Signal, ...] = (
         id="SIG-003", connector="Accounting feed (simulated)",
         detected_on="2026-05-20", kind="INVENTORY",
         label="Closing inventory rose to S$150,000 (from S$96,000)",
-        amount_sgd=150000.0, implies_event="BOUGHT_COSTLY_EQUIPMENT",
+        amount_sgd=Decimal("150000"), implies_event="BOUGHT_COSTLY_EQUIPMENT",
         affects=("stock_value",),
         asks_for=("ACCOUNTS",),
     ),

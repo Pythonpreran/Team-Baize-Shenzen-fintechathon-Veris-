@@ -16,7 +16,7 @@
     "expiry": "2027-02-28"
   },
   "premium": {
-    "amount_sgd": 4820.00,
+    "amount_sgd": "4820.00",
     "received_date": "2026-05-11",
     "_planted_defect": "Received day 71 of the policy period. cl 3.20 gives 60 days. Cover automatically terminated after day 60 per 3.20(a)."
   },

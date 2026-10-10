@@ -187,7 +187,7 @@ def test_a_percentage_from_an_index_is_never_applied_to_a_business_figure():
 
     out = orchestrator.evaluate(
         internal_signals=[{"id": "SIG-001", "kind": "ASSET_ACQUIRED",
-                           "label": "freezer", "amount_sgd": 62000.0,
+                           "label": "freezer", "amount_sgd": "62000",
                            "detected_on": "2026-08-01", "asks_for": ["ASSET_REGISTER"]}],
         external_signals=index_signals, findings=[])
     for decision in out["decisions"]:
@@ -204,7 +204,7 @@ def test_overlap_raises_priority_but_never_the_evidence_class():
     evidence class that moved because two systems concurred would be a claim neither of
     them can support."""
     internal = [{"id": "SIG-003", "kind": "INVENTORY", "label": "stock rose",
-                 "amount_sgd": 150000.0, "detected_on": "2026-08-01",
+                 "amount_sgd": "150000", "detected_on": "2026-08-01",
                  "asks_for": ["ACCOUNTS"]}]
     external = [s.as_dict() for s in sentinel.relevant_signals(
         insured_interests=("stock",))]
@@ -230,7 +230,7 @@ def test_overlap_raises_priority_but_never_the_evidence_class():
 
 def test_the_overlap_is_reported_so_the_interface_can_lead_with_it():
     internal = [{"id": "SIG-003", "kind": "INVENTORY", "label": "stock rose",
-                 "amount_sgd": 150000.0, "detected_on": "2026-08-01"}]
+                 "amount_sgd": "150000", "detected_on": "2026-08-01"}]
     external = [s.as_dict() for s in sentinel.relevant_signals(
         insured_interests=("stock",))]
     out = orchestrator.evaluate(internal_signals=internal, external_signals=external,

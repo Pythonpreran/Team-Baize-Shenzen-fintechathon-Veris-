@@ -1844,8 +1844,8 @@ def renewal_compare(session: Session = Depends(_session)):
 # ── claim scenario simulator — what happens if you claim tomorrow ────────────
 
 @app.get("/api/scenario")
-def scenario_view(peril: str = "fire", loss: Optional[float] = None,
-                  sub_limit: Optional[float] = None,
+def scenario_view(peril: str = "fire", loss: Optional[str] = None,
+                  sub_limit: Optional[str] = None,
                   session: Session = Depends(_session)):
     """Illustrate what a claim would pay and what the owner absorbs.
 
@@ -1854,14 +1854,20 @@ def scenario_view(peril: str = "fire", loss: Optional[float] = None,
     the sum insured or value at risk is unestablished, it ABSTAINS rather than guessing.
     The final figure is a DETERMINISTIC ILLUSTRATION, never a guaranteed payout.
     """
-    from decimal import Decimal as _D
+    from decimal import Decimal as _D, InvalidOperation
     with session.lock:
         _deny_foreign_role(session)
         st = _state(session)
         if _case_deleted(st):
             return {"available": False, "reason": _DELETED_NOTICE, "deleted": True}
-        loss_d = _D(str(loss)) if loss is not None else None
-        sub_d = _D(str(sub_limit)) if sub_limit is not None else None
+        try:
+            # Query values remain decimal text until the deterministic arithmetic layer.
+            # Accepting FastAPI floats here would make a money representation that can
+            # silently round before Decimal sees it.
+            loss_d = _D(loss) if loss is not None else None
+            sub_d = _D(sub_limit) if sub_limit is not None else None
+        except (InvalidOperation, ValueError):
+            raise HTTPException(422, "loss and sub_limit must be Decimal text values.")
         return scenario.simulate(st, peril=peril, loss_amount=loss_d, sub_limit=sub_d)
 
 

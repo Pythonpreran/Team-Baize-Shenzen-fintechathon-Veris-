@@ -167,6 +167,18 @@ def test_sme_analysis_is_wrapped_without_retaining_case_findings(tmp_path):
     assert repo.wrap_sme_analysis(scope, state)["id"] == wrapped["id"]
 
 
+def test_simulated_accounting_amounts_use_decimal_and_serialise_as_text():
+    """The existing SME feed is part of the durable bundle, so it follows money rules."""
+    from decimal import Decimal
+
+    from proven import connectors
+
+    signal = connectors.signal("SIG-001")
+    assert signal is not None
+    assert isinstance(signal.amount_sgd, Decimal)
+    assert signal.as_dict()["amount_sgd"] == "62000"
+
+
 def _as_owner(client: TestClient, tenant_id: str, user_id: str) -> None:
     client.get("/api/session")
     session = api.SESSIONS.get(client.cookies.get(api.SESSION_COOKIE))

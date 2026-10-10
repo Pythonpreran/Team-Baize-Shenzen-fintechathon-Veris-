@@ -33,6 +33,7 @@ gap in the problem statement.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 # Dimensions. Chosen to match how an owner thinks about their business, not how the
@@ -216,9 +217,27 @@ def compute_score(brief: dict) -> dict:
     }
 
 
+def _money_decimal(value: object) -> Decimal:
+    """Parse a monetary operand without ever taking a float detour."""
+    if isinstance(value, float):
+        raise ValueError("money values must not be floats")
+    try:
+        decimal = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError("not a decimal money value") from exc
+    if not decimal.is_finite():
+        raise ValueError("money values must be finite")
+    return decimal
+
+
+def _money_text(value: Decimal) -> str:
+    return format(value.quantize(Decimal("0.01")), "f")
+
+
 def _headline_exposure(findings: list[dict]) -> Optional[dict]:
     """The biggest computed money figure, with its basis. Never estimated."""
     best: Optional[dict] = None
+    best_shortfall: Optional[Decimal] = None
     for f in findings:
         detail = f.get("detail") or {}
         illustration = detail.get("illustration")
@@ -226,15 +245,17 @@ def _headline_exposure(findings: list[dict]) -> Optional[dict]:
         if illustration is None or loss is None:
             continue
         try:
-            shortfall = float(loss) - float(illustration)
-        except (TypeError, ValueError):
+            loss_amount = _money_decimal(loss)
+            illustrated_amount = _money_decimal(illustration)
+        except ValueError:
             continue
+        shortfall = loss_amount - illustrated_amount
         if shortfall <= 0:
             continue
         candidate = {
-            "amount_sgd": round(shortfall, 2),
-            "assessed_loss_sgd": float(loss),
-            "illustrated_settlement_sgd": float(illustration),
+            "amount_sgd": _money_text(shortfall),
+            "assessed_loss_sgd": _money_text(loss_amount),
+            "illustrated_settlement_sgd": _money_text(illustrated_amount),
             "rule_id": f.get("rule_id"),
             "evidence_class": f.get("class"),
             "basis": detail.get("formula_basis"),
@@ -245,8 +266,8 @@ def _headline_exposure(findings: list[dict]) -> Optional[dict]:
                        if detail.get("formula_basis") == "MARKET_CONVENTION" else
                        "Computed using the arithmetic stated in the wording."),
         }
-        if best is None or candidate["amount_sgd"] > best["amount_sgd"]:
-            best = candidate
+        if best_shortfall is None or shortfall > best_shortfall:
+            best, best_shortfall = candidate, shortfall
     return best
 
 
@@ -268,11 +289,13 @@ def _priority_issues(findings: list[dict]) -> list[dict]:
         if rule_id in _INFORMATIONAL:
             continue
         detail = f.get("detail") or {}
-        money: Optional[float] = None
+        money: Optional[Decimal] = None
         if detail.get("illustration") is not None and detail.get("loss") is not None:
             try:
-                money = max(0.0, float(detail["loss"]) - float(detail["illustration"]))
-            except (TypeError, ValueError):
+                money = max(
+                    Decimal(0), _money_decimal(detail["loss"])
+                    - _money_decimal(detail["illustration"]))
+            except ValueError:
                 money = None
         issues.append({
             "rule_id": rule_id,
@@ -283,11 +306,13 @@ def _priority_issues(findings: list[dict]) -> list[dict]:
             "state_label": f.get("state_label"),
             "evidence_class": f.get("class"),
             "headline": f.get("headline"),
-            "exposure_sgd": money,
+            "exposure_sgd": _money_text(money) if money is not None else None,
             "missing_documents": detail.get("missing_documents") or [],
+            "_sort_exposure": money if money is not None else Decimal(0),
         })
-    issues.sort(key=lambda i: (severity_rank.get(i["state"], 9),
-                               -(i["exposure_sgd"] or 0)))
+    issues.sort(key=lambda i: (severity_rank.get(i["state"], 9), -i["_sort_exposure"]))
+    for issue in issues:
+        issue.pop("_sort_exposure", None)
     return issues
 
 
