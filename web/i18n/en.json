@@ -72,6 +72,7 @@
     "lead": "Your household, assets, policies and separate business records in one place.",
     "synthetic_banner": "SYNTHETIC HOUSEHOLD — this demonstration data is not a real household or policy record.",
     "loading": "Opening your portfolio",
+    "load_error_title": "Portfolio needs attention",
     "empty_title": "Start with your household",
     "empty_body": "There are no durable household records yet. Load the labelled synthetic household to see the same upload and portfolio flow.",
     "load_example": "Load the synthetic household",

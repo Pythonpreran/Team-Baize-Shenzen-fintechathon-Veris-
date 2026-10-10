@@ -85,28 +85,43 @@ def _remove_household_fixture_metadata(client: TestClient, household_id: str) ->
             )
 
 
-def _restore_legacy_sme_source_case_id(client: TestClient) -> None:
-    """Recreate the dynamic source-case key used before durable demo de-duplication."""
+def _make_unmarked_legacy_sme_bundle(client: TestClient) -> None:
+    """Recreate the source-less durable demo shape written before T06 metadata."""
     session = api.SESSIONS.get(client.cookies.get(api.SESSION_COOKIE))
     assert session is not None
     with session.lock:
         scope = api._portfolio_scope(session)
     repository = api._portfolio_repository()
     with repository._connection() as conn:
+        key = repository._ensure_scope(conn, scope)
         row = conn.execute(
-            "SELECT p.id AS policy_id, p.business_id FROM policy p "
+            "SELECT p.id AS policy_id, p.details_encrypted AS policy_details_encrypted, "
+            "b.id AS business_id, b.details_encrypted AS business_details_encrypted "
+            "FROM policy p JOIN business b ON b.id=p.business_id AND b.tenant_id=p.tenant_id "
             "WHERE p.tenant_id=? AND p.line_of_business='SME_PACKAGE'",
             (scope.tenant_id,),
         ).fetchone()
         assert row is not None
+        business_detail = repository._open_json(
+            key, scope.tenant_id, f"business:{row['business_id']}",
+            row["business_details_encrypted"])
+        policy_detail = repository._open_json(
+            key, scope.tenant_id, f"policy:{row['policy_id']}",
+            row["policy_details_encrypted"])
+        business_detail.pop("_sme_bundle_origin", None)
+        policy_detail.pop("_sme_bundle_origin", None)
         legacy_case_id = "legacy-sme-demo-case"
         conn.execute(
-            "UPDATE business SET source_case_id=? WHERE id=? AND tenant_id=?",
-            (legacy_case_id, row["business_id"], scope.tenant_id),
+            "UPDATE business SET source_case_id=?, details_encrypted=? WHERE id=? AND tenant_id=?",
+            (legacy_case_id, repository._seal_json(
+                key, scope.tenant_id, f"business:{row['business_id']}", business_detail),
+             row["business_id"], scope.tenant_id),
         )
         conn.execute(
-            "UPDATE policy SET source_case_id=? WHERE id=? AND tenant_id=?",
-            (legacy_case_id, row["policy_id"], scope.tenant_id),
+            "UPDATE policy SET source_case_id=?, details_encrypted=? WHERE id=? AND tenant_id=?",
+            (legacy_case_id, repository._seal_json(
+                key, scope.tenant_id, f"policy:{row['policy_id']}", policy_detail),
+             row["policy_id"], scope.tenant_id),
         )
 
 
@@ -202,14 +217,13 @@ def test_household_evidence_endpoint_returns_only_the_cited_synthetic_wording(cl
 
 def test_household_synthetic_provenance_survives_a_fresh_session(client):
     _load_household(client)
-    _restore_legacy_sme_source_case_id(client)
     client.cookies.clear()
     login = client.post("/api/auth/login", json={
         "email": "owner@hockleefoods.demo", "password": "Demo@123",
     })
     assert login.status_code == 200
-    # A new session has no browser-local household suppression marker. Resetting it must
-    # still recognise the one durable SME demonstration bundle rather than adding another.
+    # A new session has no browser-local household suppression marker. The durable
+    # server-stamped demo origin keeps the SME demonstration to one bundle.
     assert client.post("/api/reset").status_code == 200
     fresh_portfolio = client.get("/api/portfolio")
     assert fresh_portfolio.status_code == 200
@@ -219,6 +233,38 @@ def test_household_synthetic_provenance_survives_a_fresh_session(client):
     }
     assert [business["name"] for business in body["businesses"]] == ["Hock Lee Foods Pte Ltd"]
     assert sum(policy["source"] == "SME_ANALYSIS" for policy in body["policies"]) == 1
+
+
+def test_unmarked_legacy_demo_requests_reseed_without_changing_records(client):
+    _load_household(client)
+    _make_unmarked_legacy_sme_bundle(client)
+    session = api.SESSIONS.get(client.cookies.get(api.SESSION_COOKIE))
+    assert session is not None
+    with session.lock:
+        scope = api._portfolio_scope(session)
+    repository = api._portfolio_repository()
+    before = repository.portfolio(scope)
+    before_business_ids = {business["id"] for business in before["businesses"]}
+    before_policy_ids = {policy["id"] for policy in before["policies"]}
+
+    # A new browser session has no household-flow suppression marker, so it exercises
+    # the same demo restoration route that encounters the durable legacy bundle.
+    client.cookies.clear()
+    login = client.post("/api/auth/login", json={
+        "email": "owner@hockleefoods.demo", "password": "Demo@123",
+    })
+    assert login.status_code == 200
+    assert client.post("/api/reset").status_code == 200
+    rejected = client.get("/api/portfolio")
+    assert rejected.status_code == 409
+    message = rejected.json()["error"]
+    assert "left unchanged" in message
+    assert "new local portfolio" in message
+    assert "reload the synthetic household" in message
+
+    after = repository.portfolio(scope)
+    assert {business["id"] for business in after["businesses"]} == before_business_ids
+    assert {policy["id"] for policy in after["policies"]} == before_policy_ids
 
 
 def test_complete_legacy_household_backfills_trusted_fixture_metadata(client):

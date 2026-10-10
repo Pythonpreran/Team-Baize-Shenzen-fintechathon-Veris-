@@ -347,7 +347,7 @@ def test_sme_analysis_is_wrapped_without_retaining_case_findings(tmp_path):
     assert repo.wrap_sme_analysis(scope, state)["id"] == wrapped["id"]
 
 
-def test_sme_demo_migration_reconciles_all_verified_legacy_duplicates(tmp_path):
+def test_sme_demo_migration_fails_closed_for_unmarked_legacy_bundles(tmp_path):
     repo = persistence.PortfolioRepository(tmp_path / "portfolio.sqlite", _key())
     scope = _scope("tenant-sme-duplicates", "user-sme-duplicates")
     brief = {
@@ -356,31 +356,117 @@ def test_sme_demo_migration_reconciles_all_verified_legacy_duplicates(tmp_path):
         "jurisdiction": {"detected": "SG"},
     }
 
-    # Before T06's stable identity, each transient demo case created this exact bundle.
+    # Recreate two rows from before durable bundle origin metadata existed.
     first_legacy = repo.wrap_sme_analysis(scope, {
         "case_id": "legacy-demo-case-a", "brief": dict(brief),
     })
-    repo.wrap_sme_analysis(scope, {
+    second_legacy = repo.wrap_sme_analysis(scope, {
         "case_id": "legacy-demo-case-b", "brief": dict(brief),
     })
+    assert first_legacy is not None and second_legacy is not None
+    with repo._connection() as conn:
+        key = repo._ensure_scope(conn, scope)
+        rows = conn.execute(
+            "SELECT p.id AS policy_id, p.details_encrypted AS policy_details_encrypted, "
+            "b.id AS business_id, b.details_encrypted AS business_details_encrypted "
+            "FROM policy p JOIN business b ON b.id=p.business_id "
+            "WHERE p.tenant_id=? AND p.line_of_business='SME_PACKAGE'",
+            (scope.tenant_id,),
+        ).fetchall()
+        assert len(rows) == 2
+        for row in rows:
+            business_detail = repo._open_json(
+                key, scope.tenant_id, f"business:{row['business_id']}",
+                row["business_details_encrypted"])
+            policy_detail = repo._open_json(
+                key, scope.tenant_id, f"policy:{row['policy_id']}",
+                row["policy_details_encrypted"])
+            business_detail.pop("_sme_bundle_origin", None)
+            policy_detail.pop("_sme_bundle_origin", None)
+            conn.execute(
+                "UPDATE business SET details_encrypted=? WHERE id=?",
+                (repo._seal_json(key, scope.tenant_id, f"business:{row['business_id']}",
+                                 business_detail), row["business_id"]),
+            )
+            conn.execute(
+                "UPDATE policy SET details_encrypted=? WHERE id=?",
+                (repo._seal_json(key, scope.tenant_id, f"policy:{row['policy_id']}",
+                                 policy_detail), row["policy_id"]),
+            )
 
-    migrated = repo.wrap_sme_analysis(scope, {
-        "case_id": "current-demo-case",
-        "brief": {**brief, "source": "DEMO_BUNDLE"},
-    })
+    with pytest.raises(persistence.LegacySmeBundleRequiresReseed, match="left unchanged"):
+        repo.wrap_sme_analysis(scope, {
+            "case_id": "current-demo-case",
+            "brief": {**brief, "source": "DEMO_BUNDLE"},
+        })
+
     portfolio = repo.portfolio(scope)
     sme_policies = [
         policy for policy in portfolio["policies"]
         if policy["line_of_business"] == "SME_PACKAGE"
     ]
+    assert {policy["id"] for policy in sme_policies} == {first_legacy["id"], second_legacy["id"]}
+    assert len(portfolio["businesses"]) == 2
+    with repo._connection() as conn:
+        source_case_ids = {
+            row[0] for row in conn.execute(
+                "SELECT source_case_id FROM policy WHERE tenant_id=? AND line_of_business='SME_PACKAGE'",
+                (scope.tenant_id,),
+            )
+        }
+    assert source_case_ids == {"legacy-demo-case-a", "legacy-demo-case-b"}
 
-    assert migrated is not None
-    assert migrated["id"] == first_legacy["id"]
-    assert [business["name"] for business in portfolio["businesses"]] == [
-        "Hock Lee Foods Pte Ltd"
-    ]
-    assert len(sme_policies) == 1
-    assert sme_policies[0]["id"] == first_legacy["id"]
+
+def test_sme_demo_origin_preserves_publicly_matching_uploaded_bundle(tmp_path):
+    repo = persistence.PortfolioRepository(tmp_path / "portfolio.sqlite", _key())
+    scope = _scope("tenant-sme-origin", "user-sme-origin")
+    brief = {
+        "business": "Hock Lee Foods Pte Ltd",
+        "carrier": "Lotus General (Sandbox)",
+        "jurisdiction": {"detected": "SG"},
+    }
+
+    uploaded = repo.wrap_sme_analysis(scope, {
+        "case_id": "uploaded-collision", "brief": {**brief, "source": "UPLOADED_BUNDLE"},
+    })
+    demo = repo.wrap_sme_analysis(scope, {
+        "case_id": "current-demo-case", "brief": {**brief, "source": "DEMO_BUNDLE"},
+    })
+    assert uploaded is not None and demo is not None
+
+    with repo._connection() as conn:
+        key = repo._ensure_scope(conn, scope)
+        rows = conn.execute(
+            "SELECT p.id AS policy_id, p.source_case_id AS policy_source_case_id, "
+            "p.details_encrypted AS policy_details_encrypted, b.id AS business_id, "
+            "b.source_case_id AS business_source_case_id, "
+            "b.details_encrypted AS business_details_encrypted "
+            "FROM policy p JOIN business b ON b.id=p.business_id "
+            "WHERE p.tenant_id=? AND p.line_of_business='SME_PACKAGE' "
+            "ORDER BY p.source_case_id",
+            (scope.tenant_id,),
+        ).fetchall()
+        origins = set()
+        for row in rows:
+            business_detail = repo._open_json(
+                key, scope.tenant_id, f"business:{row['business_id']}",
+                row["business_details_encrypted"])
+            policy_detail = repo._open_json(
+                key, scope.tenant_id, f"policy:{row['policy_id']}",
+                row["policy_details_encrypted"])
+            origins.add((business_detail.get("_sme_bundle_origin"),
+                         policy_detail.get("_sme_bundle_origin")))
+            assert row["business_source_case_id"] == row["policy_source_case_id"]
+
+    assert {row["policy_source_case_id"] for row in rows} == {
+        "uploaded-collision", persistence.SME_DEMO_SOURCE_CASE_ID,
+    }
+    assert origins == {
+        ("UPLOADED_BUNDLE", "UPLOADED_BUNDLE"),
+        ("DEMO_BUNDLE", "DEMO_BUNDLE"),
+    }
+    portfolio = repo.portfolio(scope)
+    assert {policy["id"] for policy in portfolio["policies"]} == {uploaded["id"], demo["id"]}
 
 
 def test_simulated_accounting_amounts_use_decimal_and_serialise_as_text():

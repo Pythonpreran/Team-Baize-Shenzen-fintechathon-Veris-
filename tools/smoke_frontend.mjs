@@ -476,6 +476,32 @@ tryRun("tourPaint is safe with no host", () => { g.tourPaint(); });
 
 await (async () => {
   const previousFetch = sandbox.fetch;
+  const message = "An older unlabelled demonstration bundle was left unchanged to protect your records. "
+    + "It cannot be safely reconciled. To use the demonstration, start a new local portfolio "
+    + "and reload the synthetic household. No records were changed.";
+  try {
+    sandbox.fetch = async path => {
+      calls.push(path);
+      if (path !== "/api/portfolio") throw new Error(`unexpected request: ${path}`);
+      return { status: 409, ok: false, statusText: "Conflict", json: async () => ({ error: message }) };
+    };
+    const host = el("div");
+    await g.smePortfolio(host);
+    if (!host.innerHTML.includes('role="alert"')) throw new Error("remediation is not announced");
+    if (!host.innerHTML.includes("Portfolio needs attention")) throw new Error("remediation title is missing");
+    if (!host.innerHTML.includes("left unchanged") || !host.innerHTML.includes("reload the synthetic household"))
+      throw new Error("safe reseed instruction is missing");
+    if (host.innerHTML.includes("Error 409")) throw new Error("server remediation was discarded");
+    results.push(["ok  ", "smePortfolio renders the legacy demo reseed remediation"]);
+  } catch (e) {
+    results.push(["FAIL", `smePortfolio renders the legacy demo reseed remediation :: ${e.message}`]);
+  } finally {
+    sandbox.fetch = previousFetch;
+  }
+})();
+
+await (async () => {
+  const previousFetch = sandbox.fetch;
   try {
     sandbox.fetch = async path => {
       calls.push(path);

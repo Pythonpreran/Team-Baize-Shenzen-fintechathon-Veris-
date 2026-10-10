@@ -479,7 +479,9 @@ async function api(path, opts = {}) {
     if (r.status === 401) { switchRole(); return null; }
   if (!r.ok) {
     const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || e.error?.message || `Error ${r.status}`);
+    const message = e.detail || (typeof e.error === "string" ? e.error : e.error?.message)
+      || `Error ${r.status}`;
+    throw new Error(message);
   }
   return r.json();
 }
@@ -2527,9 +2529,21 @@ function portfolioCollection(title, values, render, emptyText) {
     <span class="tag">${esc(values.length)}</span></div>${body}</section>`;
 }
 
+function portfolioLoadError(error) {
+  const message = error && error.message ? error.message : String(error || "");
+  return `<div class="insight critical" role="alert"><div class="insight-label">${esc(t("portfolio.load_error_title"))}</div>
+    <div class="insight-text">${esc(message)}</div></div>`;
+}
+
 async function smePortfolio(el) {
   el.innerHTML = spinner(t("portfolio.loading"));
-  const portfolio = await api("/api/portfolio");
+  let portfolio;
+  try {
+    portfolio = await api("/api/portfolio");
+  } catch (error) {
+    el.innerHTML = portfolioLoadError(error);
+    return;
+  }
   if (!portfolio) return;
   const members = Array.isArray(portfolio.members) ? portfolio.members : [];
   const assets = Array.isArray(portfolio.assets) ? portfolio.assets : [];

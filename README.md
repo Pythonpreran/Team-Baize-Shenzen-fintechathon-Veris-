@@ -35,6 +35,16 @@ Then open <http://localhost:8000>.
 pins everything they pull in. So a fresh install gets exactly the versions the suite
 was run against, and exactly the versions `THIRD_PARTY_NOTICES.md` lists.
 
+## One-time local demonstration migration
+
+Older local portfolio stores can contain SME demonstration bundles created before VERIS
+persisted a server-stamped bundle origin. Their public fields are intentionally similar
+to an ordinary uploaded analysis, so VERIS does not infer the origin, relabel a record,
+or remove a duplicate. It leaves an unmarked legacy bundle unchanged and tells the owner
+to start a new local portfolio and reload the synthetic household. This conservative
+one-time path protects uploaded records; current demonstration and uploaded bundles keep
+their durable origin on both the business and policy records.
+
 ## The document corpus
 
 The engine reads real, published policy wordings, statute text and one judgment. Those

@@ -62,6 +62,12 @@ class PortfolioNotFound(PortfolioError):
     http_status = 404
 
 
+class LegacySmeBundleRequiresReseed(PortfolioError):
+    """An unmarked legacy demonstration record must not be inferred or changed."""
+
+    http_status = 409
+
+
 class TenantShredded(PortfolioError):
     http_status = 410
 
@@ -1212,7 +1218,14 @@ class PortfolioRepository:
         if not isinstance(brief, Mapping) or brief.get("deleted") or not case_id:
             return None
         transient_case_id = _text(case_id, "case id", limit=160)
-        is_demo_bundle = brief.get("source") == "DEMO_BUNDLE"
+        source = brief.get("source")
+        is_demo_bundle = source == "DEMO_BUNDLE"
+        # The API stamps these values when it creates a case; they are never accepted in
+        # a portfolio request. Both halves of a wrapped bundle retain the origin so an
+        # uploaded record with public fields matching the demo cannot be inferred later.
+        bundle_origin = ("DEMO_BUNDLE" if is_demo_bundle
+                         else "UPLOADED_BUNDLE" if source == "UPLOADED_BUNDLE"
+                         else "UNMARKED")
         # A reset intentionally creates a new transient case. The established built-in
         # demo must still be one durable SME bundle across fresh browser sessions, while
         # every ordinary uploaded analysis remains keyed to its own transient case.
@@ -1227,13 +1240,40 @@ class PortfolioRepository:
         with self._connection() as conn:
             key = self._ensure_scope(conn, scope)
             existing = conn.execute(
-                "SELECT * FROM policy WHERE tenant_id=? AND source_case_id=?",
+                "SELECT p.*, b.details_encrypted AS business_details_encrypted, "
+                "b.source_case_id AS business_source_case_id "
+                "FROM policy p LEFT JOIN business b ON b.id=p.business_id AND b.tenant_id=p.tenant_id "
+                "WHERE p.tenant_id=? AND p.source_case_id=?",
                 (scope.tenant_id, source_case_id)).fetchone()
+
+            def require_reseed() -> None:
+                raise LegacySmeBundleRequiresReseed(
+                    "An older unlabelled demonstration bundle was left unchanged to protect "
+                    "your records. It cannot be safely reconciled. To use the demonstration, "
+                    "start a new local portfolio and reload the synthetic household. "
+                    "No records were changed.")
+
             if is_demo_bundle:
-                # T06 originally persisted the demo under a transient case id. A row is
-                # adopted only when it has the complete, data-free bundle shape this method
-                # wrote. Every verified duplicate is then reconciled in this transaction;
-                # an ordinary similarly named business is never adopted or removed.
+                if existing is not None:
+                    if existing["business_details_encrypted"] is None:
+                        require_reseed()
+                    existing_business_detail = self._open_json(
+                        key, scope.tenant_id, f"business:{existing['business_id']}",
+                        existing["business_details_encrypted"])
+                    existing_policy_detail = self._open_json(
+                        key, scope.tenant_id, f"policy:{existing['id']}",
+                        existing["details_encrypted"])
+                    if (existing_business_detail.get("_sme_bundle_origin") != "DEMO_BUNDLE"
+                            or existing_policy_detail.get("_sme_bundle_origin") != "DEMO_BUNDLE"
+                            or existing["business_source_case_id"] != SME_DEMO_SOURCE_CASE_ID):
+                        require_reseed()
+                    return self._policy_out(conn, existing, key, scope.tenant_id)
+
+                # Older records have no durable origin. Their data-free public shape is
+                # compatible with both a past demonstration and an ordinary upload, so
+                # adoption or duplicate deletion would be unsafe. A marked upload can
+                # coexist with a new demo; every other matching record needs an explicit
+                # fresh local portfolio rather than an inferred migration.
                 legacy_rows = conn.execute(
                     "SELECT p.*, b.details_encrypted AS business_details_encrypted, "
                     "b.source_case_id AS business_source_case_id "
@@ -1243,7 +1283,6 @@ class PortfolioRepository:
                     "ORDER BY p.created_at, p.id",
                     (scope.tenant_id, SME_DEMO_SOURCE_CASE_ID),
                 ).fetchall()
-                verified_legacy_rows: list[sqlite3.Row] = []
                 expected_country = _country(country)
                 for legacy in legacy_rows:
                     business_id = legacy["business_id"]
@@ -1281,40 +1320,10 @@ class PortfolioRepository:
                             or policy_count != 1
                             or coverage_count != 0):
                         continue
-                    verified_legacy_rows.append(legacy)
+                    if (business_detail.get("_sme_bundle_origin") != "UPLOADED_BUNDLE"
+                            or policy_detail.get("_sme_bundle_origin") != "UPLOADED_BUNDLE"):
+                        require_reseed()
 
-                if existing is None and verified_legacy_rows:
-                    canonical = verified_legacy_rows.pop(0)
-                    business_id = canonical["business_id"]
-                    conn.execute(
-                        "UPDATE business SET source_case_id=? WHERE id=? AND tenant_id=?",
-                        (SME_DEMO_SOURCE_CASE_ID, business_id, scope.tenant_id),
-                    )
-                    conn.execute(
-                        "UPDATE policy SET source_case_id=? WHERE id=? AND tenant_id=?",
-                        (SME_DEMO_SOURCE_CASE_ID, canonical["id"], scope.tenant_id),
-                    )
-                    self._audit(
-                        conn, scope, "BACKFILL_SME_DEMO_IDENTITY", "policy", canonical["id"])
-                    existing = self._row_for_tenant(
-                        conn, "policy", canonical["id"], scope.tenant_id)
-
-                if existing is not None:
-                    for duplicate in verified_legacy_rows:
-                        business_id = duplicate["business_id"]
-                        conn.execute(
-                            "DELETE FROM policy WHERE id=? AND tenant_id=?",
-                            (duplicate["id"], scope.tenant_id),
-                        )
-                        conn.execute(
-                            "DELETE FROM business WHERE id=? AND tenant_id=?",
-                            (business_id, scope.tenant_id),
-                        )
-                        self._audit(
-                            conn, scope, "RECONCILE_SME_DEMO_DUPLICATE", "policy", duplicate["id"])
-                        self._audit(
-                            conn, scope, "RECONCILE_SME_DEMO_DUPLICATE", "business", business_id)
-                    return self._policy_out(conn, existing, key, scope.tenant_id)
             if existing is not None:
                 return self._policy_out(conn, existing, key, scope.tenant_id)
             business_id = new_id()
@@ -1324,6 +1333,7 @@ class PortfolioRepository:
                 (business_id, scope.tenant_id,
                  self._seal_json(key, scope.tenant_id, f"business:{business_id}", {
                      "name": business_name, "country": _country(country), "registration_number": None,
+                     "_sme_bundle_origin": bundle_origin,
                  }), source_case_id, _now()))
             policy_id = new_id()
             now = _now()
@@ -1335,6 +1345,7 @@ class PortfolioRepository:
                 (policy_id, scope.tenant_id, None, business_id, _country(country), "SME_PACKAGE",
                  self._seal_json(key, scope.tenant_id, f"policy:{policy_id}", {
                      "insurer": carrier, "product": "Existing SME analysis bundle", "masked_number": "",
+                     "_sme_bundle_origin": bundle_origin,
                  }), None, None, "ANALYSED", None, "[]", "[]", "[]", source_case_id, now, now))
             self._audit(conn, scope, "WRAP_SME_ANALYSIS", "policy", policy_id)
             return self._policy_out(
