@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # VERIS — every package an install resolves to, PINNED.
 #
 # requirements.txt pins what VERIS asks for directly. Those packages pull in others,
@@ -26,10 +27,12 @@ annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 certifi==2026.7.22
+cffi==2.1.1
 click==8.5.0
 # Windows only. tqdm requires it under `platform_system == "Windows"` and pytest under
 # `sys_platform == "win32"`; the two markers name the same machines.
 colorama==0.4.6 ; sys_platform == "win32"
+cryptography==50.0.2
 distro==1.9.0
 fastapi==0.136.3
 h11==0.16.0
@@ -41,6 +44,7 @@ numpy==2.4.6
 openai==2.29.0
 packaging==26.3
 pillow==12.3.0
+pycparser==3.11
 pydantic==2.12.4
 pydantic_core==2.41.5
 pypdf==6.10.2

@@ -632,6 +632,18 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/api/session"),
     ("GET", "/api/brief"),
     ("POST", "/api/reset"),
+    # Durable tenant portfolio — covered in test_portfolio.py, including cross-tenant
+    # refusal on the item route and tenant-scoped collections on every other route.
+    ("GET", "/api/portfolio"),
+    ("GET", "/api/household/members"),
+    ("POST", "/api/household/members"),
+    ("GET", "/api/assets"),
+    ("POST", "/api/assets"),
+    ("GET", "/api/businesses"),
+    ("POST", "/api/businesses"),
+    ("GET", "/api/policies"),
+    ("POST", "/api/policies"),
+    ("GET", "/api/policies/{policy_id}"),
     ("GET", "/api/bundle/kinds"),
     ("POST", "/api/bundle"),
     # Jurisdiction packs — reference data, covered in test_jurisdiction.py, where the

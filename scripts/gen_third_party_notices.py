@@ -266,8 +266,10 @@ def licence_texts(row: dict) -> list[tuple[str, str]]:
 
 def _comparable(text: str) -> str:
     """One form for a text however it was read: no byte-order mark, LF line endings,
-    no surrounding blank lines."""
-    return _normalise(text).lstrip("\ufeff").strip()
+    no surrounding blank lines, and no trailing whitespace that would make a generated
+    notice fail a clean-diff check without changing the licence terms."""
+    normalised = _normalise(text).lstrip("\ufeff")
+    return "\n".join(line.rstrip() for line in normalised.split("\n")).strip()
 
 
 def licence_rows(packages: list[str]) -> list[dict]:

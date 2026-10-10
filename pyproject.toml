@@ -26,6 +26,7 @@ dependencies = [
   "pypdf==6.10.2",
   "python-multipart==0.0.22",  # required by FastAPI for multipart upload
   "pypdfium2==5.14.0",         # page rendering; see src/proven/pdfrender.py
+  "cryptography==50.0.2",      # AES-GCM tenant portfolio encryption
 ]
 
 [project.optional-dependencies]
@@ -63,8 +64,8 @@ markers = [
   # Needs a published third-party document from the corpus, which lives outside git
   # because it is somebody else's copyrighted material. With no arguments the whole
   # corpus must be present; with ids, only those. conftest.py turns an absent document
-  # into a skip that names it, so the run reports what it did NOT measure rather than
-  # passing quietly with fewer assertions.
+  # into a skip that names the document, so the run reports what it did NOT measure rather
+  # than passing quietly with fewer assertions.
   "requires_corpus: needs documents from the corpus (see corpus/manifest.yaml)",
 ]
 filterwarnings = [

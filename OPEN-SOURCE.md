@@ -32,7 +32,8 @@ too, in `constraints.txt`, which `requirements.txt` applies to every install.
 | **numpy** | BSD-3-Clause (and bundled permissive licences) | **Optional.** Vector arithmetic for embedding retrieval. Without it retrieval falls back to BM25 and says so. |
 | **pytesseract** | Apache-2.0 | **Optional.** Wrapper that calls the Tesseract binary for OCR of scanned pages. OCR confidence is extraction metadata, never evidence confidence: a page read poorly caps any finding resting on it at UNESTABLISHED. |
 | **Pillow** | MIT-CMU. The wheel also bundles FreeType, libjpeg-turbo, libpng, libtiff, libwebp, OpenJPEG and other permissively licensed libraries; its licence file, reproduced in THIRD_PARTY_NOTICES.md, carries each one's terms, and NOTICE carries the credits FreeType and the IJG terms ask for. | **Optional, with OCR.** Image decoding and the pre-OCR conditioning (deskew, denoise, upscale). |
-| **SQLite** (`sqlite3`, Python standard library) | Public domain | The source / accounting / computation / case / record stores. There is deliberately no breach, violation, deficiency or score column anywhere in the schema. |
+| **cryptography** | Apache-2.0 OR BSD-3-Clause | AES-GCM encryption for the durable portfolio store. Each tenant has a random data key wrapped by the deployment master key; deleting that tenant key crypto-shreds its encrypted records. |
+| **SQLite** (`sqlite3`, Python standard library) | Public domain | The source / accounting / computation / case / record stores and the separate durable portfolio store. There is deliberately no breach, violation, deficiency or score column anywhere in the schema. |
 
 Transitive dependencies (anyio, httpx, h11, idna, certifi, typing-extensions, tqdm and the
 rest) are pinned in `constraints.txt` and listed with their licences and texts in

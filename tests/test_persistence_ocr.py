@@ -57,137 +57,26 @@ def test_ocr_mode_defaults_to_auto():
 
 # ── Persistence ─────────────────────────────────────────────────────────────
 
-def test_persistence_status_in_memory_by_default():
-    """Without PROVEN_DB_PATH, everything is in-memory and the module is dormant."""
-    old = os.environ.pop("PROVEN_DB_PATH", None)
-    try:
-        # Reset the module state
-        persistence._shared_conn = None
-        s = persistence.status()
-        assert s["persistent"] is False
-        assert s["backend"] == "memory"
-        assert s["connected"] is False
-    finally:
-        if old is not None:
-            os.environ["PROVEN_DB_PATH"] = old
+def test_persistence_status_is_honest_when_unconfigured(monkeypatch):
+    """The health surface may not imply a durable store before one is configured."""
+    monkeypatch.delenv("VERIS_PORTFOLIO_DB_PATH", raising=False)
+    state = persistence.status()
+    assert state["persistent"] is False
+    assert state["backend"] == "file-sqlite"
+    assert state["path_configured"] is False
+    assert state["one_connection_per_request"] is True
 
 
-def test_persistence_file_backed_works():
-    """With PROVEN_DB_PATH set, the database is file-backed and survives."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        path = f.name
-    old = os.environ.get("PROVEN_DB_PATH")
-    try:
-        os.environ["PROVEN_DB_PATH"] = path
-        persistence._shared_conn = None  # force re-init
-        conn = persistence.get_shared_conn()
-        assert conn is not None
-
-        # Save and reload a session mapping
-        persistence.save_session_case("sess-1", "case-1", "owner-1", "biz-1")
-        loaded = persistence.load_session_case("sess-1")
-        assert loaded is not None
-        assert loaded["case_id"] == "case-1"
-        assert loaded["owner"] == "owner-1"
-
-        # Save and reload a snapshot
-        persistence.save_snapshot("case-1", "owner-1", "biz-1",
-                                  {"brief": {"findings": [1, 2, 3]}})
-        snap = persistence.load_snapshot("case-1", "owner-1")
-        assert snap is not None
-        assert len(snap["brief"]["findings"]) == 3
-
-        # Owner isolation: different owner cannot load
-        assert persistence.load_snapshot("case-1", "other-owner") is None
-
-        # Scheduler run
-        persistence.save_scheduler_run("discovery", "2026-08-14T10:00:00Z",
-                                       "DEMO_FIXTURE", 3, True, "test run")
-        history = persistence.load_scheduler_history(10)
-        assert len(history) == 1
-        assert history[0]["agent"] == "discovery"
-        assert history[0]["elevated"] is True
-
-        persistence.close_shared()
-    finally:
-        persistence._shared_conn = None
-        if old is not None:
-            os.environ["PROVEN_DB_PATH"] = old
-        else:
-            os.environ.pop("PROVEN_DB_PATH", None)
-        try:
-            os.unlink(path)
-        except PermissionError:
-            pass  # Windows file lock; harmless in test cleanup
-
-
-def test_persistence_snapshot_deletion():
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        path = f.name
-    old = os.environ.get("PROVEN_DB_PATH")
-    try:
-        os.environ["PROVEN_DB_PATH"] = path
-        persistence._shared_conn = None
-        persistence.save_snapshot("case-del", "owner-1", "biz-1", {"test": True})
-        assert persistence.load_snapshot("case-del", "owner-1") is not None
-        persistence.delete_snapshot("case-del")
-        # After deletion, status='DELETED' so load returns None
-        assert persistence.load_snapshot("case-del", "owner-1") is None
-        persistence.close_shared()
-    finally:
-        persistence._shared_conn = None
-        if old is not None:
-            os.environ["PROVEN_DB_PATH"] = old
-        else:
-            os.environ.pop("PROVEN_DB_PATH", None)
-        try:
-            os.unlink(path)
-        except PermissionError:
-            pass  # Windows file lock; harmless in test cleanup
-
-
-def test_persistence_never_claims_a_restart_survives_while_the_writes_are_unwired():
-    """The flag may not promise more than the code delivers.
-
-    HOW THIS WAS FOUND. `PROVEN_DB_PATH` was set on a demo machine and /api/health duly
-    reported `persistent: true` with the notice "Cases survive a restart." A full case was
-    then built and the file inspected directly: `session_case`, `case_snapshot` and
-    `record_fact` were all zero rows. The schema is created and stays empty, because
-    `save_snapshot()` and `save_session_case()` are defined in persistence.py and called
-    from nowhere in the codebase.
-
-    That is the product's own unforgivable failure — a component reporting itself as
-    working when it is not — so `status()` now reports the end-to-end behaviour rather than
-    the setting, and this test fails the build if the two ever drift apart again.
-
-    WHEN THE WRITES ARE WIRED: set SNAPSHOT_WRITES_WIRED = True in the same commit that
-    adds the call sites. This test then asserts the opposite direction automatically.
-    """
-    with tempfile.TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, "veris.db")
-        old = os.environ.get("PROVEN_DB_PATH")
-        persistence.close_shared()
-        os.environ["PROVEN_DB_PATH"] = path
-        try:
-            st = persistence.status()
-            assert st["path_configured"] is True, "the path was set and is not reported"
-            assert st["snapshot_writes_wired"] == persistence.SNAPSHOT_WRITES_WIRED
-
-            if persistence.SNAPSHOT_WRITES_WIRED:
-                assert st["persistent"] is True
-                assert "survive" in st["notice"].lower()
-            else:
-                # The whole point: configured but not durable, and saying so.
-                assert st["persistent"] is False, (
-                    "status() claims cases survive a restart while save_snapshot() has "
-                    "no call sites")
-                assert "not wired" in st["notice"].lower()
-        finally:
-            persistence.close_shared()
-            if old is None:
-                os.environ.pop("PROVEN_DB_PATH", None)
-            else:
-                os.environ["PROVEN_DB_PATH"] = old
+def test_persistence_status_describes_the_configured_encrypted_store(monkeypatch, tmp_path):
+    path = tmp_path / "portfolio.sqlite"
+    monkeypatch.setenv("VERIS_PORTFOLIO_DB_PATH", str(path))
+    monkeypatch.setenv("VERIS_MASTER_KEY", "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA")
+    state = persistence.status()
+    assert state["persistent"] is True
+    assert state["path_configured"] is True
+    assert state["path"] == str(path)
+    assert state["master_key_source"] == "environment"
+    assert "AES-GCM" in state["encryption"]
 
 
 def test_ocr_returns_a_page_instead_of_raising_on_success():

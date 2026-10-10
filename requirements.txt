@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # VERIS — runtime and dev dependencies, PINNED.
 #
 # Pinned rather than ranged on purpose. An open range means the build that passes
@@ -29,6 +30,10 @@ python-multipart==0.0.22
 # other module imports it. Optional at runtime: without it the viewer shows the
 # quotation and says the picture of the page is unavailable.
 pypdfium2==5.14.0
+
+# AES-GCM encryption for the tenant-scoped portfolio store. Each tenant data key is
+# wrapped by VERIS_MASTER_KEY; the cffi and pycparser closure is pinned in constraints.
+cryptography==50.0.2
 
 # ── the AI layer (OPTIONAL) ────────────────────────────────────────────────
 # Both are optional at runtime and the product is tested without them. `config.py`

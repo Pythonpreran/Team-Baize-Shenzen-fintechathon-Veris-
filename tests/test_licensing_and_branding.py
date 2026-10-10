@@ -458,6 +458,19 @@ def test_every_documented_install_applies_the_constraints():
             f"{path.name} installs without requirements.txt: {installs}")
 
 
+def test_every_file_pip_reads_is_ascii_or_declares_utf8():
+    """A fresh Windows pip decodes requirement files using the locale unless they
+    are ASCII or declare an encoding in either of their first two lines."""
+    for name in ("requirements.txt", "constraints.txt"):
+        raw = (REPO / name).read_bytes()
+        try:
+            raw.decode("ascii")
+        except UnicodeDecodeError:
+            first_two = raw.decode("utf-8").splitlines()[:2]
+            assert "# -*- coding: utf-8 -*-" in first_two, (
+                f"{name} is non-ASCII and lacks a PEP 263 UTF-8 declaration")
+
+
 def _dev_table(notices: str) -> list[tuple[str, str]]:
     """(name, version) for every row of the development-only tools table."""
     table = notices.split("## Development-only tools", 1)[1].split("## Licence texts", 1)[0]

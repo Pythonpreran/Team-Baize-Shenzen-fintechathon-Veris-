@@ -114,6 +114,175 @@ def _session(request: Request, response: Response) -> Session:
     return session
 
 
+# ── durable portfolio ───────────────────────────────────────────────────────
+#
+# The session case remains transient: it is where an uploaded bundle is analysed and
+# deletion removes its findings. Portfolio records are a separate, encrypted tenant store
+# and therefore require the authenticated owner principal rather than a browser cookie.
+# The route never accepts a tenant id from a caller; the server derives it from that
+# principal before it opens the repository.
+
+class PortfolioMemberIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    name: str = Field(min_length=1, max_length=240)
+    relationship: str = Field(min_length=1, max_length=120)
+    date_of_birth: Optional[str] = Field(default=None, max_length=40)
+    health_facts: Optional[str] = Field(default=None, max_length=4_000)
+    household_id: Optional[str] = Field(default=None, max_length=160)
+
+
+class PortfolioAssetIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    kind: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=240)
+    identifiers: dict[str, str] = Field(default_factory=dict)
+    household_id: Optional[str] = Field(default=None, max_length=160)
+
+
+class PortfolioBusinessIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    name: str = Field(min_length=1, max_length=240)
+    country: str = Field(min_length=1, max_length=16)
+    registration_number: Optional[str] = Field(default=None, max_length=240)
+
+
+class PortfolioCoverageItemIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    mechanism_code: str = Field(min_length=1, max_length=160)
+    # Money stays text across the HTTP boundary and becomes Decimal in persistence.py.
+    # JSON floats are intentionally not a second representation of money in the product.
+    value: Optional[str] = Field(default=None, max_length=80)
+    unit: Optional[str] = Field(default=None, max_length=80)
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    source_document_id: Optional[str] = Field(default=None, max_length=160)
+
+
+class PortfolioPolicyIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    country: str = Field(min_length=1, max_length=16)
+    line_of_business: str = Field(min_length=1, max_length=120)
+    insurer: str = Field(min_length=1, max_length=240)
+    product: str = Field(min_length=1, max_length=240)
+    masked_number: str = Field(default="", max_length=240)
+    period_start: Optional[str] = Field(default=None, max_length=40)
+    period_end: Optional[str] = Field(default=None, max_length=40)
+    status: str = Field(min_length=1, max_length=80)
+    renewal_date: Optional[str] = Field(default=None, max_length=40)
+    household_id: Optional[str] = Field(default=None, max_length=160)
+    business_id: Optional[str] = Field(default=None, max_length=160)
+    insured_member_ids: list[str] = Field(default_factory=list)
+    insured_asset_ids: list[str] = Field(default_factory=list)
+    source_document_ids: list[str] = Field(default_factory=list)
+    coverage_items: list[PortfolioCoverageItemIn] = Field(default_factory=list)
+
+
+def _portfolio_scope(session: Session) -> persistence.TenantScope:
+    """The owner tenant derived from the server-side authenticated principal."""
+    principal = _require_role(session, auth.SME)
+    return persistence.TenantScope(
+        tenant_id=principal.organisation_id,
+        user_id=principal.id,
+        user_name=principal.name,
+        user_email=principal.email,
+        role=principal.role,
+    )
+
+
+def _portfolio_repository() -> persistence.PortfolioRepository:
+    return persistence.repository_from_environment()
+
+
+@app.exception_handler(persistence.PortfolioError)
+async def portfolio_error_handler(_request: Request, exc: persistence.PortfolioError):
+    return JSONResponse(status_code=exc.http_status, content={"error": str(exc)})
+
+
+@app.get("/api/portfolio")
+def portfolio_overview(session: Session = Depends(_session)):
+    """The authenticated tenant's durable household and business portfolio."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+        state = {"brief": session.state.get("brief"), "case_id": session.state.get("case_id")}
+    repo = _portfolio_repository()
+    # Existing SME analysis becomes a policy bundle only when it already exists in this
+    # session. This does not make a GET manufacture a demo case or retain its findings.
+    repo.wrap_sme_analysis(scope, state)
+    return repo.portfolio(scope)
+
+
+@app.get("/api/household/members")
+def portfolio_members(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"members": _portfolio_repository().list_members(scope)}
+
+
+@app.post("/api/household/members")
+def portfolio_add_member(body: PortfolioMemberIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"member": _portfolio_repository().add_member(scope, **body.model_dump())}
+
+
+@app.get("/api/assets")
+def portfolio_assets(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"assets": _portfolio_repository().list_assets(scope)}
+
+
+@app.post("/api/assets")
+def portfolio_add_asset(body: PortfolioAssetIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"asset": _portfolio_repository().add_asset(scope, **body.model_dump())}
+
+
+@app.get("/api/businesses")
+def portfolio_businesses(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"businesses": _portfolio_repository().list_businesses(scope)}
+
+
+@app.post("/api/businesses")
+def portfolio_add_business(body: PortfolioBusinessIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"business": _portfolio_repository().add_business(scope, **body.model_dump())}
+
+
+@app.get("/api/policies")
+def portfolio_policies(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"policies": _portfolio_repository().list_policies(scope)}
+
+
+@app.post("/api/policies")
+def portfolio_add_policy(body: PortfolioPolicyIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"policy": _portfolio_repository().create_policy(scope, **body.model_dump())}
+
+
+@app.get("/api/policies/{policy_id}")
+def portfolio_policy(policy_id: str, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"policy": _portfolio_repository().get_policy(scope, policy_id)}
+
+
 def _state(session: Session) -> dict:
     """The session's analysis state, built on first use from the demo bundle."""
     return SESSIONS.ensure_state(session, _demo_state)

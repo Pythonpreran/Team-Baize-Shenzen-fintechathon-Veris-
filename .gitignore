@@ -33,6 +33,7 @@ htmlcov/
 !.env.example
 *.pem
 *.key
+*.veris-dev-master-key
 *_secret*
 *-secret*
 
