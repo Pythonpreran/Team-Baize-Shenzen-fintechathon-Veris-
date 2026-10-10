@@ -1,0 +1,67 @@
+# VERIS — every package an install resolves to, PINNED.
+#
+# requirements.txt pins what VERIS asks for directly. Those packages pull in others,
+# and a package nobody pinned resolves to whatever is newest on the day `pip install`
+# runs. That breaks two promises at once: that the build which passes today still
+# passes on demo day, and that THIRD_PARTY_NOTICES.md — which records the version of
+# every package it lists — describes what a fresh install actually ships.
+#
+# So this file pins the whole closure: the runtime requirements and everything they
+# depend on, then the development tools and everything they depend on. A constraint
+# only fixes the version of a package that something else requires; it never installs
+# anything by itself. requirements.txt applies this file (`-c constraints.txt`), so the
+# plain `pip install -r requirements.txt` that README, CI and any image build use
+# installs exactly these versions.
+#
+# tests/test_licensing_and_branding.py fails if a package in the installed closure has
+# no pin here (and names the line to add), if a pin here is for a package nothing
+# needs, if a pin disagrees with requirements.txt or pyproject.toml, or if
+# THIRD_PARTY_NOTICES.md records a different version.
+#
+# To change a version: edit the pin here (and in requirements.txt and pyproject.toml
+# for a direct dependency), reinstall, run the suite, regenerate the notices, commit.
+
+# ── runtime closure ────────────────────────────────────────────────────────
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+click==8.5.0
+# Windows only. tqdm requires it under `platform_system == "Windows"` and pytest under
+# `sys_platform == "win32"`; the two markers name the same machines.
+colorama==0.4.6 ; sys_platform == "win32"
+distro==1.9.0
+fastapi==0.136.3
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+jiter==0.17.0
+numpy==2.4.6
+openai==2.29.0
+packaging==26.3
+pillow==12.3.0
+pydantic==2.12.4
+pydantic_core==2.41.5
+pypdf==6.10.2
+pypdfium2==5.14.0
+pytesseract==0.3.13
+python-multipart==0.0.22
+PyYAML==6.0.3
+sniffio==1.3.1
+starlette==1.7.0
+tqdm==4.70.1
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.34.0
+
+# ── development-only closure ───────────────────────────────────────────────
+hypothesis==6.155.6
+iniconfig==2.3.1
+pip-licenses==5.5.5
+pluggy==1.6.0
+prettytable==3.18.0
+Pygments==2.21.0
+pytest==9.1.1
+sortedcontainers==2.4.0
+wcwidth==0.9.2

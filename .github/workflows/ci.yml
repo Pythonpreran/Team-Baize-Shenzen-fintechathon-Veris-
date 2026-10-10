@@ -35,12 +35,16 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            constraints.txt
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      # requirements.txt applies constraints.txt, so this installs the exact version of
+      # every package in the closure, not only of the direct dependencies.
       - name: Install pinned dependencies
         run: |
           python -m pip install --upgrade pip

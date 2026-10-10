@@ -8,6 +8,12 @@
 # Every component's role in the system and its licence: OPEN-SOURCE.md.
 # Generated licence texts for everything installed: THIRD_PARTY_NOTICES.md.
 
+# The pins in this file cover only what VERIS asks for directly. The packages those pull
+# in — the transitive dependencies the paragraph above warns about — are pinned in
+# constraints.txt, and this line applies it to every install made from this file:
+# README, CI and any image build alike. pip resolves the path relative to this file.
+-c constraints.txt
+
 # ── runtime ────────────────────────────────────────────────────────────────
 fastapi==0.136.3
 uvicorn==0.34.0

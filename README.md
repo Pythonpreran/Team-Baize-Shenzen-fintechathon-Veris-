@@ -20,7 +20,7 @@ import graph rather than claiming it in prose.
 python -m venv .venv
 .venv/Scripts/Activate.ps1        # Windows PowerShell
 # source .venv/bin/activate       # macOS / Linux
-pip install -r requirements.txt
+pip install -r requirements.txt   # applies constraints.txt: every package pinned
 
 # Optional: the published insurer wordings the worked example reads. See below.
 python scripts/fetch_corpus.py --seed-from ../06-evidence
@@ -30,6 +30,10 @@ python -m uvicorn proven.api:app --port 8000
 ```
 
 Then open <http://localhost:8000>.
+
+`requirements.txt` pins the direct dependencies, and the `constraints.txt` it applies
+pins everything they pull in. So a fresh install gets exactly the versions the suite
+was run against, and exactly the versions `THIRD_PARTY_NOTICES.md` lists.
 
 ## The document corpus
 

@@ -12,10 +12,12 @@ runtime component, including every licence file a component declares for the nat
 libraries compiled into it, are reproduced in THIRD_PARTY_NOTICES.md, which names the
 platform it was generated for.
 
-Page rendering uses PDFium through the pypdfium2 binding. The PDFium binary that
-pypdfium2 ships is built with the FreeType font engine: this software uses the FreeType
-code (www.freetype.org). It is also built with libjpeg-turbo: this software is based in
-part on the work of the Independent JPEG Group.
+Two runtime components ship native binaries built with the FreeType font engine and
+with libjpeg-turbo: the PDFium binary that the pypdfium2 binding ships, which renders
+pages, and the Pillow wheel, which decodes images for OCR. As their licences require:
+this software uses the FreeType code (www.freetype.org), and this software is based in
+part on the work of the FreeType Team. This software is based in part on the work of
+the Independent JPEG Group.
 
 Third-party documents. The published insurer policy wordings, statute text and court
 judgment that the engine reads are NOT distributed with this work. They remain the

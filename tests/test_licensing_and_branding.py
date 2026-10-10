@@ -8,8 +8,10 @@ Four groups, each pinning something the rebranding and licensing work establishe
      suite rather than a step somebody remembers to run.
   2. LICENSING. Apache-2.0, a NOTICE with the credits bundled licences require,
      generated third-party notices that cover every pinned runtime requirement with every
-     licence file each component declares and that name the platform they describe, and
-     an OPEN-SOURCE.md that gives each component, service and data source its role.
+     licence file each component declares and that name the platform they describe, an
+     install pinned package by package so those notices describe what a fresh install
+     ships, and an OPEN-SOURCE.md that gives each component, service and data source its
+     role.
   3. DE-SCOPING. The live accounting connector is gone and the seam is documented in its
      place; the carrier workspace speaks for a fictional insurer and is not offered at
      sign-in.
@@ -68,6 +70,66 @@ def _runtime_requirements() -> list[tuple[str, str]]:
 
 def _canon(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
+
+
+#: What pip treats as a comment in a requirements or constraints file: a `#` at the start
+#: of a line or after whitespace.
+_PIP_COMMENT = re.compile(r"(^|\s+)#.*$")
+
+
+def _pip_lines(path: Path) -> list[tuple[int, str]]:
+    """(line number, content) for every non-blank line, comments removed, as pip reads it."""
+    out = []
+    for n, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = _PIP_COMMENT.sub("", raw).strip()
+        if line:
+            out.append((n, line))
+    return out
+
+
+def _constraint_lines():
+    """(line number, parsed requirement) for every pin in constraints.txt."""
+    from packaging.requirements import Requirement
+    return [(n, Requirement(line)) for n, line in _pip_lines(REPO / "constraints.txt")]
+
+
+def _pins() -> dict:
+    """canonical name -> parsed pin, from constraints.txt."""
+    return {_canon(req.name): req for _, req in _constraint_lines()}
+
+
+def _pinned_version(req) -> str:
+    return next(iter(req.specifier)).version
+
+
+def _pin_applies_here(req) -> bool:
+    return req.marker is None or req.marker.evaluate()
+
+
+def _closure_against_pins(gen):
+    """Compare the installed closure with constraints.txt.
+
+    Returns (needed, unpinned, differing): every package the runtime and development
+    requirements resolve to here (canonical name -> distribution name), the ones with no
+    pin that applies on this platform written as the line to add, and the ones installed
+    at a version other than their pin. The closure is the notices generator's own, so
+    this test and THIRD_PARTY_NOTICES.md agree on what "the closure" is.
+    """
+    from importlib import metadata
+
+    runtime_roots, dev_roots = gen.pinned_requirements()
+    needed = {_canon(n): n for n in gen.closure(dev_roots)}
+    needed.update({_canon(n): n for n in gen.closure(runtime_roots)})
+    pins = _pins()
+    unpinned, differing = [], []
+    for key, name in sorted(needed.items()):
+        installed = metadata.version(name)
+        req = pins.get(key)
+        if req is None or not _pin_applies_here(req):
+            unpinned.append(f"{name}=={installed}")
+        elif _pinned_version(req) != installed:
+            differing.append(f"{name}: installed {installed}, pinned {_pinned_version(req)}")
+    return needed, unpinned, differing
 
 
 # ── 1. the brand guard ───────────────────────────────────────────────────────
@@ -226,16 +288,50 @@ def test_the_renderer_section_reproduces_the_licences_of_what_is_compiled_into_i
     assert "Portions of this software are copyright \u00a9" in body
 
 
+#: FreeType's binding redistribution term (its Legal Terms, section 2), and the IJG's, as
+#: the bundled licence texts word them.
+_FREETYPE_BINARY_TERM = ("Redistribution in binary form must provide a disclaimer that "
+                         "states that the software is based in part of the work of the "
+                         "FreeType Team")
+_IJG_BINARY_TERM = "this software is based in part on the work of the Independent JPEG Group"
+
+
 def test_the_notice_carries_the_credits_the_bundled_licences_require():
-    """FreeType's licence requires the documentation to acknowledge that the FreeType
-    code is used; the IJG terms require the documentation accompanying a binary to state
-    that the software is based in part on the Independent JPEG Group's work. NOTICE is
-    the documentation that accompanies every distribution of this work."""
+    """NOTICE is the documentation that accompanies every distribution of this work, so
+    it carries the statements bundled native libraries attach to binary redistribution.
+
+    FreeType words its request twice. The introduction asks the documentation to
+    acknowledge that the FreeType code is used; the binding Legal Terms, section 2,
+    require a binary's distribution documentation to state that the software is based in
+    part on the work of the FreeType Team. The first alone is not the second. The IJG
+    terms require the documentation accompanying executable code to state that it is
+    based in part on the work of the Independent JPEG Group."""
     notice = (REPO / "NOTICE").read_text(encoding="utf-8")
     flat = " ".join(notice.split())
     assert "uses the FreeType code (www.freetype.org)" in flat
+    assert "based in part on the work of the FreeType Team" in flat
     assert "based in part on the work of the Independent JPEG Group" in flat
     assert "names the platform it was generated for" in flat
+
+
+def test_the_notice_names_every_component_that_bundles_those_libraries():
+    """NOTICE says which components ship FreeType and libjpeg-turbo: the PDFium binary in
+    pypdfium2 and the Pillow wheel. Held to the licence texts actually reproduced, so a
+    component that starts or stops bundling them shows up here rather than leaving
+    NOTICE describing a different set of binaries."""
+    sections = _licence_sections(_notices())
+    flat_notice = " ".join((REPO / "NOTICE").read_text(encoding="utf-8").split())
+    bundlers = []
+    for heading, body in sections.items():
+        flat = " ".join(body.split())
+        if _FREETYPE_BINARY_TERM in flat or _IJG_BINARY_TERM in flat:
+            bundlers.append(heading.split()[0].lower())
+            assert _FREETYPE_BINARY_TERM in flat and _IJG_BINARY_TERM in flat, (
+                f"{heading} bundles one of FreeType and libjpeg-turbo but not the other; "
+                "NOTICE says each bundler ships both")
+    assert sorted(bundlers) == ["pillow", "pypdfium2"], bundlers
+    assert "the PDFium binary that the pypdfium2 binding ships" in flat_notice
+    assert "the Pillow wheel" in flat_notice
 
 
 def test_the_generator_reads_every_licence_file_a_runtime_package_declares():
@@ -276,14 +372,139 @@ def test_the_notices_say_which_platform_they_describe():
     assert "pypdfium2" in head.split("Binary wheels, built for this platform:", 1)[1]
 
 
+# ── the whole install is pinned ─────────────────────────────────────────────
+# requirements.txt pins what VERIS asks for directly; constraints.txt pins everything
+# that pulls in. Before it existed, 23 of the 39 packages in a fresh install were
+# whatever was newest that day. The notices record every version, so the first upstream
+# release of any of them would have made a clean clone fail the up-to-date test below on
+# the platform the team works on, while Linux CI skipped that test and the build's own
+# long-lived environment never re-resolved: nothing automated would have seen it. These
+# tests hold the pin set complete, and the parts that do not depend on the platform run
+# everywhere, Linux CI included.
+
+def test_every_constraint_is_one_exact_pin_of_one_package():
+    seen: dict[str, int] = {}
+    for n, req in _constraint_lines():
+        specs = list(req.specifier)
+        assert len(specs) == 1 and specs[0].operator == "==", (
+            f"constraints.txt:{n}: {req} is not an exact pin")
+        assert "*" not in specs[0].version, f"constraints.txt:{n}: {req} is a wildcard"
+        assert not req.extras and req.url is None, f"constraints.txt:{n}: {req}"
+        key = _canon(req.name)
+        assert key not in seen, f"{req.name} is pinned twice (lines {seen[key]} and {n})"
+        seen[key] = n
+    assert len(seen) > 20
+
+
+def test_every_package_an_install_resolves_to_is_pinned_at_its_installed_version():
+    """The test the finding asked for. A package a later task adds (and whatever it
+    pulls in) fails here, with the line to add, until it is pinned."""
+    gen = _notices_generator()
+    needed, unpinned, differing = _closure_against_pins(gen)
+    assert len(needed) > 20, "the dependency closure came out empty"
+    assert not unpinned, ("installed, needed, and not pinned in constraints.txt; add:\n"
+                          + "\n".join(unpinned))
+    assert not differing, ("installed at a version other than its pin; reinstall with "
+                           "`pip install -r requirements.txt`:\n" + "\n".join(differing))
+
+
+def test_the_constraints_pin_nothing_the_install_does_not_need():
+    """A pin left behind after a dependency is dropped would sit in the file looking like
+    part of the deployment. A pin whose marker excludes this platform is judged where
+    it applies."""
+    gen = _notices_generator()
+    needed, _, _ = _closure_against_pins(gen)
+    stale = [str(req) for key, req in _pins().items()
+             if _pin_applies_here(req) and key not in needed]
+    assert not stale, f"pinned in constraints.txt but needed by nothing installed: {stale}"
+
+
+def test_the_direct_pins_agree_with_the_constraints():
+    """requirements.txt, pyproject.toml and constraints.txt each pin the direct
+    dependencies. If two of them disagree, pip refuses the install outright."""
+    from packaging.requirements import Requirement
+
+    direct = [("requirements.txt", Requirement(line))
+              for _, line in _pip_lines(REPO / "requirements.txt")
+              if not line.startswith("-")]
+    project = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    for spec in project["dependencies"]:
+        direct.append(("pyproject.toml", Requirement(spec)))
+    for group, specs in project.get("optional-dependencies", {}).items():
+        direct += [(f"pyproject.toml [{group}]", Requirement(spec)) for spec in specs]
+    assert len(direct) > 15
+    pins = _pins()
+    for source, req in direct:
+        pin = pins.get(_canon(req.name))
+        assert pin is not None, f"{req.name} ({source}) has no pin in constraints.txt"
+        assert req.specifier.contains(_pinned_version(pin)), (
+            f"{req.name}: {source} says {req.specifier}, constraints.txt pins "
+            f"{_pinned_version(pin)}")
+        specs = list(req.specifier)
+        assert len(specs) == 1 and specs[0].operator == "==", (
+            f"{req.name} in {source} is not pinned exactly")
+
+
+def test_every_documented_install_applies_the_constraints():
+    """The pins bind only an install that reads them. requirements.txt applies
+    constraints.txt itself, so the one install command that README and CI use cannot
+    leave it out; this holds both halves of that in place."""
+    assert "-c constraints.txt" in [line for _, line in _pip_lines(REPO / "requirements.txt")]
+    for path in (REPO / "README.md", REPO / ".github" / "workflows" / "ci.yml"):
+        text = path.read_text(encoding="utf-8")
+        installs = re.findall(r"pip install (?!--upgrade pip\b)[^\n#]*", text)
+        assert installs, f"{path.name} documents no install"
+        assert all("-r requirements.txt" in i for i in installs), (
+            f"{path.name} installs without requirements.txt: {installs}")
+
+
+def _dev_table(notices: str) -> list[tuple[str, str]]:
+    """(name, version) for every row of the development-only tools table."""
+    table = notices.split("## Development-only tools", 1)[1].split("## Licence texts", 1)[0]
+    return [(m.group(1), m.group(2)) for m in re.finditer(
+        r"^\| ([^|]+?) \| ([^|]+?) \| [^|]+? \|", table, re.MULTILINE)
+        if m.group(1) not in {"Package", "---"}]
+
+
+def test_the_notices_record_exactly_the_pinned_versions():
+    """Platform-independent, so it runs where the full comparison below is skipped: a pin
+    moved without regenerating the notices, or notices generated from an environment
+    that is not the pinned one, fail here on every platform."""
+    notices = _notices()
+    rows = _runtime_table(notices) + _dev_table(notices)
+    assert len(rows) > 20
+    pins = _pins()
+    wrong = []
+    for name, version in rows:
+        pin = pins.get(_canon(name))
+        if pin is None:
+            wrong.append(f"{name} {version} is listed but not pinned in constraints.txt")
+        elif _pinned_version(pin) != version:
+            wrong.append(f"{name}: the notices record {version}, constraints.txt pins "
+                         f"{_pinned_version(pin)}")
+    assert not wrong, "\n".join(wrong)
+    listed = {_canon(name) for name, _ in rows}
+    # A pin with a platform marker is listed only in notices generated where it holds.
+    absent = [str(req) for key, req in pins.items() if req.marker is None and key not in listed]
+    assert not absent, f"pinned on every platform but absent from the notices: {absent}"
+
+
 def test_the_notices_are_current_on_the_platform_they_describe():
     """`--check`, as a test, wherever it is meaningful. On another platform the closure
-    legitimately differs, so it is skipped by name rather than reported as staleness."""
+    legitimately differs, so it is skipped by name rather than reported as staleness. On
+    this one a fresh install reproduces the file, because every package is pinned; an
+    environment that has drifted from the pins is reported as that, not as stale notices
+    (regenerating from it would write the wrong versions)."""
     gen = _notices_generator()
     committed = _notices()
     described, here = gen.described_platform(committed), gen.target_platform()
     if described != here:
         pytest.skip(f"THIRD_PARTY_NOTICES.md describes {described}; this is {here}")
+    _, unpinned, differing = _closure_against_pins(gen)
+    assert not unpinned and not differing, (
+        "this environment is not the pinned one, so it cannot reproduce the notices; "
+        "reinstall with `pip install -r requirements.txt`:\n"
+        + "\n".join(unpinned + differing))
     assert gen.build() == committed, (
         "THIRD_PARTY_NOTICES.md is out of date: run scripts/gen_third_party_notices.py")
 
