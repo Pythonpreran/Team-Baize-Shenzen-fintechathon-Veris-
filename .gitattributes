@@ -1,0 +1,11 @@
+# Line-ending conversion is for text, and a PDF is not text.
+#
+# The synthetic PDFs in demo-documents/ are written by tests/pdfbuild*.py with
+# uncompressed, all-ASCII streams, so git's content sniffing classifies them as text.
+# Under Git for Windows' default core.autocrlf=true a checkout then rewrote every LF
+# inside them as CRLF: each file grew by tens of bytes, every xref offset and stream
+# /Length went stale, strict PDF readers refused them, and the same commit hashed
+# differently on a Windows clone and a Linux one. `binary` (-text -diff -merge) stores
+# and checks out the exact bytes the generator wrote, on every platform.
+# tests/test_licensing_and_branding.py holds this in place.
+*.pdf binary

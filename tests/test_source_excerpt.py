@@ -11,6 +11,8 @@ None of this needs the corpus, so none of it skips without one.
 """
 from __future__ import annotations
 
+import sqlite3
+
 from proven import api, corpus, sourceview
 
 PAGE = (
@@ -76,6 +78,43 @@ def test_windows_line_endings_are_paragraph_breaks_too():
     x = _cut(text=text)
     assert x["text"].startswith("4.2 Average.")
     assert "4.3" not in x["text"]
+
+
+# ── the response the viewer route returns ────────────────────────────────────
+
+def _stored_case(page_no: int = 3):
+    """The two things the excerpt route reads: the stored page text and the document."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE page_text (document_id TEXT, page_no INTEGER, text TEXT)")
+    conn.execute("INSERT INTO page_text VALUES (?, ?, ?)", ("doc-w", page_no, PAGE))
+    row = {"id": "doc-w", "filename": api._EXAMPLE_WORDING_NAME, "kind": "WORDING",
+           "page_count": 28}
+    return {"conn": conn}, row
+
+
+def test_an_excerpt_response_says_nothing_about_a_page_it_never_drew():
+    """No page is rendered for a published document, so the response carries no page
+    highlight: the default one would say "the page is shown unmarked" about a page that
+    was never shown. How the quotation was found is the excerpt's own `located`."""
+    st, row = _stored_case()
+    start = PAGE.index(QUOTE)
+    span = {"page_no": 3, "char_start": start, "char_end": start + len(QUOTE)}
+    out = api._third_party_excerpt(st, row, 3, span, QUOTE)
+    assert out["display"] == "EXCERPT" and out["available"] is False
+    assert "highlight" not in out and "image" not in out
+    assert "shown unmarked" not in repr(out)
+    x = out["excerpt"]
+    assert x["located"] == "AT_STORED_OFFSETS" and x["page_no"] == 3
+    assert x["text"][x["quote_start"]:x["quote_end"]] == QUOTE
+
+
+def test_an_excerpt_response_with_no_citation_carries_no_page_highlight_either():
+    st, row = _stored_case()
+    out = api._third_party_excerpt(st, row, 1, None, "")
+    assert out["display"] == "EXCERPT" and out["excerpt"] is None
+    assert "highlight" not in out
+    assert "Open it from a finding" in out["reason"]
 
 
 # ── the publisher link ───────────────────────────────────────────────────────

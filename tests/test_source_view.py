@@ -230,6 +230,8 @@ def _assert_cited_excerpt(page: dict, span: dict, rule_id: str) -> None:
     assert page["display"] == "EXCERPT", where
     assert page["available"] is False, f"{where}: a published page was drawn"
     assert "image" not in page, f"{where}: a page image was served for a corpus document"
+    assert "highlight" not in page, (
+        f"{where}: the excerpt reports a page highlight for a page it never drew")
     x = page["excerpt"]
     assert x and x["text"], f"{where}: no paragraph"
     assert x["text"][x["quote_start"]:x["quote_end"]] == span["quote"], (
@@ -493,6 +495,7 @@ def test_a_published_document_without_a_named_citation_shows_nothing_of_itself()
         d = c.get(f"/api/source/{doc_id}/page/1", params={"full": full}).json()
         assert d["display"] == "EXCERPT"
         assert d["available"] is False and "image" not in d
+        assert "highlight" not in d
         assert d["excerpt"] is None
         assert "Open it from a finding" in d["reason"]
         assert d["publisher"]["url"] == corpus.resolve(demodocs.WORDING_CORPUS_ID).source_url

@@ -6,21 +6,25 @@ Four groups, each pinning something the rebranding and licensing work establishe
      forbidden string — and the regulator-name allowlist stays exactly as narrow as it is
      documented to be. This is the test that makes the scanner's verdict part of the
      suite rather than a step somebody remembers to run.
-  2. LICENSING. Apache-2.0, a NOTICE, generated third-party notices that cover every
-     pinned runtime requirement, and an OPEN-SOURCE.md that gives each component, service
-     and data source its role.
+  2. LICENSING. Apache-2.0, a NOTICE with the credits bundled licences require,
+     generated third-party notices that cover every pinned runtime requirement with every
+     licence file each component declares and that name the platform they describe, and
+     an OPEN-SOURCE.md that gives each component, service and data source its role.
   3. DE-SCOPING. The live accounting connector is gone and the seam is documented in its
      place; the carrier workspace speaks for a fictional insurer and is not offered at
      sign-in.
   4. SYNTHETIC DOCUMENTS. Any synthetic document bearing a real insurer's name says on
      every page that no insurer issued it, and every committed synthetic PDF is exactly
-     what its generator produces.
+     what its generator produces — including after a checkout that converts line
+     endings, because git is told the PDFs are binary.
 """
 from __future__ import annotations
 
 import importlib.util
 import io
 import re
+import shutil
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -77,13 +81,14 @@ def test_the_repository_scans_clean():
 
 
 def test_the_regulator_allowlist_is_exactly_as_narrow_as_documented():
-    """The regulator's name may appear in the jurisdiction packs and the generated
-    compliance matrix and nowhere else — not even in the scanner that declares the rule,
-    which keeps it encoded. A path quietly added here would widen the exception without
-    anyone deciding to."""
+    """The regulator's name may appear in the Singapore jurisdiction pack and the
+    generated compliance matrix and nowhere else — not in another country's pack, not in
+    the corpus manifest, not even in the scanner that declares the rule, which keeps it
+    encoded. A path quietly added here would widen the exception without anyone
+    deciding to."""
     scan_repo = _scanner()
     assert scan_repo.REGULATOR_ALLOWED_PATHS == (
-        "src/proven/jurisdictions/", "corpus/manifest.yaml", "docs/COMPLIANCE.md")
+        "src/proven/jurisdictions/SG.yaml", "docs/COMPLIANCE.md")
     assert scan_repo.STRING_EXEMPTIONS == {}, "an exemption is a decision; none is taken"
 
 
@@ -145,6 +150,153 @@ def test_no_runtime_component_is_under_a_copyleft_licence():
     copyleft = [line for line in runtime.splitlines()
                 if line.startswith("|") and re.search(r"\b(A?GPL|EUPL|SSPL)\b", line)]
     assert not copyleft, f"copyleft runtime component(s): {copyleft}"
+
+
+def _notices_generator():
+    spec = importlib.util.spec_from_file_location(
+        "_gen_third_party_notices", REPO / "scripts" / "gen_third_party_notices.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _notices() -> str:
+    return (REPO / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+
+
+def _runtime_table(notices: str) -> list[tuple[str, str]]:
+    """(name, version) for every row of the runtime components table."""
+    table = notices.split("## Runtime components", 1)[1].split("## Development-only", 1)[0]
+    return [(m.group(1), m.group(2)) for m in re.finditer(
+        r"^\| ([^|]+?) \| ([^|]+?) \| [^|]+? \|", table, re.MULTILINE)
+        if m.group(1) not in {"Package", "---"}]
+
+
+def _licence_sections(notices: str) -> dict[str, str]:
+    """`name version` -> the body of its licence-text section.
+
+    Fence-aware: a licence file written in markdown has headings of its own, and a
+    heading inside a fenced text block is part of that text, not a new section."""
+    body = notices.split("## Licence texts of the runtime components", 1)[1]
+    sections: dict[str, list[str]] = {}
+    current = None
+    fenced = False
+    for line in body.splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+        elif not fenced and line.startswith("### "):
+            current = line[4:].strip()
+            sections[current] = []
+            continue
+        if current is not None:
+            sections[current].append(line)
+    return {k: "\n".join(v) for k, v in sections.items()}
+
+
+def test_every_runtime_component_has_its_licence_text_reproduced():
+    """NOTICE promises the licence text of every runtime component. The renderer added
+    for licensing reasons was the one component whose section said it shipped none,
+    while its wheel declares eighteen licence files; a table row with a licence NAME is
+    not the text several of those licences require to accompany a binary."""
+    notices = _notices()
+    sections = _licence_sections(notices)
+    rows = _runtime_table(notices)
+    assert len(rows) > 20
+    for name, version in rows:
+        body = sections.get(f"{name} {version}")
+        assert body is not None, f"{name} {version} has no licence-text section"
+        assert "ships no licence file" not in body, f"{name} {version} has no licence text"
+        assert re.search(r"^```text\n\S", body, re.MULTILINE), (
+            f"{name} {version}: no licence text block")
+
+
+def test_the_renderer_section_reproduces_the_licences_of_what_is_compiled_into_it():
+    """The PDFium binary carries FreeType, ICU, libjpeg-turbo and more. Their terms
+    travel with it, each labelled with the file the wheel ships it in."""
+    sections = _licence_sections(_notices())
+    body = next(v for k, v in sections.items() if k.startswith("pypdfium2 "))
+    for needle in ("Apache License", "The FreeType Project LICENSE", "UNICODE LICENSE",
+                   "Independent JPEG Group", "The PDFium Authors", "COPYRIGHT NOTICE"):
+        assert needle in body, f"the pypdfium2 section does not reproduce {needle!r}"
+    labels = re.findall(r"^From `([^`]+)`:$", body, re.MULTILINE)
+    assert len(labels) >= 10 and len(labels) == len(set(labels))
+    # FreeType's licence is Latin-1. Read as UTF-8 its copyright sign is lost; here it
+    # survives, in the credit line FreeType asks for.
+    assert "Portions of this software are copyright \u00a9" in body
+
+
+def test_the_notice_carries_the_credits_the_bundled_licences_require():
+    """FreeType's licence requires the documentation to acknowledge that the FreeType
+    code is used; the IJG terms require the documentation accompanying a binary to state
+    that the software is based in part on the Independent JPEG Group's work. NOTICE is
+    the documentation that accompanies every distribution of this work."""
+    notice = (REPO / "NOTICE").read_text(encoding="utf-8")
+    flat = " ".join(notice.split())
+    assert "uses the FreeType code (www.freetype.org)" in flat
+    assert "based in part on the work of the Independent JPEG Group" in flat
+    assert "names the platform it was generated for" in flat
+
+
+def test_the_generator_reads_every_licence_file_a_runtime_package_declares():
+    """Platform-independent: whatever is installed here, every `License-File` its
+    metadata names is read, in order, and none is empty."""
+    gen = _notices_generator()
+    from importlib import metadata
+
+    runtime_roots, _ = gen.pinned_requirements()
+    multi = 0
+    for name in gen.closure(runtime_roots):
+        declared = metadata.distribution(name).metadata.get_all("License-File") or []
+        files = gen.licence_files(name)
+        assert [path for path, _ in files] == declared, name
+        assert all(text.strip() for _, text in files), f"{name}: an empty licence file"
+        multi += len(declared) > 1
+    assert multi >= 1, "no runtime package declares several licence files"
+
+
+def test_a_latin_1_licence_file_is_decoded_rather_than_dropped():
+    gen = _notices_generator()
+    assert gen._decode("copyright \u00a9 1996".encode("latin-1")) == "copyright \u00a9 1996"
+    assert gen._decode("\ufeffMIT".encode("utf-8")) == "MIT"
+    assert gen._comparable("a\r\nb\r\n\r\n") == "a\nb"
+
+
+def test_the_notices_say_which_platform_they_describe():
+    """Markers and binary wheels make the closure platform-dependent (colorama is there
+    only on Windows; a wheel's bundled native code is per platform). The file has to say
+    which platform it is about, and name the entries that would differ elsewhere."""
+    gen = _notices_generator()
+    notices = _notices()
+    described = gen.described_platform(notices)
+    assert described and " on " in described, "the notices do not name their platform"
+    head = notices.split("## Runtime components", 1)[0]
+    assert "## Platform" in head
+    assert "Binary wheels, built for this platform:" in head
+    assert "pypdfium2" in head.split("Binary wheels, built for this platform:", 1)[1]
+
+
+def test_the_notices_are_current_on_the_platform_they_describe():
+    """`--check`, as a test, wherever it is meaningful. On another platform the closure
+    legitimately differs, so it is skipped by name rather than reported as staleness."""
+    gen = _notices_generator()
+    committed = _notices()
+    described, here = gen.described_platform(committed), gen.target_platform()
+    if described != here:
+        pytest.skip(f"THIRD_PARTY_NOTICES.md describes {described}; this is {here}")
+    assert gen.build() == committed, (
+        "THIRD_PARTY_NOTICES.md is out of date: run scripts/gen_third_party_notices.py")
+
+
+def test_the_check_refuses_to_compare_across_platforms(tmp_path, monkeypatch, capsys):
+    gen = _notices_generator()
+    elsewhere = tmp_path / "THIRD_PARTY_NOTICES.md"
+    elsewhere.write_text("# Third-party notices\n\nDescribes: CPython 3.12 on "
+                         "plan9-mips.\n", encoding="utf-8")
+    monkeypatch.setattr(gen, "OUTPUT", elsewhere)
+    monkeypatch.setattr(gen, "build", lambda: pytest.fail("built across platforms"))
+    assert gen.main(["--check"]) == 1
+    assert "describes CPython 3.12 on plan9-mips" in capsys.readouterr().out
 
 
 def test_open_source_md_gives_every_runtime_dependency_and_service_a_role():
@@ -256,6 +408,71 @@ def test_the_committed_synthetic_pdfs_are_exactly_what_their_generators_produce(
     for name, build in builders.items():
         committed = (REPO / "demo-documents" / name).read_bytes()
         assert committed == build(), f"{name} differs from its generator"
+
+
+# The synthetic PDFs have uncompressed, all-ASCII streams, so git's content sniffing
+# calls them TEXT. Under Git for Windows' default core.autocrlf=true a checkout then
+# rewrote every LF inside them as CRLF: all fourteen came out longer than their
+# generators make them, with stale xref offsets, so a clean Windows clone failed the
+# test above and hashed every example document differently from a Linux clone. Linux CI
+# converts nothing and could not see it. The tests below hold the fix in place.
+
+def _git() -> str:
+    git = shutil.which("git")
+    if git is None or not (REPO / ".git").exists():
+        pytest.skip("not a git work tree: git's attributes cannot be asked here")
+    return git
+
+
+def _git_pdfs(git: str, *, untracked: bool) -> list[str]:
+    cmd = [git, "-C", str(REPO), "ls-files", "-z", "--cached"]
+    if untracked:
+        cmd += ["--others", "--exclude-standard"]
+    out = subprocess.run([*cmd, "--", "*.pdf"], capture_output=True, check=True).stdout
+    return sorted({p for p in out.decode("utf-8").split("\0") if p})
+
+
+def test_the_attributes_file_declares_pdfs_binary():
+    """Readable without git, for a tree exported from the repository."""
+    rules = [line.split() for line in
+             (REPO / ".gitattributes").read_text(encoding="utf-8").splitlines()
+             if line.strip() and not line.lstrip().startswith("#")]
+    assert ["*.pdf", "binary"] in rules
+
+
+def test_git_treats_every_pdf_in_the_tree_as_binary():
+    """Asked of git itself, so a later, more specific line that turned conversion back
+    on for some directory would be caught too. Untracked PDFs are included: the rule
+    has to hold before a new example document is ever committed."""
+    git = _git()
+    pdfs = _git_pdfs(git, untracked=True)
+    assert len(pdfs) >= 14, pdfs
+    out = subprocess.run([git, "-C", str(REPO), "check-attr", "-z", "text", "diff",
+                          "merge", "--", *pdfs], capture_output=True, check=True).stdout
+    fields = out.decode("utf-8").split("\0")
+    triples = [fields[i:i + 3] for i in range(0, len(fields) - 2, 3)]
+    assert len(triples) == 3 * len(pdfs)
+    converted = sorted({path for path, attr, value in triples if value != "unset"})
+    assert not converted, f"git would convert line endings inside: {converted}"
+
+
+def test_a_converting_checkout_leaves_every_committed_pdf_byte_for_byte(tmp_path):
+    """The defect itself, reproduced on any platform: check the PDFs out of the index the
+    way a default Git for Windows install does, and compare with the bytes git stores
+    (which the test above proves are the generators' bytes)."""
+    git = _git()
+    pdfs = _git_pdfs(git, untracked=False)
+    assert len(pdfs) >= 14, pdfs
+    subprocess.run([git, "-C", str(REPO), "-c", "core.autocrlf=true", "checkout-index",
+                    "-f", f"--prefix={tmp_path.as_posix()}/", "--", *pdfs],
+                   capture_output=True, check=True)
+    changed = []
+    for rel in pdfs:
+        stored = subprocess.run([git, "-C", str(REPO), "cat-file", "blob", f":{rel}"],
+                                capture_output=True, check=True).stdout
+        if (tmp_path / rel).read_bytes() != stored:
+            changed.append(rel)
+    assert not changed, f"a line-ending-converting checkout rewrote: {changed}"
 
 
 def test_the_mark_is_a_real_em_dash_in_the_text_layer_and_leaves_the_body_alone():

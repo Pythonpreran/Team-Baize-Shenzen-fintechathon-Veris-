@@ -2376,11 +2376,17 @@ def _third_party_excerpt(st: dict, row: dict, page_no: int, span, quote: str) ->
     document's bytes, which are not read here at all. Without a named citation there is
     no paragraph to cut: the response says so, and it does not fall back to the page.
     """
+    page_fields = sourceview.RenderedPage(available=False, page_no=int(page_no),
+                                          page_count=row["page_count"] or 0).as_dict()
+    # No page is drawn, so there is no highlight to report. The default one would tell
+    # the reader "the page is shown unmarked" about a page that was never shown, and API
+    # payloads are what an evidence log records. How the quotation was found in the
+    # stored text is reported by the excerpt itself, as `located`.
+    del page_fields["highlight"]
     base = {
         "document_id": row["id"], "filename": row["filename"], "kind": row["kind"],
         "quote": quote,
-        **sourceview.RenderedPage(available=False, page_no=int(page_no),
-                                  page_count=row["page_count"] or 0).as_dict(),
+        **page_fields,
         "display": "EXCERPT",
         "reason": _third_party_reason(row["filename"]),
         "publisher": _publisher_link(row["filename"]),

@@ -24,9 +24,10 @@ THREE CLASSES OF FINDING, and they fail for different reasons.
 
 THE ALLOWLIST IS NARROW AND DELIBERATE. Singapore's insurance regulator is named by its
 full name and by its acronym, and a jurisdiction pack that cannot name the regulator
-cannot cite it. So both are permitted inside the jurisdiction packs and the generated
-compliance matrix, and nowhere else — not in branding, not in the README. Anything
-beyond those paths is a finding.
+cannot cite it. So both are permitted in exactly two files, the Singapore jurisdiction
+pack and the generated compliance matrix, and nowhere else: not in another country's
+pack, not in the corpus manifest, not in branding, not in the README. Anything beyond
+those two paths is a finding.
 
 THE NAMES ARE STORED ENCODED. The rule is that the forbidden names appear NOWHERE in this
 repository, and this file is part of the repository. So the needles below are base64 and
@@ -144,12 +145,16 @@ FORBIDDEN_STRINGS: tuple[str, ...] = _decoded(
 #: being trusted for a string it could not see.
 FORBIDDEN_STEMS: frozenset[str] = frozenset({FORBIDDEN_STRINGS[3]})
 
-#: The regulator's acronym and full name, and the only paths they may appear in.
+#: The regulator's acronym and full name, and the only two FILES they may appear in: the
+#: Singapore jurisdiction pack and the generated compliance matrix. Exact paths, not
+#: prefixes. A directory prefix admitted every future country's pack, and the corpus
+#: manifest was listed too; the rule allows neither. A corpus document published by the
+#: regulator would have to be named some other way, and that is a decision to take when
+#: one exists, not latitude to leave open in advance.
 REGULATOR_ALLOWLIST: tuple[str, ...] = _decoded(
     "TUFT", "TW9uZXRhcnkgQXV0aG9yaXR5IG9mIFNpbmdhcG9yZQ==")
 REGULATOR_ALLOWED_PATHS: tuple[str, ...] = (
-    "src/proven/jurisdictions/",
-    "corpus/manifest.yaml",
+    "src/proven/jurisdictions/SG.yaml",
     "docs/COMPLIANCE.md",
 )
 
@@ -268,7 +273,7 @@ def check_file_name(root: Path, p: Path) -> list[Finding]:
 
 
 def _regulator_allowed(rel: str) -> bool:
-    return any(rel.startswith(prefix) for prefix in REGULATOR_ALLOWED_PATHS)
+    return rel in REGULATOR_ALLOWED_PATHS
 
 
 def check_file_content(root: Path, p: Path) -> list[Finding]:
@@ -322,8 +327,8 @@ def check_file_content(root: Path, p: Path) -> list[Finding]:
                 if rx.search(line):
                     out.append(Finding(
                         "FORBIDDEN_STRING", rel, n,
-                        f"{needle!r} is allowed only in the jurisdiction packs and the "
-                        f"generated compliance matrix, not here",
+                        f"{needle!r} is allowed only in the Singapore jurisdiction pack "
+                        f"and the generated compliance matrix, not here",
                         line.strip()[:200]))
     return out
 

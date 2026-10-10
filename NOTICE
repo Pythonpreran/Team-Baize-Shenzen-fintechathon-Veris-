@@ -7,9 +7,15 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 work except in compliance with the License. A copy is in the LICENSE file.
 
 This product includes third-party open-source software. Each component, its role in
-the system and its licence are listed in OPEN-SOURCE.md; the licence texts of every
-runtime component are reproduced in THIRD_PARTY_NOTICES.md. Page rendering uses PDFium
-through the pypdfium2 binding.
+the system and its licence are listed in OPEN-SOURCE.md. The licence texts of every
+runtime component, including every licence file a component declares for the native
+libraries compiled into it, are reproduced in THIRD_PARTY_NOTICES.md, which names the
+platform it was generated for.
+
+Page rendering uses PDFium through the pypdfium2 binding. The PDFium binary that
+pypdfium2 ships is built with the FreeType font engine: this software uses the FreeType
+code (www.freetype.org). It is also built with libjpeg-turbo: this software is based in
+part on the work of the Independent JPEG Group.
 
 Third-party documents. The published insurer policy wordings, statute text and court
 judgment that the engine reads are NOT distributed with this work. They remain the

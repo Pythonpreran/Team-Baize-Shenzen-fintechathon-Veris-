@@ -225,8 +225,8 @@ def test_an_ordinary_word_containing_a_forbidden_sequence_is_not_a_finding(tmp_p
 
 def test_the_regulator_name_is_allowed_only_in_the_jurisdiction_packs(tmp_path):
     """A jurisdiction pack that cannot name the insurance regulator cannot cite it. So
-    the name is permitted there and in the generated compliance matrix, and nowhere
-    else — not in branding, not in the README."""
+    the name is permitted in the Singapore pack and in the generated compliance matrix,
+    and nowhere else — not in branding, not in the README."""
     _write(tmp_path, "src/proven/jurisdictions/SG.yaml", f"regulator: {REG_NAME}\n")
     _write(tmp_path, "docs/COMPLIANCE.md", f"| rule | {REG_ACRONYM} | ... |\n")
     assert scan_repo.scan(tmp_path).by_kind("FORBIDDEN_STRING") == []
@@ -234,6 +234,25 @@ def test_the_regulator_name_is_allowed_only_in_the_jurisdiction_packs(tmp_path):
     _write(tmp_path, "README.md", f"Regulated by {REG_ACRONYM}.\n")
     found = scan_repo.scan(tmp_path).by_kind("FORBIDDEN_STRING")
     assert [f.path for f in found] == ["README.md"]
+
+
+def test_the_regulator_allowlist_is_two_exact_files_not_a_directory(tmp_path):
+    """The exception is the SINGAPORE pack, not every pack; the corpus manifest is not on
+    it; and a path that merely begins like an allowed one is not allowed. Each of these
+    passed when the allowlist was a list of prefixes that included the manifest."""
+    near_misses = (
+        "src/proven/jurisdictions/GENERIC.yaml",     # another country's pack
+        "src/proven/jurisdictions/MY.yaml",
+        "src/proven/jurisdictions/SG.yaml.bak",      # begins like the allowed file
+        "src/proven/jurisdictions/SG/notes.yaml",
+        "src/proven/jurisdictions/__init__.py",      # the pack loader, not a pack
+        "corpus/manifest.yaml",                      # the corpus manifest
+        "docs/COMPLIANCE.md.orig",
+    )
+    for rel in near_misses:
+        _write(tmp_path, rel, f"publisher: {REG_NAME} ({REG_ACRONYM})\n")
+    found = scan_repo.scan(tmp_path).by_kind("FORBIDDEN_STRING")
+    assert sorted({f.path for f in found}) == sorted(near_misses)
 
 
 def test_neither_the_scanner_nor_its_tests_carry_a_forbidden_name_literally():
