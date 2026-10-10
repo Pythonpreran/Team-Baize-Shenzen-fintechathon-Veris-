@@ -148,9 +148,13 @@ def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
             idx = low.find(label.lower())
             while idx >= 0:
                 segment = text[idx:idx + window]
-                active = parser or money_parser_from_text(segment)
-                hit = active.locate_money(segment, allow_bare=parser is not None) \
-                    if active is not None else None
+                # A visible marker is documentary evidence and therefore outranks the
+                # pack default, which may only establish the unit of a bare amount.
+                explicit = money_parser_from_text(segment)
+                active = explicit or parser
+                hit = active.locate_money(
+                    segment, allow_bare=explicit is None and parser is not None
+                ) if active is not None else None
                 if hit is not None:
                     return hit.amount, _verbatim(segment, hit.end), page_no, hit.currency
                 idx = low.find(label.lower(), idx + 1)

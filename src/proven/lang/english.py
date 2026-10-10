@@ -235,7 +235,7 @@ def money_parser_for(currency: Optional[str]) -> Optional[MoneyParser]:
 
 
 def money_parser_from_text(text: str) -> Optional[MoneyParser]:
-    """Use an explicit symbol/code only when no jurisdiction pack supplies one."""
+    """Identify a supported explicit symbol or code in document text."""
     for parser in (INR_MONEY, SGD_MONEY):
         if parser.locate_money(text, allow_bare=False) is not None:
             return parser

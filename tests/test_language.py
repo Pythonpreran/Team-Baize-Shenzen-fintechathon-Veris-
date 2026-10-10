@@ -8,8 +8,11 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from proven import advisernote, ai, retrieval
-from proven.extract import find_money_with_currency
+from proven.extract import PolicyFacts, _schedule_text, find_money_with_currency
+from proven.ingest import LoadedDoc
 from proven.lang import (
     CJK,
     LATIN,
@@ -68,6 +71,21 @@ def test_money_extraction_names_only_a_currency_the_pack_or_document_establishes
     hit = find_money_with_currency(["Sum insured: ₹5,00,000"], ("sum insured",),
                                   currency=None)
     assert hit is not None and hit[0] == Decimal("500000") and hit[3] == "INR"
+
+
+@pytest.mark.parametrize(
+    ("pack_currency", "marked_amount", "expected_currency"),
+    (("SGD", "₹5,00,000", "INR"), ("INR", "S$500,000", "SGD")),
+)
+def test_explicit_currency_marker_overrides_the_pack_bare_amount_fallback(
+        pack_currency, marked_amount, expected_currency):
+    facts = PolicyFacts()
+    doc = LoadedDoc("schedule", "SCHEDULE", "INSURER",
+                    pages=[f"Stock: {marked_amount}"])
+    _schedule_text(facts, doc, currency=pack_currency)
+    fact = facts.get("stock_sum_insured")
+    assert fact.value == Decimal("500000")
+    assert fact.unit == expected_currency
 
 
 def test_english_date_parsers_refuse_an_ambiguous_numeric_date():
