@@ -34,7 +34,7 @@ from typing import Any, Optional
 
 from . import jurisdiction
 from .ingest import DocStore, LoadedDoc
-from .lang import date_parser_for, money_parser_for, money_parser_from_text
+from .lang import date_parser_for, money_parser_for
 
 STRUCTURED = "STRUCTURED"
 PDF_TEXT = "PDF_TEXT"
@@ -141,6 +141,9 @@ def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
         -> Optional[tuple[Decimal, str, int, str]]:
     """Read a labelled amount only when a pack or an explicit document marker identifies
     its currency. A bare number under an unknown pack is not money evidence."""
+    # Kept local because this is the only layer that associates money with a field label.
+    from .lang.english import money_candidates
+
     parser = money_parser_for(currency)
     for page_no, text in enumerate(pages, start=1):
         low = text.lower()
@@ -148,15 +151,18 @@ def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
             idx = low.find(label.lower())
             while idx >= 0:
                 segment = text[idx:idx + window]
-                # A visible marker is documentary evidence and therefore outranks the
-                # pack default, which may only establish the unit of a bare amount.
-                explicit = money_parser_from_text(segment)
-                active = explicit or parser
-                hit = active.locate_money(
-                    segment, allow_bare=explicit is None and parser is not None
-                ) if active is not None else None
-                if hit is not None:
-                    return hit.amount, _verbatim(segment, hit.end), page_no, hit.currency
+                # A marker proves currency only for the expression it prefixes. Do not
+                # select a parser from the full scan: a later conversion or neighbouring
+                # value is a separate field. Multiple values before a field delimiter are
+                # ambiguous, so extraction abstains rather than assigning the wrong one.
+                field = re.split(r"[;\n|]", segment[len(label):], maxsplit=1)[0]
+                candidates = money_candidates(field)
+                if len(candidates) == 1:
+                    candidate = candidates[0]
+                    unit = candidate.currency or (parser.currency if parser else None)
+                    if unit is not None:
+                        end = len(label) + candidate.end
+                        return (candidate.amount, _verbatim(segment, end), page_no, unit)
                 idx = low.find(label.lower(), idx + 1)
     return None
 

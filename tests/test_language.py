@@ -88,6 +88,33 @@ def test_explicit_currency_marker_overrides_the_pack_bare_amount_fallback(
     assert fact.unit == expected_currency
 
 
+@pytest.mark.parametrize(
+    ("pack_currency", "target", "reference", "expected_currency"),
+    (
+        ("INR", "S$500,000", "₹30,000,000", "SGD"),
+        ("SGD", "500,000", "₹30,000,000", "SGD"),
+    ),
+)
+def test_labelled_money_binds_currency_to_its_own_candidate(
+        pack_currency, target, reference, expected_currency):
+    facts = PolicyFacts()
+    doc = LoadedDoc("schedule", "SCHEDULE", "INSURER",
+                    pages=[f"Stock: {target}; reference value: {reference}"])
+    _schedule_text(facts, doc, currency=pack_currency)
+    fact = facts.get("stock_sum_insured")
+    assert fact.value == Decimal("500000")
+    assert fact.unit == expected_currency
+    assert fact.needle == f"Stock: {target}"
+
+
+def test_labelled_money_abstains_when_multiple_values_share_one_field():
+    facts = PolicyFacts()
+    doc = LoadedDoc("schedule", "SCHEDULE", "INSURER",
+                    pages=["Stock: S$500,000 / ₹30,000,000"])
+    _schedule_text(facts, doc, currency="SGD")
+    assert not facts.get("stock_sum_insured").established
+
+
 def test_english_date_parsers_refuse_an_ambiguous_numeric_date():
     parser = date_parser_for("INR")
     assert parser is not None

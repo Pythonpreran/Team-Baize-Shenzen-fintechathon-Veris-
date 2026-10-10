@@ -234,12 +234,61 @@ def money_parser_for(currency: Optional[str]) -> Optional[MoneyParser]:
     return None
 
 
+def money_candidates(text: str) -> tuple[ParsedMoney, ...]:
+    """Return supported money expressions and bare numbers in document order.
+
+    A non-empty ``currency`` belongs to that exact expression. A bare number carries
+    an empty currency so callers can apply a jurisdiction pack only to that number,
+    never to a different marked value later in the same text.
+    """
+    body = text or ""
+    explicit: list[ParsedMoney] = []
+
+    for match in SGD_MONEY._marked.finditer(body):
+        amount = _decimal(match.group("amount"))
+        if amount is not None:
+            explicit.append(ParsedMoney(amount, SGD_MONEY.currency,
+                                        match.start(), match.end()))
+
+    for match in INR_MONEY._numeric.finditer(body):
+        marker, scale = match.group("marker"), match.group("scale")
+        if not marker and not scale:
+            continue
+        amount = _decimal(match.group("amount"))
+        if amount is None:
+            continue
+        if scale:
+            amount *= _IN_SCALE[scale.lower()]
+        explicit.append(ParsedMoney(amount, INR_MONEY.currency,
+                                    match.start(), match.end()))
+
+    for match in INR_MONEY._words.finditer(body):
+        amount = INR_MONEY._words_amount(match.group("words"))
+        if amount is not None:
+            explicit.append(ParsedMoney(amount, INR_MONEY.currency,
+                                        match.start(), match.end()))
+
+    def overlaps_explicit(start: int, end: int) -> bool:
+        return any(start < hit.end and hit.start < end for hit in explicit)
+
+    bare: list[ParsedMoney] = []
+    for match in SGD_MONEY._bare.finditer(body):
+        if overlaps_explicit(match.start(), match.end()):
+            continue
+        amount = _decimal(match.group("amount"))
+        if amount is not None:
+            bare.append(ParsedMoney(amount, "", match.start(), match.end()))
+
+    return tuple(sorted(explicit + bare,
+                        key=lambda hit: (hit.start, hit.end, hit.currency)))
+
+
 def money_parser_from_text(text: str) -> Optional[MoneyParser]:
-    """Identify a supported explicit symbol or code in document text."""
-    for parser in (INR_MONEY, SGD_MONEY):
-        if parser.locate_money(text, allow_bare=False) is not None:
-            return parser
-    return None
+    """Resolve one unambiguous, explicitly marked document money expression."""
+    candidates = money_candidates(text)
+    if len(candidates) != 1 or not candidates[0].currency:
+        return None
+    return money_parser_for(candidates[0].currency)
 
 
 _MONTHS = {month: number for number, month in enumerate(
