@@ -63,7 +63,8 @@ SKIP_DIRS = {
 # be here is caught by the forbidden-FILE rules instead.
 SKIP_SUFFIXES = {
     ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2",
-    ".ttf", ".otf", ".zip", ".gz", ".db", ".sqlite", ".pyc", ".so", ".dll", ".exe",
+    ".ttf", ".otf", ".zip", ".gz", ".db", ".db-wal", ".db-shm", ".sqlite",
+    ".sqlite-wal", ".sqlite-shm", ".sqlite3", ".sqlite3-wal", ".sqlite3-shm", ".pyc", ".so", ".dll", ".exe",
 }
 
 MAX_SCAN_BYTES = 4 * 1024 * 1024
@@ -113,7 +114,7 @@ _VENDOR_CLIENT_ID_FILE = _decoded("eGVyb19jbGllbnRfaWQudHh0")[0]
 FORBIDDEN_NAMES = {".env", _VENDOR_CLIENT_ID_FILE, "veris.db", "proven.db"}
 FORBIDDEN_NAME_PATTERNS: tuple[tuple[str, str], ...] = (
     ("environment file with values", r"^\.env(\..+)?$"),
-    ("database file", r".+\.(db|sqlite|sqlite3)$"),
+    ("database file", r"(?i).+\.(?:db|sqlite|sqlite3)(?:-(?:wal|shm))?$"),
     ("credential file", r".*(_secret|-secret|secrets?)\.(txt|json|ya?ml|pem|key)$"),
     ("private key", r".*\.(pem|key|p12|pfx)$"),
     ("resume", r"(?i).*(resume|curriculum[-_ ]?vitae|\bcv\b).*\.(pdf|docx?)$"),

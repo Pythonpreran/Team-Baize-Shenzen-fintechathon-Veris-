@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import subprocess
 import sys
 from pathlib import Path
 
@@ -115,6 +116,32 @@ def test_a_committed_database_is_caught(tmp_path):
     (tmp_path / "veris.db").write_bytes(b"SQLite format 3\x00")
     report = scan_repo.scan(tmp_path)
     assert report.by_kind("FORBIDDEN_FILE")
+
+
+def test_sqlite_wal_and_shm_sidecars_are_caught_for_every_supported_extension(tmp_path):
+    """WAL files can retain recent encrypted records and wrapped tenant keys too."""
+    names = (
+        "portfolio.db-wal", "portfolio.db-shm",
+        "portfolio.sqlite-wal", "portfolio.sqlite-shm",
+        "portfolio.sqlite3-wal", "portfolio.sqlite3-shm",
+    )
+    for name in names:
+        (tmp_path / name).write_bytes(b"SQLite sidecar")
+    found = scan_repo.scan(tmp_path).by_kind("FORBIDDEN_FILE")
+    assert {item.path for item in found} == set(names)
+
+
+def test_sqlite_wal_and_shm_sidecars_are_gitignored_for_every_supported_extension():
+    names = (
+        "portfolio.db-wal", "portfolio.db-shm",
+        "portfolio.sqlite-wal", "portfolio.sqlite-shm",
+        "portfolio.sqlite3-wal", "portfolio.sqlite3-shm",
+    )
+    for name in names:
+        result = subprocess.run(
+            ["git", "check-ignore", "--no-index", "--quiet", "--", name],
+            cwd=SCRIPTS.parent, check=False)
+        assert result.returncode == 0, f"{name} is not ignored"
 
 
 def test_a_third_party_pdf_outside_the_synthetic_set_is_caught(tmp_path):

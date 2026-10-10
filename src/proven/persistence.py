@@ -8,8 +8,10 @@ it. A browser session remains the transient home for an analysis case; this repo
 only for the durable household, business, policy, document and consent portfolio.
 
 A tenant receives a random AES-GCM data key. The data key is wrapped with the deployment
-master key, stored separately from the encrypted fields, and deleted to crypto-shred a
-tenant. Losing a tenant key intentionally makes its remaining ciphertext unreadable.
+master key and stored separately from encrypted fields. Local key removal uses SQLite
+secure-delete, a truncating WAL checkpoint and VACUUM, then verifies that the database
+artifacts no longer retain the wrapped key before reporting completion. Backups and
+physical-media lifecycle remain deployment operations outside this process.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -243,13 +246,48 @@ def _decode_master_key(encoded: str) -> bytes:
     return key
 
 
+def _read_development_master_key(path: Path) -> bytes:
+    """Read a local key another process may still be finishing atomically."""
+    last_error: Optional[PortfolioConfigurationError] = None
+    for attempt in range(100):
+        try:
+            return _decode_master_key(path.read_text(encoding="ascii").strip())
+        except FileNotFoundError:
+            # The winning creator may have failed and removed its incomplete file.
+            pass
+        except PortfolioConfigurationError as exc:
+            # O_EXCL makes ownership exclusive, but a losing process can observe the
+            # name before the winner has flushed its complete ASCII payload.
+            last_error = exc
+        if attempt < 99:
+            time.sleep(0.01)
+    if last_error is not None:
+        raise last_error
+    raise PortfolioConfigurationError(
+        f"Could not read the local development master key at {path}.")
+
+
 def _development_master_key(path: Path) -> bytes:
-    """Load or make the local-only key file that is explicitly ignored by git."""
-    if path.exists():
-        return _decode_master_key(path.read_text(encoding="ascii").strip())
+    """Load or atomically create the local-only key file ignored by git."""
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = base64.urlsafe_b64encode(os.urandom(_DATA_KEY_BYTES)).decode("ascii")
-    path.write_text(encoded + "\n", encoding="ascii", newline="\n")
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return _read_development_master_key(path)
+
+    try:
+        with os.fdopen(fd, "wb", closefd=True) as handle:
+            handle.write((encoded + "\n").encode("ascii"))
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        # We created this pathname exclusively, so only our incomplete value is removed.
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
     try:
         os.chmod(path, 0o600)
     except OSError:
@@ -383,6 +421,9 @@ class PortfolioRepository:
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
+            # Tenant-key deletion must overwrite its SQLite cell before the later WAL
+            # checkpoint and VACUUM lifecycle validates that no wrapped key remains.
+            conn.execute("PRAGMA secure_delete=ON")
             conn.executescript(PORTFOLIO_SCHEMA)
             # Reads call `_ensure_scope` so a first portfolio view establishes its tenant
             # and user row. Begin immediately keeps that small creation transaction from
@@ -901,12 +942,97 @@ class PortfolioRepository:
                 "policies": [self._policy_out(conn, row, key, scope.tenant_id) for row in policies],
             }
 
+    @staticmethod
+    def _checkpoint_truncate(conn: sqlite3.Connection) -> None:
+        """Flush WAL frames before a completed local key erasure is reported."""
+        last: object = None
+        for attempt in range(100):
+            try:
+                row = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+                if row is not None and int(row[0]) == 0:
+                    return
+                last = row
+            except sqlite3.OperationalError as exc:
+                last = exc
+            if attempt < 99:
+                time.sleep(0.01)
+        raise PortfolioIntegrityError(
+            "Could not complete secure tenant-key removal while another database "
+            f"operation is active: {last!r}")
+
+    @staticmethod
+    def _artifact_contains(path: Path, needle: bytes) -> bool:
+        """Search a database artifact without loading document blobs into memory."""
+        overlap = max(0, len(needle) - 1)
+        tail = b""
+        with path.open("rb") as handle:
+            while chunk := handle.read(64 * 1024):
+                if needle in tail + chunk:
+                    return True
+                tail = (tail + chunk)[-overlap:] if overlap else b""
+        return False
+
+    def _purge_deleted_tenant_key(self, wrapped_key: bytes) -> None:
+        """Validate that local SQLite artifacts no longer retain one wrapped key.
+
+        `secure_delete` clears the deleted cell. A truncating checkpoint removes its
+        WAL frames, and VACUUM rebuilds away free pages. The byte-level check is the
+        final guard: an operation never reports a completed local cryptographic erasure
+        while this wrapped key remains in the database, WAL or shared-memory artifact.
+        """
+        conn = sqlite3.connect(str(self.db_path), timeout=10)
+        try:
+            conn.execute("PRAGMA busy_timeout=10000")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA secure_delete=ON")
+            self._checkpoint_truncate(conn)
+            conn.execute("VACUUM")
+            self._checkpoint_truncate(conn)
+            for suffix in ("", "-wal", "-shm"):
+                artifact = self.db_path.with_name(self.db_path.name + suffix)
+                if artifact.exists() and self._artifact_contains(artifact, wrapped_key):
+                    raise PortfolioIntegrityError(
+                        f"Secure tenant-key removal left key material in {artifact.name}.")
+        finally:
+            conn.close()
+
     def crypto_shred(self, scope: TenantScope) -> dict:
-        """Delete only the tenant data key; remaining ciphertext is intentionally useless."""
+        """Destroy a tenant key and validate local SQLite artifact erasure.
+
+        This is a local-store lifecycle: it removes the key from the live store and
+        validates the database, WAL and shared-memory files. Backup retention and
+        physical-media destruction remain deployment operations outside this process.
+        """
+        now = _now()
+        wrapped_key: bytes
         with self._connection() as conn:
             self._ensure_scope(conn, scope)
-            now = _now()
+            row = conn.execute(
+                "SELECT wrapped_key FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+            ).fetchone()
+            if row is None:
+                raise TenantShredded("This tenant has no data key, so its portfolio is unreadable.")
+            wrapped_key = bytes(row["wrapped_key"])
             conn.execute("UPDATE tenant SET shredded_at=? WHERE id=?", (now, scope.tenant_id))
             conn.execute("DELETE FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,))
+
+        try:
+            self._purge_deleted_tenant_key(wrapped_key)
+        except Exception as exc:
+            # Never report erasure if local artifact validation did not finish. Restore
+            # the live key and state so the caller can retry after the database is quiet.
+            try:
+                with self._connection() as conn:
+                    conn.execute("UPDATE tenant SET shredded_at=NULL WHERE id=?", (scope.tenant_id,))
+                    conn.execute(
+                        "INSERT INTO tenant_key (tenant_id, wrapped_key, created_at) VALUES (?,?,?)",
+                        (scope.tenant_id, wrapped_key, _now()))
+            except Exception as restore_exc:
+                raise PortfolioIntegrityError(
+                    "Secure tenant-key removal failed and the tenant key could not be restored.") from restore_exc
+            raise PortfolioIntegrityError(
+                "Secure tenant-key removal did not complete; the tenant key was restored.") from exc
+
+        with self._connection() as conn:
             self._audit(conn, scope, "CRYPTO_SHRED", "tenant", scope.tenant_id)
-            return {"tenant_id": scope.tenant_id, "shredded": True, "at": now}
+        return {"tenant_id": scope.tenant_id, "shredded": True, "at": now}

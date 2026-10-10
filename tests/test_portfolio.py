@@ -8,8 +8,10 @@ unreadable, and every HTTP collection is constrained by the authenticated tenant
 from __future__ import annotations
 
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import os
 import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
@@ -49,6 +51,33 @@ def _policy_payload(**overrides) -> dict:
 def _all_database_bytes(path: Path) -> bytes:
     return b"".join(part.read_bytes() for part in sorted(path.parent.glob(path.name + "*"))
                     if part.is_file())
+
+
+def test_development_master_key_initialisation_is_atomic_across_parallel_first_use(
+        tmp_path, monkeypatch):
+    """Parallel first use must settle on one durable local master key."""
+    db_path = tmp_path / "portfolio.sqlite"
+    key_path = tmp_path / ".veris-dev-master-key"
+    scope = _scope("tenant-race", "user-race")
+    workers = 8
+    barrier = threading.Barrier(workers)
+    monkeypatch.setenv(persistence.PORTFOLIO_DB_ENV, str(db_path))
+    monkeypatch.setenv(persistence.DEV_MASTER_KEY_ENV, str(key_path))
+    monkeypatch.delenv(persistence.MASTER_KEY_ENV, raising=False)
+
+    def first_use(index: int) -> dict:
+        barrier.wait(timeout=10)
+        repo = persistence.repository_from_environment()
+        return repo.add_member(scope, name=f"member {index}", relationship="self")
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        members = list(executor.map(first_use, range(workers)))
+
+    assert len({member["id"] for member in members}) == workers
+    assert key_path.exists()
+    restarted = persistence.repository_from_environment()
+    assert {member["name"] for member in restarted.list_members(scope)} == {
+        f"member {index}" for index in range(workers)}
 
 
 def test_portfolio_encrypts_sensitive_values_and_survives_a_restart(tmp_path):
@@ -99,7 +128,15 @@ def test_portfolio_crypto_shredding_deletes_the_tenant_key_not_the_ciphertext(tm
     document = repo.add_document(
         scope, kind="BASE_WORDING", blob=b"private policy bytes", language="en", country="SG")
 
+    with sqlite3.connect(path) as conn:
+        wrapped_key = bytes(conn.execute(
+            "SELECT wrapped_key FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0])
+
     assert repo.crypto_shred(scope)["shredded"] is True
+    # Complete local destruction means the wrapped tenant key is absent from the primary
+    # database and every SQLite sidecar, not merely absent from the live table.
+    assert wrapped_key not in _all_database_bytes(path)
     with pytest.raises(persistence.TenantShredded):
         repo.get_document(scope, document["id"])
 
