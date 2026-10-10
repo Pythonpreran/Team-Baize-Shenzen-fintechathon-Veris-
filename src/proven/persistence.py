@@ -1229,18 +1229,22 @@ class PortfolioRepository:
             existing = conn.execute(
                 "SELECT * FROM policy WHERE tenant_id=? AND source_case_id=?",
                 (scope.tenant_id, source_case_id)).fetchone()
-            if existing is None and is_demo_bundle:
-                # T06 originally persisted the demo under the transient case id. Backfill
-                # only the precise durable SME bundle shape before relying on the stable
-                # identity; a similarly named ordinary portfolio policy is never adopted.
+            if is_demo_bundle:
+                # T06 originally persisted the demo under a transient case id. A row is
+                # adopted only when it has the complete, data-free bundle shape this method
+                # wrote. Every verified duplicate is then reconciled in this transaction;
+                # an ordinary similarly named business is never adopted or removed.
                 legacy_rows = conn.execute(
-                    "SELECT p.*, b.details_encrypted AS business_details_encrypted "
+                    "SELECT p.*, b.details_encrypted AS business_details_encrypted, "
+                    "b.source_case_id AS business_source_case_id "
                     "FROM policy p JOIN business b ON b.id=p.business_id AND b.tenant_id=p.tenant_id "
                     "WHERE p.tenant_id=? AND p.line_of_business='SME_PACKAGE' "
                     "AND p.source_case_id IS NOT NULL AND p.source_case_id<>? "
                     "ORDER BY p.created_at, p.id",
                     (scope.tenant_id, SME_DEMO_SOURCE_CASE_ID),
                 ).fetchall()
+                verified_legacy_rows: list[sqlite3.Row] = []
+                expected_country = _country(country)
                 for legacy in legacy_rows:
                     business_id = legacy["business_id"]
                     if not business_id:
@@ -1251,21 +1255,66 @@ class PortfolioRepository:
                     policy_detail = self._open_json(
                         key, scope.tenant_id, f"policy:{legacy['id']}",
                         legacy["details_encrypted"])
+                    policy_count = conn.execute(
+                        "SELECT COUNT(*) FROM policy WHERE tenant_id=? AND business_id=?",
+                        (scope.tenant_id, business_id),
+                    ).fetchone()[0]
+                    coverage_count = conn.execute(
+                        "SELECT COUNT(*) FROM coverage_item WHERE tenant_id=? AND policy_id=?",
+                        (scope.tenant_id, legacy["id"]),
+                    ).fetchone()[0]
                     if (business_detail.get("name") != business_name
+                            or business_detail.get("country") != expected_country
+                            or business_detail.get("registration_number") is not None
                             or policy_detail.get("product") != "Existing SME analysis bundle"
-                            or policy_detail.get("insurer") != carrier):
+                            or policy_detail.get("insurer") != carrier
+                            or policy_detail.get("masked_number") != ""
+                            or legacy["business_source_case_id"] != legacy["source_case_id"]
+                            or legacy["household_id"] is not None
+                            or legacy["status"] != "ANALYSED"
+                            or legacy["period_start"] is not None
+                            or legacy["period_end"] is not None
+                            or legacy["renewal_date"] is not None
+                            or _decoded_ids(legacy["insured_member_ids"])
+                            or _decoded_ids(legacy["insured_asset_ids"])
+                            or _decoded_ids(legacy["source_document_ids"])
+                            or policy_count != 1
+                            or coverage_count != 0):
                         continue
+                    verified_legacy_rows.append(legacy)
+
+                if existing is None and verified_legacy_rows:
+                    canonical = verified_legacy_rows.pop(0)
+                    business_id = canonical["business_id"]
                     conn.execute(
                         "UPDATE business SET source_case_id=? WHERE id=? AND tenant_id=?",
                         (SME_DEMO_SOURCE_CASE_ID, business_id, scope.tenant_id),
                     )
                     conn.execute(
                         "UPDATE policy SET source_case_id=? WHERE id=? AND tenant_id=?",
-                        (SME_DEMO_SOURCE_CASE_ID, legacy["id"], scope.tenant_id),
+                        (SME_DEMO_SOURCE_CASE_ID, canonical["id"], scope.tenant_id),
                     )
-                    self._audit(conn, scope, "BACKFILL_SME_DEMO_IDENTITY", "policy", legacy["id"])
-                    existing = legacy
-                    break
+                    self._audit(
+                        conn, scope, "BACKFILL_SME_DEMO_IDENTITY", "policy", canonical["id"])
+                    existing = self._row_for_tenant(
+                        conn, "policy", canonical["id"], scope.tenant_id)
+
+                if existing is not None:
+                    for duplicate in verified_legacy_rows:
+                        business_id = duplicate["business_id"]
+                        conn.execute(
+                            "DELETE FROM policy WHERE id=? AND tenant_id=?",
+                            (duplicate["id"], scope.tenant_id),
+                        )
+                        conn.execute(
+                            "DELETE FROM business WHERE id=? AND tenant_id=?",
+                            (business_id, scope.tenant_id),
+                        )
+                        self._audit(
+                            conn, scope, "RECONCILE_SME_DEMO_DUPLICATE", "policy", duplicate["id"])
+                        self._audit(
+                            conn, scope, "RECONCILE_SME_DEMO_DUPLICATE", "business", business_id)
+                    return self._policy_out(conn, existing, key, scope.tenant_id)
             if existing is not None:
                 return self._policy_out(conn, existing, key, scope.tenant_id)
             business_id = new_id()

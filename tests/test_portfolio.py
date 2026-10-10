@@ -347,6 +347,42 @@ def test_sme_analysis_is_wrapped_without_retaining_case_findings(tmp_path):
     assert repo.wrap_sme_analysis(scope, state)["id"] == wrapped["id"]
 
 
+def test_sme_demo_migration_reconciles_all_verified_legacy_duplicates(tmp_path):
+    repo = persistence.PortfolioRepository(tmp_path / "portfolio.sqlite", _key())
+    scope = _scope("tenant-sme-duplicates", "user-sme-duplicates")
+    brief = {
+        "business": "Hock Lee Foods Pte Ltd",
+        "carrier": "Lotus General (Sandbox)",
+        "jurisdiction": {"detected": "SG"},
+    }
+
+    # Before T06's stable identity, each transient demo case created this exact bundle.
+    first_legacy = repo.wrap_sme_analysis(scope, {
+        "case_id": "legacy-demo-case-a", "brief": dict(brief),
+    })
+    repo.wrap_sme_analysis(scope, {
+        "case_id": "legacy-demo-case-b", "brief": dict(brief),
+    })
+
+    migrated = repo.wrap_sme_analysis(scope, {
+        "case_id": "current-demo-case",
+        "brief": {**brief, "source": "DEMO_BUNDLE"},
+    })
+    portfolio = repo.portfolio(scope)
+    sme_policies = [
+        policy for policy in portfolio["policies"]
+        if policy["line_of_business"] == "SME_PACKAGE"
+    ]
+
+    assert migrated is not None
+    assert migrated["id"] == first_legacy["id"]
+    assert [business["name"] for business in portfolio["businesses"]] == [
+        "Hock Lee Foods Pte Ltd"
+    ]
+    assert len(sme_policies) == 1
+    assert sme_policies[0]["id"] == first_legacy["id"]
+
+
 def test_simulated_accounting_amounts_use_decimal_and_serialise_as_text():
     """The existing SME feed is part of the durable bundle, so it follows money rules."""
     from decimal import Decimal
