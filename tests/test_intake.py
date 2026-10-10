@@ -98,8 +98,10 @@ def test_document_kinds_detected():
         assert detect.detect_kind(pages, f"{expected}.pdf").value == expected
 
 
-def test_author_class_is_derived_and_unknown_falls_to_weakest():
-    assert detect.author_class_for("CPF_RECORD") == "AUTHORITY"
+def test_author_class_is_derived_and_unknown_falls_to_the_safe_default():
+    # Before a bundle establishes a jurisdiction, a CPF record is not upgraded from
+    # GENERIC's SELF class to the class a country-specific pack might later assign.
+    assert detect.author_class_for("CPF_RECORD") == "SELF"
     assert detect.author_class_for("BASE_WORDING") == "INSURER"
     assert detect.author_class_for("TENANCY") == "THIRD_PARTY"
     # An unidentified document can only ever WEAKEN a finding.

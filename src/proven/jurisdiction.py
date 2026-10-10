@@ -584,11 +584,22 @@ def pack_of(case: Any) -> Pack:
 
 
 def author_class_for(kind: str, p: Optional[Pack] = None) -> str:
-    """Who authors `kind`. With a pack, that pack's answer. Without one, the answer every
-    pack that lists the kind agrees on — and SELF if they disagree or none lists it."""
+    """Who authors `kind`. With a pack, that pack's answer. Without one, use SELF unless
+    every available pack lists the kind with the same class.
+
+    An upload picker has no case and therefore no selected jurisdiction. A kind such as a
+    CPF record is authority-authored under Singapore but unlisted — and consequently SELF —
+    under GENERIC. Returning its strongest possible class before the bundle establishes a
+    country would manufacture stronger evidence than the documents support.
+    """
     if p is not None:
         return p.author_class_for(kind)
-    answers = {q.kind(kind).author_class for q in _packs().values() if q.kind(kind)}
+    answers: set[str] = set()
+    for candidate in _packs().values():
+        listed = candidate.kind(kind)
+        if listed is None:
+            return "SELF"
+        answers.add(listed.author_class)
     return answers.pop() if len(answers) == 1 else "SELF"
 
 
@@ -629,6 +640,19 @@ def _name_pattern(name: str) -> re.Pattern[str]:
     acronym = name.isupper() and len(name) <= 6
     return _rx(r"(?<![A-Za-z0-9])" + re.escape(name) + r"(?![A-Za-z0-9])",
                0 if acronym else re.IGNORECASE)
+
+
+# A profiled country owns the patterns that recognise its governing-law clause. This
+# broader form exists only to notice an explicit clause we do *not* recognise. Such a
+# clause is contrary evidence: the safe response is GENERIC, never a local pack selected
+# by an incidental regulator name or currency.
+_ANY_GOVERNING_LAW = re.compile(
+    r"\b(?:governed by|construed in accordance with|interpreted in accordance with|"
+    r"determined in accordance with|subject to)\b[^.;]{0,80}?\b(?:"
+    r"(?:the\s+)?laws? of\s+(?:the\s+)?[A-Za-z][A-Za-z '\-]{0,60}|"
+    r"[A-Za-z][A-Za-z '\-]{0,60}\s+[Ll]aw)\b",
+    re.IGNORECASE,
+)
 
 
 def _compile_signals(s: Signals) -> dict[str, tuple[re.Pattern[str], ...]]:
@@ -736,16 +760,39 @@ def detect_jurisdiction(documents: Iterable[Any]) -> JurisdictionDetection:
     prints "SGD" forty times is one currency signal, not forty, so volume cannot outvote a
     governing-law clause. The first occurrence is kept as the evidence, with its document
     and page, the same way a finding cites its span.
+
+    A country pack is selected only when its own governing-law clause appears, or when two
+    independent signal kinds agree. An explicit clause for an unrecognised country, or
+    conflicting recognised governing-law clauses, forces GENERIC: incidental names and
+    currency cannot override a contract's stated law.
     """
     docs = _as_documents(documents)
     profiles = [(code, name, sig.compiled()) for code, name, sig in _profiles()]
     hits: dict[str, dict[str, SignalHit]] = {code: {} for code, _, _ in profiles}
+    governing_patterns = tuple(
+        rx for _code, _name, compiled in profiles for rx in compiled["governing_law"])
+    unrecognised_governing_laws: list[dict] = []
 
     for label, pages in docs:
         for page_no, raw in enumerate(pages, start=1):
             text = " ".join(raw.split())
             if not text:
                 continue
+            for m in _ANY_GOVERNING_LAW.finditer(text):
+                clause = m.group(0)
+                if any(rx.search(clause) for rx in governing_patterns):
+                    continue
+                unrecognised_governing_laws.append({
+                    "direction": "against",
+                    "country": None,
+                    "country_name": None,
+                    "signal": "unrecognised_governing_law",
+                    "signal_label": "unrecognised governing-law clause",
+                    "weight": _WEIGHT["governing_law"],
+                    "matched": _excerpt(m, "governing_law"),
+                    "document": label,
+                    "page": page_no,
+                })
             for code, _name, compiled in profiles:
                 found = hits[code]
                 for kind, patterns in compiled.items():
@@ -764,8 +811,19 @@ def detect_jurisdiction(documents: Iterable[Any]) -> JurisdictionDetection:
     leading = ranked[0][0] if ranked else None
     top = ranked[0][1] if ranked else 0
     second = ranked[1][1] if len(ranked) > 1 else 0
+    governing_countries = [code for code, found in hits.items()
+                           if "governing_law" in found]
 
-    if top == 0:
+    if unrecognised_governing_laws:
+        code, confidence = GENERIC, "LOW"
+        why = ("An explicit governing-law clause names a country VERIS does not "
+               "recognise, so it will not apply another country's jurisdiction pack.")
+    elif len(governing_countries) > 1:
+        code, confidence = GENERIC, "LOW"
+        names = ", ".join(country_name(country) for country in governing_countries)
+        why = ("The documents contain conflicting governing-law clauses for "
+               f"{names}, so VERIS will not choose between them.")
+    elif top == 0:
         code, confidence = GENERIC, "NONE"
         why = ("No governing-law clause, regulator, statute, currency, registration "
                "number, postcode or phone number of a country VERIS recognises was found "
@@ -775,12 +833,17 @@ def detect_jurisdiction(documents: Iterable[Any]) -> JurisdictionDetection:
         why = (f"The only signals point to {country_name(leading)}, and they are too weak "
                f"to read the documents against that country's law (score {top}, "
                f"{MIN_SCORE} needed).")
+    elif "governing_law" not in hits[leading] and len(hits[leading]) < 2:
+        code, confidence = GENERIC, "LOW"
+        why = (f"The signals point to {country_name(leading)}, but they do not include "
+               "a governing-law clause or two independent signal kinds, so VERIS will "
+               "not apply that country's jurisdiction pack.")
     elif top - second < MARGIN:
         code, confidence = GENERIC, "LOW"
         runner = ranked[1][0]
         why = (f"The documents point to {country_name(leading)} (score {top}) and to "
                f"{country_name(runner)} (score {second}) too evenly to choose between "
-               f"them.")
+               "them.")
     else:
         code = leading
         confidence = "HIGH" if "governing_law" in hits[leading] else "MEDIUM"
@@ -801,6 +864,7 @@ def detect_jurisdiction(documents: Iterable[Any]) -> JurisdictionDetection:
         for kind, _w, _label in SIGNAL_WEIGHTS:
             if kind in found:
                 reasons.append(found[kind].as_dict("against"))
+    reasons.extend(unrecognised_governing_laws)
     if code != GENERIC and "governing_law" not in hits[code]:
         reasons.append({"direction": "against",
                         "statement": "No governing-law clause was found in any document; "
@@ -810,14 +874,13 @@ def detect_jurisdiction(documents: Iterable[Any]) -> JurisdictionDetection:
 
     result = JurisdictionDetection(code=code, confidence=confidence, reasons=reasons,
                                    scores=dict(ranked), leading=leading, why=why)
-    # Logged both ways, as the plan requires — but as signal kinds, documents and pages,
-    # never the matched text. A matched registration number, postcode or phone number is
-    # the customer's data, and the server log is not where it belongs.
+    # Logged both ways, as the plan requires — but only as country, signal kind and page.
+    # Upload filenames and matched text stay in the case record, never the server log.
     log.info("jurisdiction detected: %s (%s) scores=%s for=%s against=%s", code,
              confidence, result.scores,
-             [(r.get("country"), r.get("signal"), r.get("document"), r.get("page"))
+             [(r.get("country"), r.get("signal"), r.get("page"))
               for r in reasons if r.get("direction") == "for" and r.get("signal")],
-             [(r.get("country"), r.get("signal"), r.get("document"), r.get("page"))
+             [(r.get("country"), r.get("signal"), r.get("page"))
               if r.get("signal") else "no governing-law clause or margin"
               for r in reasons if r.get("direction") == "against"])
     return result
@@ -836,7 +899,13 @@ class AppliedJurisdiction:
 
     @property
     def pack_available(self) -> bool:
-        return self.pack.code == self.detection.code
+        """Whether a country-specific pack was established for this case.
+
+        GENERIC is always available as a safety fallback, but it is deliberately not an
+        available jurisdiction pack: it makes no country-specific statement and its notice
+        must remain visible to the owner.
+        """
+        return not self.pack.is_generic and self.pack.code == self.detection.code
 
     def summary(self) -> str:
         d = self.detection

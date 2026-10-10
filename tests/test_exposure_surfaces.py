@@ -68,16 +68,12 @@ def test_cyber_requires_both_halves_before_it_reports_a_gap(client):
         assert holding["author_class"] in {"AUTHORITY", "THIRD_PARTY", "INSURER"}
 
 
-def test_cyber_never_predicts_a_breach_or_prices_a_penalty(client):
-    """The statutory ceiling is statute. It is not an expected loss, and the payload has
-    to say so in the same breath it states the figure."""
+def test_cyber_withholds_candidate_dependent_statutory_content(client):
+    """The policy analysis remains available, but an unverified regulator cannot supply
+    owner-facing deadlines, penalties or a statutory source block."""
     body = client.get("/api/cyber").json()
-    statutory = body["statutory"]
-    assert statutory["penalty_ceiling_sgd"] == "1000000"
-    disclaimer = statutory["not_a_prediction"].lower()
-    assert "do not predict" in disclaimer
-    assert "not an expected cost" in disclaimer
-    assert statutory["authority"]
+    assert body["available"] is True
+    assert "statutory" not in body
 
     blob = str(body).lower()
     for forbidden in ("likely to be breached", "will be attacked",

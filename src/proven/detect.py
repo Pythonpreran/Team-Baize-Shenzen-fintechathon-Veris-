@@ -233,6 +233,7 @@ def author_class_for(kind: str,
     weakest class, so an unidentified document can never strengthen a finding.
 
     With a pack — which is how the pipeline always calls it — that pack's answer. With
-    none (the upload screen's list of kinds, which has no case yet), the answer every
-    pack that lists the kind agrees on, and SELF where they disagree."""
+    none (the upload screen's list of kinds, which has no case yet), SELF unless every
+    available pack lists the kind with the same class. A pre-upload screen must not show
+    the strongest class a future jurisdiction selection might establish."""
     return jurisdiction.author_class_for(kind, pack)

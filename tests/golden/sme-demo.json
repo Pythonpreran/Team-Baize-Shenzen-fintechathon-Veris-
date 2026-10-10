@@ -1888,7 +1888,7 @@
        "Read your policy's position: Your policy excludes it in writing."
       ],
       "could_not_check": [],
-      "finding_count": 5,
+      "finding_count": 3,
       "key": "digital",
       "label": "Data and systems",
       "plain": "Personal data you hold, and whether anything responds when it is lost or stolen.",
@@ -1971,22 +1971,10 @@
       "why": "A property section responds to physical damage to insured property. Data is not physical property, so there is nothing for it to attach to."
      },
      {
-      "head": "Telling the regulator and your customers",
-      "plain": "The PDPA requires notifying the PDPC within 3 days of assessing a breach as notifiable, and notifying affected individuals where significant harm is likely.",
-      "responds": "NOTHING",
-      "why": "Notification is a statutory duty owed to the regulator and to individuals. It is a compliance cost, not damage to property, so no property or liability section reaches it."
-     },
-     {
       "head": "Getting your systems and records back",
       "plain": "Restoring data from backups, rebuilding systems, and paying for the time it takes.",
       "responds": "NOTHING",
       "why": "Rebuilding data is not repair of insured property. The property section measures loss by the cost of reinstating physical items."
-     },
-     {
-      "head": "A PDPC financial penalty",
-      "plain": "The Commission may impose a financial penalty where it finds the Protection Obligation was breached.",
-      "responds": "NOTHING",
-      "why": "A financial penalty is imposed on the business for its own conduct. Liability cover responds to what you owe someone else, and penalties are commonly excluded or uninsurable in part."
      },
      {
       "head": "Income lost while you are down",
@@ -2016,7 +2004,7 @@
     "holdings": [
      {
       "author_class": "AUTHORITY",
-      "basis": "Your ACRA business profile records an online sales channel. Selling online means collecting customer names, contact details and delivery addresses, which are personal data under the PDPA.",
+      "basis": "Your ACRA business profile records an online sales channel. Selling online means collecting customer names, contact details and delivery addresses, which are personal data.",
       "count": null,
       "document_kind": "ACRA_PROFILE",
       "evidence_class": "PROVEN",
@@ -2038,17 +2026,7 @@
     "method": "DETERMINISTIC",
     "notice": "Everything above is read from your own documents. We do not scan your network, estimate how likely a breach is, or price one. What we can show you is that you hold personal data and what your policy says about responding to its loss.",
     "review_count": 1,
-    "statutory": {
-     "authority": "PDPC, Advisory Guidelines on Enforcement of the Data Protection Provisions (30 September 2022)",
-     "not_a_prediction": "This is the statutory ceiling, not an expected cost. The PDPC assesses harm and culpability case by case. We do not predict penalties and this figure must not be read as one.",
-     "notifiable_scale": 500,
-     "notification_duty": "A breach must be notified to the PDPC if it is likely to cause significant harm to affected individuals, or affects at least 500 individuals. Notification to the PDPC is due within 3 calendar days of assessing it as notifiable.",
-     "penalty_ceiling_basis": "From 2022-10-01 the maximum financial penalty is S$1,000,000, or 10% of annual turnover in Singapore where that turnover exceeds S$10,000,000, whichever is higher.",
-     "penalty_ceiling_sgd": "1000000",
-     "regime": "Personal Data Protection Act 2012 (Singapore)",
-     "which_branch_applies": "We have not established your annual turnover in Singapore from your documents, so we cannot tell you which branch applies. For a business under the S$10 million threshold the ceiling is S$1,000,000."
-    },
-    "uncovered_count": 5,
+    "uncovered_count": 3,
     "unestablished": []
    },
    "status": 200

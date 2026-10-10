@@ -10,7 +10,8 @@
 # names which pack entry each placeholder reads (`LOCAL-ID:key`, resolved against the pack
 # that applies). `{x.money}` writes an amount as the pack's currency writes it (S$60,000) and
 # `{x.local}` as the country's own authorities write it ($2,600). A sentence whose figures are
-# not verified for owner-facing use is dropped rather than shown; see rules._pack_text.
+# not verified for owner-facing use is dropped rather than shown; `rules.bind()` resolves
+# the entry and `rules._fill()` substitutes only verified values.
 - id: WICA-HEADCOUNT-UNDERDECLARED
   version: 1
   jurisdiction: SG

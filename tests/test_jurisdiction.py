@@ -257,12 +257,21 @@ def test_no_candidate_entry_reaches_a_brief_screen_or_rule(client):
 
 def _sg_with(entry_id: str, status: str) -> jurisdiction.Pack:
     data = _sg_raw()
-    for section in ("statutes", "compulsory_covers", "regulatory_timelines",
-                    "market_conventions"):
-        for e in data[section]:
-            if e["id"] == entry_id:
-                e["verification"].update(status=status, verified_by=None)
-                return jurisdiction.validate_pack(data)
+    entries = [
+        entry for section in ("regulators", "statutes", "compulsory_covers",
+                              "regulatory_timelines", "market_conventions")
+        for entry in data[section]
+    ]
+    if data.get("data_protection"):
+        entries.append(data["data_protection"])
+    for entry in entries:
+        if entry["id"] == entry_id:
+            entry["verification"].update(
+                status=status,
+                verified_by=("test reviewer" if status == jurisdiction.HUMAN_VERIFIED
+                             else None),
+            )
+            return jurisdiction.validate_pack(data)
     raise AssertionError(f"no entry {entry_id}")
 
 
@@ -301,8 +310,8 @@ def test_a_candidate_figure_drops_its_sentence_and_never_the_finding(monkeypatch
 
 # ── 2. detection ────────────────────────────────────────────────────────────
 
-def _pages(*pages: str) -> list[tuple[str, list[str]]]:
-    return [("doc.pdf", list(pages))]
+def _pages(*pages: str, label: str = "doc.pdf") -> list[tuple[str, list[str]]]:
+    return [(label, list(pages))]
 
 
 def test_detection_unpacks_as_code_confidence_and_reasons():
@@ -328,12 +337,50 @@ def test_one_weak_signal_is_not_enough_to_apply_a_countrys_law():
     assert "too weak" in d.why
 
 
+def test_name_only_signals_cannot_select_a_country_pack():
+    """A single regulator or statute name is not enough to apply a country's law."""
+    names = jurisdiction.pack("SG").detection.names
+    examples = (next(n for n in names if not (n.isupper() and len(n) <= 6)),
+                next(n for n in names if n.isupper() and len(n) <= 6))
+    for name in examples:
+        d = jurisdiction.detect_jurisdiction(_pages(f"Reference: {name}."))
+        assert (d.code, d.confidence, d.leading) == ("GENERIC", "LOW", "SG")
+        assert "governing-law clause or two independent signal kinds" in d.why
+
+
+def test_two_independent_non_law_signals_may_establish_a_country():
+    name = next(n for n in jurisdiction.pack("SG").detection.names
+                if not (n.isupper() and len(n) <= 6))
+    d = jurisdiction.detect_jurisdiction(_pages(f"Reference: {name}. Excess SGD 500."))
+    assert (d.code, d.confidence) == ("SG", "MEDIUM")
+
+
+def test_an_unrecognised_governing_law_clause_overrides_a_local_name():
+    name = next(n for n in jurisdiction.pack("SG").detection.names
+                if not (n.isupper() and len(n) <= 6))
+    d = jurisdiction.detect_jurisdiction(_pages(
+        f"Reference: {name}. This Policy is governed by the laws of Thailand."))
+    assert (d.code, d.confidence, d.leading) == ("GENERIC", "LOW", "SG")
+    assert "does not recognise" in d.why
+    assert any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
+
+
+def test_conflicting_governing_law_clauses_force_generic_even_with_other_signals():
+    name = next(n for n in jurisdiction.pack("SG").detection.names
+                if not (n.isupper() and len(n) <= 6))
+    d = jurisdiction.detect_jurisdiction(_pages(
+        f"This Policy is governed by the laws of Singapore. {name}. Excess SGD 500.",
+        "Section B is governed by Malaysian Law."))
+    assert (d.code, d.confidence) == ("GENERIC", "LOW")
+    assert "conflicting governing-law clauses" in d.why
+
+
 def test_two_countries_too_evenly_is_generic_with_the_reasons_both_ways():
     d = jurisdiction.detect_jurisdiction(_pages(
         "Section A is governed by the laws of Singapore.",
         "Section B is governed by Malaysian Law."))
     assert d.code == "GENERIC"
-    assert "too evenly" in d.why
+    assert "conflicting governing-law clauses" in d.why
     countries = {(r.get("country"), r["direction"]) for r in d.reasons if r.get("signal")}
     assert ("MY", "against") in countries or ("SG", "against") in countries
     assert len({c for c, _ in countries}) == 2
@@ -358,12 +405,14 @@ def test_a_phone_number_is_evidence_by_its_country_code_only():
 
 def test_detection_is_logged_both_ways_without_the_documents_text(caplog):
     caplog.set_level(logging.INFO, logger="proven.jurisdiction")
+    filename = "customer-private-policy.pdf"
     jurisdiction.detect_jurisdiction(_pages(
         "This Policy is governed by the laws of Singapore. UEN 201912345K. "
-        "+65 6123 4567. 21 Tai Seng Avenue, Singapore 534054."))
+        "+65 6123 4567. 21 Tai Seng Avenue, Singapore 534054.", label=filename))
     logged = " ".join(r.getMessage() for r in caplog.records)
     assert "jurisdiction detected: SG" in logged
     assert "governing_law" in logged
+    assert filename not in logged
     for private in ("201912345K", "6123", "534054"):
         assert private not in logged, f"{private!r} was written to the log"
 
@@ -413,6 +462,34 @@ def test_real_malaysian_wordings_are_malaysia_and_get_no_singapore_pack(doc_id):
     assert applied.detection.code == "MY"
     assert applied.pack.code == "GENERIC"
     assert "no Malaysia jurisdiction pack yet" in applied.notice
+
+
+@pytest.mark.parametrize(
+    ("pages", "confidence"),
+    [
+        pytest.param([["POLICY WORDING", "No location is stated here."]], "NONE",
+                     id="no-signal"),
+        pytest.param([["POLICY WORDING", "Excess SGD 500."]], "LOW",
+                     id="sub-threshold"),
+        pytest.param([["This Policy is governed by the laws of Singapore."],
+                      ["Section B is governed by Malaysian Law."]], "LOW",
+                     id="tied-governing-law"),
+    ],
+)
+def test_uncertain_uploads_keep_the_generic_notice_and_skipped_rules(client, pages, confidence):
+    response = client.post(
+        "/api/bundle",
+        files=[("files", ("policy.pdf", pdfbuild.build_pdf(pages), "application/pdf"))],
+        data={"kinds": '["BASE_WORDING"]'},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    view = body["brief"]["jurisdiction"]
+    assert (view["pack"], view["pack_available"], view["confidence"]) == \
+        ("GENERIC", False, confidence)
+    assert view["notice"] and view["summary"] == view["notice"]
+    assert any("Country-specific rules were not run" in line
+               for line in body["brief"]["not_searched"])
 
 
 # ── 3. under GENERIC nothing Singaporean runs or is said ────────────────────
@@ -466,10 +543,51 @@ def test_every_statement_about_the_law_carries_its_quote_link_and_status(client)
                 if e["protection"] == "WORK_INJURY")
     assert {s["entry_id"] for s in _owner_facing_sources(work["pack_sources"])} == \
         {"SG-COMP-WORK-INJURY", "SG-STAT-WICA"}
-    statutory = client.get("/api/cyber").json()["statutory"]
-    assert {s["entry_id"] for s in _owner_facing_sources(statutory["pack_sources"])} == \
-        {"SG-DP-PDPA", "SG-STAT-PDPA-PENALTY", "SG-TL-PDPA-BREACH-NOTIFICATION",
-         "SG-STAT-PDPA-SIGNIFICANT-SCALE"}
+    # The regulator dependency is still CANDIDATE, so the policy-based analysis remains
+    # available while the statutory block is withheld.
+    cyber_result = client.get("/api/cyber").json()
+    assert cyber_result["available"] is True
+    assert "statutory" not in cyber_result
+
+
+def _cyber_pack_with(candidate: str | None = None) -> jurisdiction.Pack:
+    """A synthetic fully verified cyber regime, with one dependency optionally demoted."""
+    data = _sg_raw()
+    dependency_ids = {
+        "SG-DP-PDPA", "SG-REG-PDPC", "SG-STAT-PDPA-PENALTY",
+        "SG-TL-PDPA-BREACH-NOTIFICATION", "SG-STAT-PDPA-SIGNIFICANT-SCALE",
+    }
+    entries = [
+        entry for section in ("regulators", "statutes", "regulatory_timelines")
+        for entry in data[section]
+    ] + [data["data_protection"]]
+    for entry in entries:
+        if entry["id"] not in dependency_ids:
+            continue
+        entry["verification"].update(
+            status=(jurisdiction.CANDIDATE if entry["id"] == candidate
+                    else jurisdiction.HUMAN_VERIFIED),
+            verified_by=(None if entry["id"] == candidate else "test reviewer"),
+        )
+    return jurisdiction.validate_pack(data)
+
+
+def test_cyber_regime_cites_every_verified_dependency():
+    law = cyber.regime(_cyber_pack_with())
+    assert law is not None
+    assert {source["entry_id"] for source in law.sources} == {
+        "SG-DP-PDPA", "SG-REG-PDPC", "SG-STAT-PDPA-PENALTY",
+        "SG-TL-PDPA-BREACH-NOTIFICATION", "SG-STAT-PDPA-SIGNIFICANT-SCALE",
+    }
+    assert all(source["owner_facing"] for source in law.sources)
+
+
+@pytest.mark.parametrize("candidate", [
+    "SG-DP-PDPA", "SG-REG-PDPC", "SG-STAT-PDPA-PENALTY",
+    "SG-TL-PDPA-BREACH-NOTIFICATION", "SG-STAT-PDPA-SIGNIFICANT-SCALE",
+])
+def test_cyber_regime_withholds_the_statutory_block_when_any_dependency_is_candidate(candidate):
+    assert cyber.regime(_cyber_pack_with(candidate)) is None
 
 
 def test_a_dropped_sentence_takes_its_source_with_it():
@@ -555,6 +673,20 @@ def test_a_malaysian_upload_gets_an_honest_notice_not_a_singapore_answer(client)
     assert "no lookup was attempted" in prefill["status"]
 
 
+def test_consent_status_uses_the_case_document_class_under_generic(client):
+    files = _my_files() + _example_files(["06-cpf-contribution-record.pdf"])
+    response = client.post(
+        "/api/bundle",
+        files=[("files", (f.filename, f.data, "application/pdf")) for f in files],
+        data={"kinds": '["BASE_WORDING", "SCHEDULE", "CPF_RECORD"]'},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["brief"]["jurisdiction"]["pack"] == "GENERIC"
+    shareable = {entry["kind"]: entry for entry in
+                 client.get("/api/consent/status").json()["shareable"]}
+    assert shareable["CPF_RECORD"]["author_class"] == "SELF"
+
+
 def _sg_facts():
     return pipeline.run_bundle(_example_files(SG_EXAMPLE))["facts"]
 
@@ -626,8 +758,9 @@ def test_author_class_comes_from_the_pack_that_applies():
     assert detect.author_class_for("CPF_RECORD", sg) == "AUTHORITY"
     assert detect.author_class_for("CPF_RECORD", generic) == "SELF"
     assert detect.author_class_for("TENANCY", generic) == "THIRD_PARTY"
-    # With no pack, the answer every pack that lists the kind agrees on.
-    assert detect.author_class_for("CPF_RECORD") == "AUTHORITY"
+    # With no selected pack, a kind not listed by GENERIC stays SELF until a bundle
+    # establishes a country; the upload picker must not pre-upgrade it.
+    assert detect.author_class_for("CPF_RECORD") == "SELF"
     assert detect.author_class_for("never-heard-of-it") == "SELF"
 
 
@@ -737,6 +870,8 @@ def test_an_unknown_code_names_no_file(client, code):
 
 def test_the_bundle_kinds_say_who_authors_each_kind_in_each_pack(client):
     kinds = {k["kind"]: k for k in client.get("/api/bundle/kinds").json()["kinds"]}
+    assert kinds["CPF_RECORD"]["author_class"] == "SELF"
+    assert "No jurisdiction is selected" in kinds["CPF_RECORD"]["author_class_context"]
     assert kinds["CPF_RECORD"]["author_class_by_jurisdiction"] == \
         {"GENERIC": "SELF", "SG": "AUTHORITY"}
     assert kinds["TENANCY"]["author_class_by_jurisdiction"] == \
@@ -749,6 +884,12 @@ def test_the_source_checker_removes_page_spacing_and_nothing_else():
     norm = verify_pack_sources.normalise
     assert norm("( b ) in any other  case — $1 million .") == "(b) in any other case — $1 million."
     assert norm("Shall") != norm("shall"), "case must not be normalised away"
+
+
+def test_source_checker_help_uses_its_summary(capsys):
+    with pytest.raises(SystemExit, match="0"):
+        verify_pack_sources.main(["--help"])
+    assert "Check every quote in the jurisdiction packs" in capsys.readouterr().out
 
 
 def _quote_entry_pack() -> jurisdiction.Pack:

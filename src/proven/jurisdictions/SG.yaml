@@ -62,17 +62,15 @@ regulators:
         Not shown to an owner until a primary sentence is quoted or a person confirms it.
   - id: SG-REG-MOM
     title: Ministry of Manpower
-    statement: >
-      The Ministry of Manpower administers work injury compensation and work passes, and sets
-      the compulsory terms of work injury compensation policies.
+    statement: The Ministry's work injury compensation page says all WIC insurance policies must be issued by a designated insurer.
     values: {short_name: MOM, url: "https://www.mom.gov.sg/"}
     verification:
-      status: HUMAN_VERIFIED
+      status: SOURCE_QUOTED
       source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/work-injury-compensation-insurance"
       retrieved_on: 2026-10-10
       quote: all WIC insurance policies must be issued by a designated insurer
-      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
-      note: null
+      verified_by: null
+      note: The statement is intentionally limited to the primary-source quote.
   - id: SG-REG-PDPC
     title: Personal Data Protection Commission
     statement: The Personal Data Protection Commission administers and enforces the PDPA.
@@ -378,7 +376,6 @@ data_protection:
     short_title: PDPA
     label: Personal Data Protection Act 2012 (Singapore)
     regulator: SG-REG-PDPC
-    regulator_short: PDPC
     penalty: SG-STAT-PDPA-PENALTY
     notification: SG-TL-PDPA-BREACH-NOTIFICATION
     significant_scale: SG-STAT-PDPA-SIGNIFICANT-SCALE

@@ -284,7 +284,8 @@ def test_upload_rejects_malformed_kinds(client):
 def test_bundle_kinds_endpoint_explains_the_grading_consequence(client):
     body = client.get("/api/bundle/kinds").json()
     kinds = {k["kind"]: k for k in body["kinds"]}
-    assert kinds["CPF_RECORD"]["author_class"] == "AUTHORITY"
+    assert kinds["CPF_RECORD"]["author_class"] == "SELF"
+    assert "No jurisdiction is selected" in kinds["CPF_RECORD"]["author_class_context"]
     assert kinds["ACCOUNTS"]["grades_as"] == "DECLARED"
 
 

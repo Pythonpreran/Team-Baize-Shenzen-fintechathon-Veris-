@@ -256,6 +256,26 @@ const MY_RECORD = {
     reason: "A Singapore rule. These documents are not established as Singapore documents, so Singapore law is not applied to them." }],
   sentences_dropped: [],
 };
+const UNCERTAIN_GENERIC_RECORDS = [
+  { name: "no-signal", pack: "GENERIC", pack_name: "No jurisdiction pack",
+    pack_available: false, detected: "GENERIC", detected_name: null, leading: null,
+    confidence: "NONE", summary: "Incorrect generic summary",
+    notice: "VERIS could not tell which country's law governs these documents.",
+    reasons: [{ direction: "against", statement: "No recognised country signal was found." }],
+    rules_not_applied: [], sentences_dropped: [] },
+  { name: "sub-threshold", pack: "GENERIC", pack_name: "No jurisdiction pack",
+    pack_available: false, detected: "GENERIC", detected_name: null, leading: "SG",
+    confidence: "LOW", summary: "Incorrect generic summary",
+    notice: "The only signals were too weak to choose a jurisdiction pack.",
+    reasons: [{ direction: "against", statement: "The signal was too weak." }],
+    rules_not_applied: [], sentences_dropped: [] },
+  { name: "tied-scores", pack: "GENERIC", pack_name: "No jurisdiction pack",
+    pack_available: false, detected: "GENERIC", detected_name: null, leading: "SG",
+    confidence: "LOW", summary: "Incorrect generic summary",
+    notice: "The documents contain conflicting governing-law clauses.",
+    reasons: [{ direction: "against", statement: "The clauses conflict." }],
+    rules_not_applied: [], sentences_dropped: [] },
+];
 tryRun("jurisdictionPanel renders nothing without a record", () => {
   if (g.jurisdictionPanel(null) !== "" || g.jurisdictionPanel({}) !== "")
     throw new Error("a panel was drawn with no jurisdiction record");
@@ -280,6 +300,20 @@ tryRun("jurisdictionPanel leads with the no-pack notice and lists what was not a
   if (!html.includes("Not applied to these documents")) throw new Error("not-applied rules are hidden");
   if (!html.includes("Work injury declaration understated")) throw new Error("the rule is not named");
   if (!html.includes("Pointing elsewhere")) throw new Error("the reasons against are not shown");
+});
+tryRun("jurisdictionPanel keeps the fallback notice for every uncertain path", () => {
+  for (const record of UNCERTAIN_GENERIC_RECORDS) {
+    const html = g.jurisdictionPanel(record);
+    if (!html.includes("No jurisdiction pack"))
+      throw new Error(`${record.name}: the generic fallback was shown as a pack`);
+    if (!html.includes(record.notice))
+      throw new Error(`${record.name}: the fallback notice was not the headline`);
+    if (html.includes("No jurisdiction pack pack"))
+      throw new Error(`${record.name}: generic was doubled as an available pack`);
+  }
+  const defensive = g.jurisdictionPanel({ ...UNCERTAIN_GENERIC_RECORDS[0], pack_available: true });
+  if (!defensive.includes("No jurisdiction pack") || defensive.includes("No jurisdiction pack pack"))
+    throw new Error("a malformed generic response reached the reassuring pack branch");
 });
 tryRun("jurisdictionPanel escapes every server-derived value", () => {
   const html = g.jurisdictionPanel(MY_RECORD);
@@ -378,6 +412,41 @@ tryRun("SME tour is ten steps", () => {
 tryRun("tourInvite is a no-op with no user", () => { g.tourInvite(); });
 tryRun("tourEnd is safe when no tour is running", () => { g.tourEnd(false); });
 tryRun("tourPaint is safe with no host", () => { g.tourPaint(); });
+
+await (async () => {
+  const previousFetch = sandbox.fetch;
+  try {
+    sandbox.fetch = async path => {
+      calls.push(path);
+      if (path !== "/api/cyber") throw new Error(`unexpected request: ${path}`);
+      return {
+        status: 200, ok: true,
+        json: async () => ({
+          available: true, cover_label: "Policy exclusion located", gap_open: true,
+          holdings: [{ subject: "Customers", evidence_class: "PROVEN",
+            document_kind: "BUSINESS_PROFILE", basis: "An online sales channel is recorded." }],
+          exclusion: { quote: "The policy excludes electronic data.", page_no: 2,
+            document_kind: "BASE_WORDING", author_class: "INSURER", evidence_class: "PROVEN",
+            why_it_matters: "This is the policy's own wording." },
+          cost_heads: [{ head: "Restoring data", plain: "Restore records.",
+            why: "The property section is for physical property.", responds: "NOTHING" }],
+          uncovered_count: 1, notice: "Read from your own documents.",
+        }),
+      };
+    };
+    const host = el("div");
+    await g.smeCyber(host);
+    if (!host.innerHTML.includes("Cyber and data")) throw new Error("screen did not render");
+    if (host.innerHTML.includes("What the law requires"))
+      throw new Error("an absent statutory block rendered an empty legal card");
+    if (host.innerHTML.includes("undefined")) throw new Error("missing statutory values leaked");
+    results.push(["ok  ", "smeCyber omits an absent statutory block"]);
+  } catch (e) {
+    results.push(["FAIL", `smeCyber omits an absent statutory block :: ${e.message}`]);
+  } finally {
+    sandbox.fetch = previousFetch;
+  }
+})();
 
 let bad = 0;
 for (const [tag, label] of results) { if (tag === "FAIL") bad++; console.log(tag, label); }

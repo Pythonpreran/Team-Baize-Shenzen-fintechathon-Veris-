@@ -158,7 +158,7 @@ def check_pack(p: "jurisdiction.Pack",
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[1].strip())
+    ap = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     ap.add_argument("--pack", action="append", help="check one pack (repeatable)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)

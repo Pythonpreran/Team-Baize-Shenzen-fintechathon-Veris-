@@ -801,7 +801,13 @@ def bundle_kinds():
     return {
         "kinds": [
             {"kind": k, "label": k.replace("_", " ").title(),
+             # This route has no case yet. The helper returns SELF unless every available
+             # pack agrees, which is the safe pre-upload class rather than the strongest
+             # possible class a later country selection might establish.
              "author_class": detect.author_class_for(k),
+             "author_class_context": (
+                 "No jurisdiction is selected yet; this is the GENERIC safety class. "
+                 "See author_class_by_jurisdiction for the class after detection."),
              "grades_as": ("PROVEN" if detect.author_class_for(k) != "SELF"
                            else "DECLARED"),
              # Who authors a kind is a fact about a country. Shown per pack so the list
@@ -1330,18 +1336,23 @@ def consent_status(session: Session = Depends(_session)):
         store = st.get("store")
         counts: dict[str, int] = {}
         names: dict[str, list[str]] = {}
+        classes: dict[str, str] = {}
         for doc in (store.documents() if store is not None else []):
             kind = getattr(doc, "kind", None) or "UNKNOWN"
             counts[kind] = counts.get(kind, 0) + 1
+            classes.setdefault(kind, getattr(doc, "author_class", "SELF"))
             filename = getattr(doc, "filename", None)
             if filename:
                 names.setdefault(kind, []).append(filename)
+        # One shareable row per document kind. The class was recorded when the bundle's
+        # selected pack ingested the document, so no case-scoped response recomputes it
+        # without that pack.
         shareable = [{
             "kind": kind,
             "label": kind.replace("_", " ").title(),
             "count": counts[kind],
             "filenames": names.get(kind, []),
-            "author_class": detect.author_class_for(kind),
+            "author_class": classes.get(kind, "SELF"),
         } for kind in sorted(counts)]
         return {"granted": pipeline.disclosure_granted(st["conn"], st["case_id"]),
                 "disclosures": pipeline.live_disclosures(st["conn"], st["case_id"]),

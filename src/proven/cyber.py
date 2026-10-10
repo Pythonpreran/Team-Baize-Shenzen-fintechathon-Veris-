@@ -83,21 +83,27 @@ class Regime:
 
 
 def regime(pack: "jurisdiction.Pack") -> Optional[Regime]:
-    """The data-protection regime the pack verifies, or None. All or nothing: a ceiling
-    stated without the notification duty beside it would be half a statement of the law."""
+    """The data-protection regime the pack verifies, or None.
+
+    All referenced entries must be owner-facing. The statutory block names the regulator,
+    its notification duty, the scale threshold and the penalty ceiling; omitting any one
+    dependency would let a CANDIDATE statement reach an owner through the others.
+    """
     dp = pack.data_protection
     if dp is None or not dp.owner_facing or pack.currency is None:
         return None
     v = dp.values
     try:
+        regulator = pack.entry(v["regulator"])
         penalty = pack.entry(v["penalty"])
         notification = pack.entry(v["notification"])
         scale = pack.entry(v["significant_scale"])
-        if not all(e.owner_facing for e in (penalty, notification, scale)):
+        dependencies = (dp, regulator, penalty, notification, scale)
+        if not all(entry.owner_facing for entry in dependencies):
             return None
         return Regime(
             label=str(v["label"]), short_title=str(v["short_title"]),
-            regulator=str(v["regulator_short"]), country=pack.name,
+            regulator=str(regulator.values["short_name"]), country=pack.name,
             currency=pack.currency,
             ceiling=Decimal(str(penalty.values["penalty_ceiling"])),
             trigger=Decimal(str(penalty.values["turnover_trigger"])),
@@ -106,7 +112,7 @@ def regime(pack: "jurisdiction.Pack") -> Optional[Regime]:
             cited_as=str(penalty.values["cited_as"]),
             scale=int(scale.values["affected_individuals"]),
             notify_days=int(notification.values["days"]),
-            sources=tuple(e.provenance() for e in (dp, penalty, notification, scale)))
+            sources=tuple(entry.provenance() for entry in dependencies))
     except (KeyError, TypeError, ValueError, jurisdiction.PackError):
         return None
 
@@ -394,7 +400,7 @@ def _cover_state(facts, store) -> tuple[str, Optional[str], Optional[int],
     return COVER_INDETERMINATE, None, None, None
 
 
-def _cost_heads(facts, cover_state: str, law: Regime) -> list[CostHead]:
+def _cost_heads(facts, cover_state: str, law: Optional[Regime]) -> list[CostHead]:
     """The bills a data breach generates, and what in this policy meets each one.
 
     This is the heart of the screen. It is not a loss estimate: no figure appears.
@@ -431,17 +437,21 @@ def _cost_heads(facts, cover_state: str, law: Regime) -> list[CostHead]:
         "A forensic investigation to establish which records were taken and how.",
         r, w))
 
-    r, w = state(True, "NOTHING",
-                 "Notification is a statutory duty owed to the regulator and to "
-                 "individuals. It is a compliance cost, not damage to property, so "
-                 "no property or liability section reaches it.")
-    heads.append(CostHead(
-        "Telling the regulator and your customers",
-        f"The {law.short_title} requires notifying the {law.regulator} within "
-        f"{law.notify_days} days "
-        f"of assessing a breach as notifiable, and notifying affected individuals "
-        f"where significant harm is likely.",
-        r, w))
+    # Notification and regulatory-penalty heads make statements about the law. They appear
+    # only when every regime dependency is owner-facing; the document-based heads below do
+    # not borrow an unverified regulator or timeline.
+    if law is not None:
+        r, w = state(True, "NOTHING",
+                     "Notification is a statutory duty owed to the regulator and to "
+                     "individuals. It is a compliance cost, not damage to property, so "
+                     "no property or liability section reaches it.")
+        heads.append(CostHead(
+            "Telling the regulator and your customers",
+            f"The {law.short_title} requires notifying the {law.regulator} within "
+            f"{law.notify_days} days "
+            f"of assessing a breach as notifiable, and notifying affected individuals "
+            f"where significant harm is likely.",
+            r, w))
 
     r, w = state(True, "NOTHING",
                  "Rebuilding data is not repair of insured property. The property "
@@ -452,15 +462,16 @@ def _cost_heads(facts, cover_state: str, law: Regime) -> list[CostHead]:
         "it takes.",
         r, w))
 
-    r, w = state(True, "NOTHING",
-                 "A financial penalty is imposed on the business for its own "
-                 "conduct. Liability cover responds to what you owe someone else, "
-                 "and penalties are commonly excluded or uninsurable in part.")
-    heads.append(CostHead(
-        f"A {law.regulator} financial penalty",
-        "The Commission may impose a financial penalty where it finds the "
-        "Protection Obligation was breached.",
-        r, w))
+    if law is not None:
+        r, w = state(True, "NOTHING",
+                     "A financial penalty is imposed on the business for its own "
+                     "conduct. Liability cover responds to what you owe someone else, "
+                     "and penalties are commonly excluded or uninsurable in part.")
+        heads.append(CostHead(
+            f"A {law.regulator} financial penalty",
+            "The Commission may impose a financial penalty where it finds the "
+            "Protection Obligation was breached.",
+            r, w))
 
     if has_bi:
         heads.append(CostHead(
@@ -532,10 +543,11 @@ def assess(case: dict) -> dict:
             "method": "DETERMINISTIC",
         }
 
-    # Data is held, but whether a data-protection law applies — and what it requires —
-    # depends on the country. Without a verified regime there is nothing honest to say
-    # about the law, so the screen says that instead of borrowing one.
-    if law is None:
+    # A GENERIC case has no country-specific basis even for the document kinds that
+    # establish data holdings, so it abstains in full. A named pack with an incomplete
+    # regulatory regime still supports the document-based analysis below; only its
+    # statutory statements and cost heads are withheld.
+    if law is None and pack.is_generic:
         a.cost_heads = []
         a.assert_invariant(gap_reported=False)
         return {
@@ -557,7 +569,7 @@ def assess(case: dict) -> dict:
     needs_review = [c for c in a.cost_heads if c.responds in ("REVIEW", "UNKNOWN")]
     gap_open = a.cover_state in (COVER_EXCLUDED, COVER_ABSENT)
 
-    return {
+    result = {
         "available": True,
         "cover_state": a.cover_state,
         "cover_label": _COVER_LABELS[a.cover_state],
@@ -579,7 +591,16 @@ def assess(case: dict) -> dict:
         "cost_heads": [c.as_dict() for c in a.cost_heads],
         "uncovered_count": len(uncovered),
         "review_count": len(needs_review),
-        "statutory": {
+        "unestablished": a.unestablished,
+        "method": "DETERMINISTIC",
+        "notice": (
+            "Everything above is read from your own documents. We do not scan your "
+            "network, estimate how likely a breach is, or price one. What we can "
+            "show you is that you hold personal data and what your policy says about "
+            "responding to its loss."),
+    }
+    if law is not None:
+        result["statutory"] = {
             "regime": law.label,
             # The key keeps its old name because the screen reads it; the amount is in
             # the pack's currency, which for this regime is SGD.
@@ -607,15 +628,8 @@ def assess(case: dict) -> dict:
                 f"predict penalties and this figure must not be read as one."),
             "authority": law.cited_as,
             "pack_sources": list(law.sources),
-        },
-        "unestablished": a.unestablished,
-        "method": "DETERMINISTIC",
-        "notice": (
-            "Everything above is read from your own documents. We do not scan your "
-            "network, estimate how likely a breach is, or price one. What we can "
-            "show you is that you hold personal data and what your policy says about "
-            "responding to its loss."),
-    }
+        }
+    return result
 
 
 def as_external_signals(assessment: dict) -> list[dict]:

@@ -2536,9 +2536,12 @@ function jurisdictionPanel(j) {
     : `<li>${esc(r.statement || "")}</li>`;
   const notApplied = j.rules_not_applied || [];
   const confidence = String(j.confidence || "").toLowerCase();
+  // GENERIC is a safety fallback, not a country pack. Keep the warning branch even if a
+  // malformed response incorrectly marks it available.
+  const packAvailable = j.pack !== "GENERIC" && j.pack_available === true;
   return `<div class="card mb-16" role="region" aria-label="Which country's law applies">
     <div class="card-head"><h3>Which country's law applies</h3>
-      <span class="tag ${j.pack_available ? "tag-info" : "tag-REVIEW"}">${j.pack_available
+      <span class="tag ${packAvailable ? "tag-info" : "tag-REVIEW"}">${packAvailable
         ? `${esc(j.pack_name)} pack` : "No jurisdiction pack"}</span>
       ${confidence ? `<span class="tag">${esc(confidence)} confidence</span>` : ""}</div>
     ${j.notice
@@ -3702,6 +3705,24 @@ async function smeCyber(el) {
   }).join("");
 
   const st = d.statutory || {};
+  const statutory = st.regime ? `<div class="sub-head">What the law requires</div>
+    <div class="card mb-16">
+      <div class="card-head"><h3>${esc(st.regime)}</h3></div>
+      <p class="text-sm mb-12">${esc(st.notification_duty || "")}</p>
+      <div class="stats mb-12">
+        <div class="stat"><div class="val">${money(st.penalty_ceiling_sgd)}</div>
+          <div class="lbl">Statutory maximum penalty</div>
+          <div class="sub">Not a prediction</div></div>
+        <div class="stat"><div class="val">${esc(st.notifiable_scale)}</div>
+          <div class="lbl">People affected before a breach must be reported</div></div>
+      </div>
+      <p class="text-xs text-muted">${esc(st.penalty_ceiling_basis || "")}</p>
+      <div class="caveat"><div class="caveat__t">Read this before you read the figure</div>
+        <p>${esc(st.not_a_prediction || "")}</p>
+        <p>${esc(st.which_branch_applies || "")}</p></div>
+      <p class="quote-src mt-12">${esc(st.authority || "")}</p>
+      ${packSources(st.pack_sources)}
+    </div>` : "";
   const ex = d.exclusion;
 
   el.innerHTML = pageTitle("Cyber and data",
@@ -3733,24 +3754,7 @@ async function smeCyber(el) {
     <div class="sub-head">What a breach costs, and what responds</div>
     <div class="heads mb-24">${heads}</div>
 
-    <div class="sub-head">What the law requires</div>
-    <div class="card mb-16">
-      <div class="card-head"><h3>${esc(st.regime || "")}</h3></div>
-      <p class="text-sm mb-12">${esc(st.notification_duty || "")}</p>
-      <div class="stats mb-12">
-        <div class="stat"><div class="val">${money(st.penalty_ceiling_sgd)}</div>
-          <div class="lbl">Statutory maximum penalty</div>
-          <div class="sub">Not a prediction</div></div>
-        <div class="stat"><div class="val">${esc(st.notifiable_scale)}</div>
-          <div class="lbl">People affected before a breach must be reported</div></div>
-      </div>
-      <p class="text-xs text-muted">${esc(st.penalty_ceiling_basis || "")}</p>
-      <div class="caveat"><div class="caveat__t">Read this before you read the figure</div>
-        <p>${esc(st.not_a_prediction || "")}</p>
-        <p>${esc(st.which_branch_applies || "")}</p></div>
-      <p class="quote-src mt-12">${esc(st.authority || "")}</p>
-      ${packSources(st.pack_sources)}
-    </div>
+    ${statutory}
     <div class="honest">${esc(d.notice || "")}</div>`;
 }
 
