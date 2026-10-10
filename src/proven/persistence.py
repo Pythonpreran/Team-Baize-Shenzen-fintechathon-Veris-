@@ -66,6 +66,7 @@ class LegacySmeBundleRequiresReseed(PortfolioError):
     """An unmarked legacy demonstration record must not be inferred or changed."""
 
     http_status = 409
+    code = "LEGACY_SME_BUNDLE_REQUIRES_RESEED"
 
 
 class TenantShredded(PortfolioError):

@@ -257,7 +257,9 @@ def test_unmarked_legacy_demo_requests_reseed_without_changing_records(client):
     assert client.post("/api/reset").status_code == 200
     rejected = client.get("/api/portfolio")
     assert rejected.status_code == 409
-    message = rejected.json()["error"]
+    error = rejected.json()["error"]
+    assert error["code"] == "LEGACY_SME_BUNDLE_REQUIRES_RESEED"
+    message = error["message"]
     assert "left unchanged" in message
     assert "new local portfolio" in message
     assert "reload the synthetic household" in message

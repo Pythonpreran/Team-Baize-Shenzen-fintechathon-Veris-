@@ -207,7 +207,9 @@ def _portfolio_repository() -> persistence.PortfolioRepository:
 
 @app.exception_handler(persistence.PortfolioError)
 async def portfolio_error_handler(_request: Request, exc: persistence.PortfolioError):
-    return JSONResponse(status_code=exc.http_status, content={"error": str(exc)})
+    code = getattr(exc, "code", None)
+    error = {"code": code, "message": str(exc)} if code else str(exc)
+    return JSONResponse(status_code=exc.http_status, content={"error": error})
 
 
 @app.get("/api/portfolio")

@@ -481,7 +481,9 @@ async function api(path, opts = {}) {
     const e = await r.json().catch(() => ({ detail: r.statusText }));
     const message = e.detail || (typeof e.error === "string" ? e.error : e.error?.message)
       || `Error ${r.status}`;
-    throw new Error(message);
+    const error = new Error(message);
+    if (typeof e.error?.code === "string") error.code = e.error.code;
+    throw error;
   }
   return r.json();
 }
@@ -2530,7 +2532,9 @@ function portfolioCollection(title, values, render, emptyText) {
 }
 
 function portfolioLoadError(error) {
-  const message = error && error.message ? error.message : String(error || "");
+  const message = error?.code === "LEGACY_SME_BUNDLE_REQUIRES_RESEED"
+    ? t("portfolio.legacy_sme_bundle_requires_reseed")
+    : (error && error.message ? error.message : String(error || ""));
   return `<div class="insight critical" role="alert"><div class="insight-label">${esc(t("portfolio.load_error_title"))}</div>
     <div class="insight-text">${esc(message)}</div></div>`;
 }

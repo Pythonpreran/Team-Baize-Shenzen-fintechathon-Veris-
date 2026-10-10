@@ -476,26 +476,33 @@ tryRun("tourPaint is safe with no host", () => { g.tourPaint(); });
 
 await (async () => {
   const previousFetch = sandbox.fetch;
-  const message = "An older unlabelled demonstration bundle was left unchanged to protect your records. "
-    + "It cannot be safely reconciled. To use the demonstration, start a new local portfolio "
-    + "and reload the synthetic household. No records were changed.";
+  const backendMessage = "This backend diagnostic must not become owner-facing copy.";
   try {
+    g.setLocale("pseudo");
+    const title = g.t("portfolio.load_error_title");
+    const remediation = g.t("portfolio.legacy_sme_bundle_requires_reseed");
     sandbox.fetch = async path => {
       calls.push(path);
       if (path !== "/api/portfolio") throw new Error(`unexpected request: ${path}`);
-      return { status: 409, ok: false, statusText: "Conflict", json: async () => ({ error: message }) };
+      return {
+        status: 409, ok: false, statusText: "Conflict",
+        json: async () => ({ error: {
+          code: "LEGACY_SME_BUNDLE_REQUIRES_RESEED", message: backendMessage,
+        } }),
+      };
     };
     const host = el("div");
     await g.smePortfolio(host);
     if (!host.innerHTML.includes('role="alert"')) throw new Error("remediation is not announced");
-    if (!host.innerHTML.includes("Portfolio needs attention")) throw new Error("remediation title is missing");
-    if (!host.innerHTML.includes("left unchanged") || !host.innerHTML.includes("reload the synthetic household"))
-      throw new Error("safe reseed instruction is missing");
+    if (!host.innerHTML.includes(title)) throw new Error("localized remediation title is missing");
+    if (!host.innerHTML.includes(remediation)) throw new Error("localized remediation is missing");
+    if (host.innerHTML.includes(backendMessage)) throw new Error("backend diagnostic reached the owner");
     if (host.innerHTML.includes("Error 409")) throw new Error("server remediation was discarded");
-    results.push(["ok  ", "smePortfolio renders the legacy demo reseed remediation"]);
+    results.push(["ok  ", "smePortfolio localizes the legacy demo reseed remediation"]);
   } catch (e) {
-    results.push(["FAIL", `smePortfolio renders the legacy demo reseed remediation :: ${e.message}`]);
+    results.push(["FAIL", `smePortfolio localizes the legacy demo reseed remediation :: ${e.message}`]);
   } finally {
+    g.setLocale("en");
     sandbox.fetch = previousFetch;
   }
 })();
