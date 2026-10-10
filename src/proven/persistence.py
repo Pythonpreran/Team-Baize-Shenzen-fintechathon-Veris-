@@ -103,6 +103,7 @@ class _TenantErasure:
     stage: str
     recovery_wrapped_key: Optional[bytes]
     original_nonce: Optional[bytes]
+    original_sha256: Optional[bytes]
     recovery_sha256: bytes
     recovery_length: int
     started_at: str
@@ -122,21 +123,25 @@ CREATE TABLE IF NOT EXISTS tenant_key (
 );
 
 -- An interrupted erase is deliberately not terminal. PENDING retains a fresh wrapper
--- of the tenant data key plus the old wrapper's public nonce, so a restarted process can
--- reconstruct the deleted value and continue or restore it. FINALIZING retains only a
--- digest and length, sufficient to scan for stale bytes without retaining a usable key.
+-- of the tenant data key, the old wrapper's public nonce and its non-reversible digest,
+-- so a restarted process can reconstruct and authenticate the deleted value before it
+-- continues or restores it. FINALIZING retains only wrapper digests and a length,
+-- sufficient to scan for stale bytes without retaining a usable key.
 CREATE TABLE IF NOT EXISTS tenant_erasure (
   tenant_id TEXT PRIMARY KEY REFERENCES tenant(id),
   stage TEXT NOT NULL CHECK(stage IN ('PENDING', 'FINALIZING')),
   recovery_wrapped_key BLOB,
   original_nonce BLOB,
+  original_sha256 BLOB,
   recovery_sha256 BLOB NOT NULL,
   recovery_length INTEGER NOT NULL CHECK(recovery_length > 0),
   started_at TEXT NOT NULL,
   CHECK(
-    (stage = 'PENDING' AND recovery_wrapped_key IS NOT NULL AND original_nonce IS NOT NULL)
+    (stage = 'PENDING' AND recovery_wrapped_key IS NOT NULL AND original_nonce IS NOT NULL
+     AND original_sha256 IS NOT NULL)
     OR
-    (stage = 'FINALIZING' AND recovery_wrapped_key IS NULL AND original_nonce IS NULL)
+    (stage = 'FINALIZING' AND recovery_wrapped_key IS NULL AND original_nonce IS NULL
+     AND original_sha256 IS NOT NULL)
   )
 );
 
@@ -454,6 +459,13 @@ class PortfolioRepository:
             raise PortfolioConfigurationError("The master key must be 32 bytes.")
         self._master_key = master_key
 
+    @staticmethod
+    def _migrate_erasure_schema(conn: sqlite3.Connection) -> None:
+        """Add integrity metadata when reopening a database from the prior protocol."""
+        columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info(tenant_erasure)")}
+        if "original_sha256" not in columns:
+            conn.execute("ALTER TABLE tenant_erasure ADD COLUMN original_sha256 BLOB")
+
     @contextmanager
     def _connection(self) -> Iterator[sqlite3.Connection]:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -470,6 +482,7 @@ class PortfolioRepository:
             # and user row. Begin immediately keeps that small creation transaction from
             # racing another request for the same newly signed-in tenant.
             conn.execute("BEGIN IMMEDIATE")
+            self._migrate_erasure_schema(conn)
             yield conn
             conn.commit()
         except Exception:
@@ -500,7 +513,7 @@ class PortfolioRepository:
 
     def _erasure_state(self, conn: sqlite3.Connection, tenant_id: str) -> Optional[_TenantErasure]:
         row = conn.execute(
-            "SELECT stage, recovery_wrapped_key, original_nonce, recovery_sha256, "
+            "SELECT stage, recovery_wrapped_key, original_nonce, original_sha256, recovery_sha256, "
             "recovery_length, started_at FROM tenant_erasure WHERE tenant_id=?", (tenant_id,)
         ).fetchone()
         if row is None:
@@ -513,30 +526,44 @@ class PortfolioRepository:
             raise PortfolioIntegrityError("Tenant-key erasure metadata is malformed.")
 
         if stage == ERASURE_PENDING:
-            if row["recovery_wrapped_key"] is None or row["original_nonce"] is None:
+            if (row["recovery_wrapped_key"] is None or row["original_nonce"] is None
+                    or row["original_sha256"] is None):
                 raise PortfolioIntegrityError("Pending tenant-key erasure cannot be recovered.")
             recovery_wrapped_key = bytes(row["recovery_wrapped_key"])
             original_nonce = bytes(row["original_nonce"])
+            original_sha256 = bytes(row["original_sha256"])
             if (len(original_nonce) != _NONCE_BYTES
+                    or len(original_sha256) != hashlib.sha256().digest_size
                     or len(recovery_wrapped_key) != recovery_length
                     or hashlib.sha256(recovery_wrapped_key).digest() != recovery_sha256):
                 raise PortfolioIntegrityError("Pending tenant-key erasure metadata failed verification.")
+            original_wrapped_key = self._wrap_key_with_nonce(
+                tenant_id, self._unwrap_key(tenant_id, recovery_wrapped_key), original_nonce)
+            if hashlib.sha256(original_wrapped_key).digest() != original_sha256:
+                raise PortfolioIntegrityError(
+                    "Pending tenant-key erasure original wrapper failed verification.")
             return _TenantErasure(
                 stage=stage,
                 recovery_wrapped_key=recovery_wrapped_key,
                 original_nonce=original_nonce,
+                original_sha256=original_sha256,
                 recovery_sha256=recovery_sha256,
                 recovery_length=recovery_length,
                 started_at=str(row["started_at"]),
             )
 
         if stage == ERASURE_FINALIZING:
-            if row["recovery_wrapped_key"] is not None or row["original_nonce"] is not None:
-                raise PortfolioIntegrityError("Finalizing tenant-key erasure retains recoverable key data.")
+            if (row["recovery_wrapped_key"] is not None or row["original_nonce"] is not None
+                    or row["original_sha256"] is None):
+                raise PortfolioIntegrityError("Finalizing tenant-key erasure retains invalid key data.")
+            original_sha256 = bytes(row["original_sha256"])
+            if len(original_sha256) != hashlib.sha256().digest_size:
+                raise PortfolioIntegrityError("Finalizing tenant-key erasure metadata is malformed.")
             return _TenantErasure(
                 stage=stage,
                 recovery_wrapped_key=None,
                 original_nonce=None,
+                original_sha256=original_sha256,
                 recovery_sha256=recovery_sha256,
                 recovery_length=recovery_length,
                 started_at=str(row["started_at"]),
@@ -546,10 +573,14 @@ class PortfolioRepository:
 
     def _reconstruct_pending_wrapped_key(self, tenant_id: str, erasure: _TenantErasure) -> bytes:
         if (erasure.stage != ERASURE_PENDING or erasure.recovery_wrapped_key is None
-                or erasure.original_nonce is None):
+                or erasure.original_nonce is None or erasure.original_sha256 is None):
             raise PortfolioIntegrityError("Tenant-key erasure cannot reconstruct its deleted key.")
         data_key = self._unwrap_key(tenant_id, erasure.recovery_wrapped_key)
-        return self._wrap_key_with_nonce(tenant_id, data_key, erasure.original_nonce)
+        wrapped_key = self._wrap_key_with_nonce(tenant_id, data_key, erasure.original_nonce)
+        if hashlib.sha256(wrapped_key).digest() != erasure.original_sha256:
+            raise PortfolioIntegrityError(
+                "Pending tenant-key erasure original wrapper failed verification.")
+        return wrapped_key
 
     def _tenant_key(self, conn: sqlite3.Connection, tenant_id: str) -> bytes:
         tenant = conn.execute(
@@ -1135,24 +1166,26 @@ class PortfolioRepository:
             raise TenantShredded("This tenant has no data key, so its portfolio is unreadable.")
         wrapped_key = bytes(row["wrapped_key"])
         original_nonce = wrapped_key[:_NONCE_BYTES]
+        original_sha256 = hashlib.sha256(wrapped_key).digest()
         data_key = self._unwrap_key(tenant_id, wrapped_key)
         recovery_wrapped_key = self._wrap_key(tenant_id, data_key)
         while recovery_wrapped_key[:_NONCE_BYTES] == original_nonce:
             recovery_wrapped_key = self._wrap_key(tenant_id, data_key)
-        digest = hashlib.sha256(recovery_wrapped_key).digest()
+        recovery_sha256 = hashlib.sha256(recovery_wrapped_key).digest()
         started_at = _now()
         conn.execute(
             "INSERT INTO tenant_erasure (tenant_id, stage, recovery_wrapped_key, original_nonce, "
-            "recovery_sha256, recovery_length, started_at) VALUES (?,?,?,?,?,?,?)",
-            (tenant_id, ERASURE_PENDING, recovery_wrapped_key, original_nonce,
-             digest, len(recovery_wrapped_key), started_at),
+            "original_sha256, recovery_sha256, recovery_length, started_at) VALUES (?,?,?,?,?,?,?,?)",
+            (tenant_id, ERASURE_PENDING, recovery_wrapped_key, original_nonce, original_sha256,
+             recovery_sha256, len(recovery_wrapped_key), started_at),
         )
         conn.execute("DELETE FROM tenant_key WHERE tenant_id=?", (tenant_id,))
         return _TenantErasure(
             stage=ERASURE_PENDING,
             recovery_wrapped_key=recovery_wrapped_key,
             original_nonce=original_nonce,
-            recovery_sha256=digest,
+            original_sha256=original_sha256,
+            recovery_sha256=recovery_sha256,
             recovery_length=len(recovery_wrapped_key),
             started_at=started_at,
         )
@@ -1165,7 +1198,7 @@ class PortfolioRepository:
             current = self._erasure_state(conn, tenant_id)
             if current is None or current.stage != ERASURE_PENDING:
                 raise PortfolioIntegrityError("Pending tenant-key erasure changed before recovery.")
-            if current.recovery_wrapped_key != erasure.recovery_wrapped_key:
+            if current != erasure:
                 raise PortfolioIntegrityError("Pending tenant-key erasure recovery data changed.")
             tenant = conn.execute(
                 "SELECT shredded_at FROM tenant WHERE id=?", (tenant_id,)
@@ -1186,8 +1219,10 @@ class PortfolioRepository:
 
     def _advance_erasure_to_finalizing(self, tenant_id: str, erasure: _TenantErasure) -> _TenantErasure:
         """Drop recoverable data only after the original wrapper has been purged."""
-        if erasure.stage != ERASURE_PENDING:
-            raise PortfolioIntegrityError("Only pending tenant-key erasure can enter final validation.")
+        if (erasure.stage != ERASURE_PENDING or erasure.recovery_wrapped_key is None
+                or erasure.original_sha256 is None):
+            raise PortfolioIntegrityError("Only verified pending tenant-key erasure can enter final validation.")
+        recovery_sha256 = hashlib.sha256(erasure.recovery_wrapped_key).digest()
         with self._connection() as conn:
             current = self._erasure_state(conn, tenant_id)
             if current != erasure:
@@ -1205,15 +1240,16 @@ class PortfolioRepository:
             conn.execute("DELETE FROM tenant_erasure WHERE tenant_id=?", (tenant_id,))
             conn.execute(
                 "INSERT INTO tenant_erasure (tenant_id, stage, recovery_wrapped_key, original_nonce, "
-                "recovery_sha256, recovery_length, started_at) VALUES (?,?,?,?,?,?,?)",
-                (tenant_id, ERASURE_FINALIZING, None, None, erasure.recovery_sha256,
-                 erasure.recovery_length, erasure.started_at),
+                "original_sha256, recovery_sha256, recovery_length, started_at) VALUES (?,?,?,?,?,?,?,?)",
+                (tenant_id, ERASURE_FINALIZING, None, None, erasure.original_sha256,
+                 recovery_sha256, erasure.recovery_length, erasure.started_at),
             )
         return _TenantErasure(
             stage=ERASURE_FINALIZING,
             recovery_wrapped_key=None,
             original_nonce=None,
-            recovery_sha256=erasure.recovery_sha256,
+            original_sha256=erasure.original_sha256,
+            recovery_sha256=recovery_sha256,
             recovery_length=erasure.recovery_length,
             started_at=erasure.started_at,
         )
@@ -1242,10 +1278,11 @@ class PortfolioRepository:
     def crypto_shred(self, scope: TenantScope) -> dict:
         """Destroy a tenant key through a restart-safe local erasure state machine.
 
-        PENDING retains a separately wrapped recovery value until the old live wrapper
-        has been physically purged. FINALIZING retains only its digest, so an interrupted
-        final scan can resume but no process can recover the data key. `shredded_at` is
-        committed only after both validation passes complete.
+        PENDING retains a separately wrapped recovery value and the exact former-wrapper
+        digest until the old live wrapper has been physically purged. FINALIZING retains
+        only non-reversible wrapper digests, so an interrupted final scan can resume but
+        no process can recover the data key. `shredded_at` is committed only after both
+        validation passes complete.
         """
         tenant_id = _text(scope.tenant_id, "tenant id", limit=160)
         with self._connection() as conn:

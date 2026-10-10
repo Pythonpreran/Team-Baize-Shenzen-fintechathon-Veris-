@@ -205,6 +205,53 @@ def test_interrupted_crypto_shred_can_restore_or_resume_after_restart(tmp_path, 
     assert restarted.crypto_shred(scope)["shredded"] is True
 
 
+def test_tampered_pending_original_nonce_fails_closed_before_artifact_sweep(tmp_path, monkeypatch):
+    """An interrupted erase cannot validate a different reconstructed wrapper."""
+    path = tmp_path / "portfolio.sqlite"
+    key = _key()
+    scope = _scope("tenant-tampered-pending", "user-tampered-pending")
+    repo = persistence.PortfolioRepository(path, key)
+    repo.add_document(
+        scope, kind="BASE_WORDING", blob=b"tampered pending private bytes", language="en", country="SG")
+
+    def interrupted(_wrapped_key: bytes) -> None:
+        raise _InterruptedErasure("simulated process stop")
+
+    monkeypatch.setattr(repo, "_purge_deleted_tenant_key", interrupted)
+    with pytest.raises(_InterruptedErasure, match="simulated process stop"):
+        repo.crypto_shred(scope)
+
+    with sqlite3.connect(path) as conn:
+        original_nonce = bytes(conn.execute(
+            "SELECT original_nonce FROM tenant_erasure WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0])
+        tampered_nonce = bytes([original_nonce[0] ^ 1]) + original_nonce[1:]
+        conn.execute(
+            "UPDATE tenant_erasure SET original_nonce=? WHERE tenant_id=?",
+            (tampered_nonce, scope.tenant_id),
+        )
+
+    restarted = persistence.PortfolioRepository(path, key)
+
+    def first_sweep_must_not_run(_wrapped_key: bytes) -> None:
+        pytest.fail("tampered pending metadata reached the artifact sweep")
+
+    monkeypatch.setattr(restarted, "_purge_deleted_tenant_key", first_sweep_must_not_run)
+    with pytest.raises(persistence.PortfolioIntegrityError, match="original wrapper failed verification"):
+        restarted.crypto_shred(scope)
+
+    with sqlite3.connect(path) as conn:
+        assert conn.execute(
+            "SELECT stage FROM tenant_erasure WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == persistence.ERASURE_PENDING
+        assert conn.execute(
+            "SELECT shredded_at FROM tenant WHERE id=?", (scope.tenant_id,)
+        ).fetchone()[0] is None
+        assert conn.execute(
+            "SELECT COUNT(*) FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == 0
+
+
 def test_interrupted_final_tenant_key_validation_resumes_after_restart(tmp_path, monkeypatch):
     """Digest-only final validation is resumable after recovery key bytes are discarded."""
     path = tmp_path / "portfolio.sqlite"
