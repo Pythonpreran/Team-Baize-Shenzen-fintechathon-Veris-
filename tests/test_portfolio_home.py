@@ -50,6 +50,66 @@ def _load_household(client: TestClient) -> dict:
     return loaded.json()["portfolio"]
 
 
+def _remove_household_fixture_metadata(client: TestClient, household_id: str) -> None:
+    """Create the exact durable shape written before T06 persisted seed metadata."""
+    session = api.SESSIONS.get(client.cookies.get(api.SESSION_COOKIE))
+    assert session is not None
+    with session.lock:
+        scope = api._portfolio_scope(session)
+    repository = api._portfolio_repository()
+    with repository._connection() as conn:
+        key = repository._ensure_scope(conn, scope)
+        household_row = repository._row_for_tenant(
+            conn, "household", household_id, scope.tenant_id)
+        household_detail = repository._open_json(
+            key, scope.tenant_id, f"household:{household_id}",
+            household_row["details_encrypted"])
+        household_detail.pop("provenance", None)
+        conn.execute(
+            "UPDATE household SET details_encrypted=? WHERE id=? AND tenant_id=?",
+            (repository._seal_json(key, scope.tenant_id, f"household:{household_id}",
+                                   household_detail), household_id, scope.tenant_id),
+        )
+        policy_rows = conn.execute(
+            "SELECT * FROM policy WHERE tenant_id=? AND household_id=?",
+            (scope.tenant_id, household_id),
+        ).fetchall()
+        for policy in policy_rows:
+            detail = repository._open_json(
+                key, scope.tenant_id, f"policy:{policy['id']}", policy["details_encrypted"])
+            detail.pop("_seed_binding", None)
+            conn.execute(
+                "UPDATE policy SET details_encrypted=? WHERE id=? AND tenant_id=?",
+                (repository._seal_json(key, scope.tenant_id, f"policy:{policy['id']}", detail),
+                 policy["id"], scope.tenant_id),
+            )
+
+
+def _restore_legacy_sme_source_case_id(client: TestClient) -> None:
+    """Recreate the dynamic source-case key used before durable demo de-duplication."""
+    session = api.SESSIONS.get(client.cookies.get(api.SESSION_COOKIE))
+    assert session is not None
+    with session.lock:
+        scope = api._portfolio_scope(session)
+    repository = api._portfolio_repository()
+    with repository._connection() as conn:
+        row = conn.execute(
+            "SELECT p.id AS policy_id, p.business_id FROM policy p "
+            "WHERE p.tenant_id=? AND p.line_of_business='SME_PACKAGE'",
+            (scope.tenant_id,),
+        ).fetchone()
+        assert row is not None
+        legacy_case_id = "legacy-sme-demo-case"
+        conn.execute(
+            "UPDATE business SET source_case_id=? WHERE id=? AND tenant_id=?",
+            (legacy_case_id, row["business_id"], scope.tenant_id),
+        )
+        conn.execute(
+            "UPDATE policy SET source_case_id=? WHERE id=? AND tenant_id=?",
+            (legacy_case_id, row["policy_id"], scope.tenant_id),
+        )
+
+
 @pytest.mark.requires_corpus("sg-chubb-selectplus-wording")
 def test_household_example_uses_the_uploaded_pdfs_and_is_idempotent(client):
     manifest = client.get("/api/example/household/manifest").json()
@@ -142,16 +202,49 @@ def test_household_evidence_endpoint_returns_only_the_cited_synthetic_wording(cl
 
 def test_household_synthetic_provenance_survives_a_fresh_session(client):
     _load_household(client)
+    _restore_legacy_sme_source_case_id(client)
     client.cookies.clear()
     login = client.post("/api/auth/login", json={
         "email": "owner@hockleefoods.demo", "password": "Demo@123",
     })
     assert login.status_code == 200
+    # A new session has no browser-local household suppression marker. Resetting it must
+    # still recognise the one durable SME demonstration bundle rather than adding another.
+    assert client.post("/api/reset").status_code == 200
     fresh_portfolio = client.get("/api/portfolio")
     assert fresh_portfolio.status_code == 200
-    assert fresh_portfolio.json()["household"]["provenance"] == {
+    body = fresh_portfolio.json()
+    assert body["household"]["provenance"] == {
         "kind": "SYNTHETIC_EXAMPLE", "seed_id": household.SEED_ID,
     }
+    assert [business["name"] for business in body["businesses"]] == ["Hock Lee Foods Pte Ltd"]
+    assert sum(policy["source"] == "SME_ANALYSIS" for policy in body["policies"]) == 1
+
+
+def test_complete_legacy_household_backfills_trusted_fixture_metadata(client):
+    portfolio = _load_household(client)
+    household_id = portfolio["household"]["id"]
+    _remove_household_fixture_metadata(client, household_id)
+
+    legacy = client.get("/api/portfolio")
+    assert legacy.status_code == 200
+    assert legacy.json()["household"]["provenance"] is None
+    assert all(policy["source"] == "PORTFOLIO"
+               for policy in legacy.json()["policies"] if policy["household_id"] == household_id)
+
+    upgraded = client.post("/api/portfolio/example-household")
+    assert upgraded.status_code == 200, upgraded.text
+    rebuilt = upgraded.json()["portfolio"]
+    assert rebuilt["household"]["provenance"] == {
+        "kind": "SYNTHETIC_EXAMPLE", "seed_id": household.SEED_ID,
+    }
+    policy = next(policy for policy in rebuilt["policies"]
+                  if policy["masked_number"] == "****-HEALTH6")
+    item = next(item for item in policy["coverage_items"]
+                if item["mechanism_code"] == "LIMIT.SUM_INSURED")
+    evidence = client.get(f"/api/policies/{policy['id']}/coverage/{item['id']}/evidence")
+    assert evidence.status_code == 200
+    assert evidence.json()["quote"] == "Synthetic family-floater sum insured: INR 500,000."
 
 
 def test_household_seed_refuses_bytes_that_do_not_match_the_generated_documents(client):

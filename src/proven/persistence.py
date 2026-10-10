@@ -79,6 +79,12 @@ class PortfolioIntegrityError(PortfolioError):
 ERASURE_PENDING = "PENDING"
 ERASURE_FINALIZING = "FINALIZING"
 
+# The built-in SME demonstration is one durable portfolio bundle even though each browser
+# reset creates a fresh transient case id. Keeping this identity in the existing source-case
+# field lets a new authenticated session recognise the established bundle without turning
+# ordinary uploaded analyses into one shared record.
+SME_DEMO_SOURCE_CASE_ID = "sme-demo-v1"
+
 
 @dataclass(frozen=True)
 class TenantScope:
@@ -735,6 +741,105 @@ class PortfolioRepository:
                 self._row_for_tenant(conn, "household", household_id, scope.tenant_id),
                 key, scope.tenant_id)
 
+    def backfill_synthetic_example(
+            self, scope: TenantScope, *, household_id: str, name: str, seed_id: str,
+            policy_bindings: Mapping[str, Mapping[str, object]]) -> bool:
+        """Attach trusted fixture metadata to a complete portfolio written before T06's binding.
+
+        The loader has already verified the currently uploaded PDFs against the generated
+        household set. This method nevertheless rechecks every persisted policy, document,
+        coverage item and encrypted filename before it writes provenance or a binding. A
+        complete but non-matching portfolio is therefore refused for an explicit clear and
+        reseed rather than being labelled as the synthetic example by a masked number alone.
+        """
+        if not policy_bindings:
+            raise PortfolioValidationError("Synthetic example backfill needs every policy binding.")
+        household_id = _text(household_id, "synthetic household id", limit=160)
+        fixture_name = _text(name, "synthetic household name")
+        fixture_seed = _text(seed_id, "synthetic household seed id", limit=160)
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            household = self._row_for_tenant(conn, "household", household_id, scope.tenant_id)
+            household_detail = self._open_json(
+                key, scope.tenant_id, f"household:{household_id}", household["details_encrypted"])
+            desired_provenance = {"kind": "SYNTHETIC_EXAMPLE", "seed_id": fixture_seed}
+            changed = False
+            if (household_detail.get("name") != fixture_name
+                    or household_detail.get("provenance") != desired_provenance):
+                household_detail["name"] = fixture_name
+                household_detail["provenance"] = desired_provenance
+                conn.execute(
+                    "UPDATE household SET details_encrypted=? WHERE id=? AND tenant_id=?",
+                    (self._seal_json(key, scope.tenant_id, f"household:{household_id}",
+                                     household_detail), household_id, scope.tenant_id),
+                )
+                changed = True
+
+            seen_policy_ids: set[str] = set()
+            for raw_policy_id, raw_binding in policy_bindings.items():
+                if not isinstance(raw_binding, Mapping):
+                    raise PortfolioValidationError("Synthetic example binding is malformed.")
+                policy_id = _text(raw_policy_id, "synthetic policy id", limit=160)
+                if policy_id in seen_policy_ids:
+                    raise PortfolioValidationError("Synthetic example policy binding is duplicated.")
+                seen_policy_ids.add(policy_id)
+                policy = self._row_for_tenant(conn, "policy", policy_id, scope.tenant_id)
+                if policy["household_id"] != household_id:
+                    raise PortfolioValidationError(
+                        "Synthetic example policy does not belong to its household.")
+
+                document_id = _text(raw_binding.get("document_id"),
+                                    "synthetic document id", limit=160)
+                document_sha256 = _text(raw_binding.get("document_sha256"),
+                                        "synthetic document hash", limit=128).lower()
+                document_filename = _text(raw_binding.get("document_filename"),
+                                          "synthetic document filename", limit=300)
+                policy_index = raw_binding.get("policy_index")
+                if isinstance(policy_index, bool) or not isinstance(policy_index, int):
+                    raise PortfolioValidationError("Synthetic policy index must be an integer.")
+                if _decoded_ids(policy["source_document_ids"]) != [document_id]:
+                    raise PortfolioValidationError(
+                        "Synthetic example policy must cite exactly its verified document.")
+                document = self._row_for_tenant(conn, "document", document_id, scope.tenant_id)
+                metadata = self._open_json(
+                    key, scope.tenant_id, f"document:{document_id}",
+                    document["metadata_encrypted"])
+                if (document["sha256"] != document_sha256
+                        or metadata.get("filename", "") != document_filename):
+                    raise PortfolioValidationError(
+                        "Synthetic example binding does not match its stored document.")
+                coverage_rows = conn.execute(
+                    "SELECT source_document_id FROM coverage_item WHERE policy_id=? AND tenant_id=?",
+                    (policy_id, scope.tenant_id),
+                ).fetchall()
+                if (not coverage_rows
+                        or any(row["source_document_id"] != document_id
+                               for row in coverage_rows)):
+                    raise PortfolioValidationError(
+                        "Synthetic example coverage does not cite its verified document.")
+
+                binding = {
+                    "seed_id": fixture_seed,
+                    "policy_index": policy_index,
+                    "document_id": document_id,
+                    "document_sha256": document_sha256,
+                    "document_filename": document_filename,
+                }
+                detail = self._open_json(
+                    key, scope.tenant_id, f"policy:{policy_id}", policy["details_encrypted"])
+                if detail.get("_seed_binding") != binding:
+                    detail["_seed_binding"] = binding
+                    conn.execute(
+                        "UPDATE policy SET details_encrypted=?, updated_at=? WHERE id=? AND tenant_id=?",
+                        (self._seal_json(key, scope.tenant_id, f"policy:{policy_id}", detail),
+                         _now(), policy_id, scope.tenant_id),
+                    )
+                    changed = True
+
+            if changed:
+                self._audit(conn, scope, "BACKFILL_SYNTHETIC_EXAMPLE", "household", household_id)
+            return changed
+
     def _member_out(self, row: sqlite3.Row, key: bytes, tenant_id: str) -> dict:
         detail = self._open_json(key, tenant_id, f"member:{row['id']}", row["details_encrypted"])
         return {"id": row["id"], "household_id": row["household_id"],
@@ -1106,7 +1211,13 @@ class PortfolioRepository:
         case_id = state.get("case_id") if isinstance(state, Mapping) else None
         if not isinstance(brief, Mapping) or brief.get("deleted") or not case_id:
             return None
-        source_case_id = _text(case_id, "case id", limit=160)
+        transient_case_id = _text(case_id, "case id", limit=160)
+        is_demo_bundle = brief.get("source") == "DEMO_BUNDLE"
+        # A reset intentionally creates a new transient case. The established built-in
+        # demo must still be one durable SME bundle across fresh browser sessions, while
+        # every ordinary uploaded analysis remains keyed to its own transient case.
+        source_case_id = (SME_DEMO_SOURCE_CASE_ID if is_demo_bundle
+                          else transient_case_id)
         business_name = _text(brief.get("business"), "business name")
         jurisdiction_view = brief.get("jurisdiction")
         country = (jurisdiction_view.get("detected") if isinstance(jurisdiction_view, Mapping)
@@ -1118,6 +1229,43 @@ class PortfolioRepository:
             existing = conn.execute(
                 "SELECT * FROM policy WHERE tenant_id=? AND source_case_id=?",
                 (scope.tenant_id, source_case_id)).fetchone()
+            if existing is None and is_demo_bundle:
+                # T06 originally persisted the demo under the transient case id. Backfill
+                # only the precise durable SME bundle shape before relying on the stable
+                # identity; a similarly named ordinary portfolio policy is never adopted.
+                legacy_rows = conn.execute(
+                    "SELECT p.*, b.details_encrypted AS business_details_encrypted "
+                    "FROM policy p JOIN business b ON b.id=p.business_id AND b.tenant_id=p.tenant_id "
+                    "WHERE p.tenant_id=? AND p.line_of_business='SME_PACKAGE' "
+                    "AND p.source_case_id IS NOT NULL AND p.source_case_id<>? "
+                    "ORDER BY p.created_at, p.id",
+                    (scope.tenant_id, SME_DEMO_SOURCE_CASE_ID),
+                ).fetchall()
+                for legacy in legacy_rows:
+                    business_id = legacy["business_id"]
+                    if not business_id:
+                        continue
+                    business_detail = self._open_json(
+                        key, scope.tenant_id, f"business:{business_id}",
+                        legacy["business_details_encrypted"])
+                    policy_detail = self._open_json(
+                        key, scope.tenant_id, f"policy:{legacy['id']}",
+                        legacy["details_encrypted"])
+                    if (business_detail.get("name") != business_name
+                            or policy_detail.get("product") != "Existing SME analysis bundle"
+                            or policy_detail.get("insurer") != carrier):
+                        continue
+                    conn.execute(
+                        "UPDATE business SET source_case_id=? WHERE id=? AND tenant_id=?",
+                        (SME_DEMO_SOURCE_CASE_ID, business_id, scope.tenant_id),
+                    )
+                    conn.execute(
+                        "UPDATE policy SET source_case_id=? WHERE id=? AND tenant_id=?",
+                        (SME_DEMO_SOURCE_CASE_ID, legacy["id"], scope.tenant_id),
+                    )
+                    self._audit(conn, scope, "BACKFILL_SME_DEMO_IDENTITY", "policy", legacy["id"])
+                    existing = legacy
+                    break
             if existing is not None:
                 return self._policy_out(conn, existing, key, scope.tenant_id)
             business_id = new_id()
