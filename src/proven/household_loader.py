@@ -52,6 +52,12 @@ def load_example(
         for spec in household.MEMBERS
     }
     household_id = next(iter(members.values()))["household_id"]
+    repository.mark_synthetic_example(
+        scope,
+        household_id=household_id,
+        name=household.HOUSEHOLD_NAME,
+        seed_id=household.SEED_ID,
+    )
     assets = {
         spec.key: repository.add_asset(
             scope,
@@ -73,8 +79,9 @@ def load_example(
         for spec in household.DOCUMENTS
     }
 
-    for policy in household.POLICIES:
-        source_id = documents[policy.document_filename]["id"]
+    for policy_index, policy in enumerate(household.POLICIES):
+        source_document = documents[policy.document_filename]
+        source_id = source_document["id"]
         repository.create_policy(
             scope,
             country=policy.country,
@@ -102,6 +109,13 @@ def load_example(
                 }
                 for item in policy.coverage
             ],
+            seed_binding={
+                "seed_id": household.SEED_ID,
+                "policy_index": policy_index,
+                "document_id": source_id,
+                "document_sha256": source_document["sha256"],
+                "document_filename": policy.document_filename,
+            },
         )
 
     return repository.portfolio(scope)

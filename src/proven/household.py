@@ -183,12 +183,16 @@ def document_names() -> tuple[str, ...]:
     return tuple(document.filename for document in DOCUMENTS)
 
 
-def evidence_for(masked_number: str, mechanism_code: str) -> tuple[PolicySpec, CoverageSpec] | None:
-    """Return the reviewed synthetic quotation for one persisted coverage item."""
-    for policy in POLICIES:
-        if policy.masked_number != masked_number:
-            continue
-        for coverage in policy.coverage:
-            if coverage.mechanism_code == mechanism_code:
-                return policy, coverage
+def evidence_for_seeded_policy(
+    seed_id: str, policy_index: object, mechanism_code: str,
+) -> tuple[PolicySpec, CoverageSpec] | None:
+    """Return a reviewed quotation only for an immutable seeded policy binding."""
+    if seed_id != SEED_ID or isinstance(policy_index, bool) or not isinstance(policy_index, int):
+        return None
+    if policy_index < 0 or policy_index >= len(POLICIES):
+        return None
+    policy = POLICIES[policy_index]
+    for coverage in policy.coverage:
+        if coverage.mechanism_code == mechanism_code:
+            return policy, coverage
     return None

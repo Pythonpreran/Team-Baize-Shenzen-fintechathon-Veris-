@@ -22,7 +22,7 @@
 const LOCALE_STORAGE_KEY = "veris_locale";
 const PSEUDO_LOCALE = "pseudo";
 const S = {
-  user: null, view: null, data: {}, tab: {},
+  user: null, view: null, data: {}, tab: {}, householdProvenance: null,
   locale: (() => {
     try { return localStorage.getItem(LOCALE_STORAGE_KEY) || "en"; } catch (_) { return "en"; }
   })(),
@@ -30,7 +30,6 @@ const S = {
 // Set when the built-in example bundle is loaded, so the Overview can keep saying the
 // business is fictional even though the files were genuinely uploaded.
 const EXAMPLE_FLAG = "veris_example_loaded";
-const HOUSEHOLD_EXAMPLE_FLAG = "veris_household_example_loaded";
 /* Set when the example ran WITHOUT its published base wording, because the document
    corpus has not been fetched on this machine. The server says so in `wording_notice`;
    the alternative is showing fourteen findings where the example claims seventeen and
@@ -2395,8 +2394,9 @@ async function smeHome(el) {
 
 /* ── Household portfolio and plan-layout cards ─────────────────────────── */
 
-function portfolioSyntheticBanner() {
-  return sessionStorage.getItem(HOUSEHOLD_EXAMPLE_FLAG) === "1"
+function portfolioSyntheticBanner(portfolio = null) {
+  const provenance = portfolio?.household?.provenance || S.householdProvenance;
+  return provenance?.kind === "SYNTHETIC_EXAMPLE"
     ? `<div class="synthetic-banner">${esc(t("portfolio.synthetic_banner"))}</div>` : "";
 }
 
@@ -2535,6 +2535,7 @@ async function smePortfolio(el) {
   const assets = Array.isArray(portfolio.assets) ? portfolio.assets : [];
   const businesses = Array.isArray(portfolio.businesses) ? portfolio.businesses : [];
   const policies = Array.isArray(portfolio.policies) ? portfolio.policies : [];
+  S.householdProvenance = portfolio?.household?.provenance || null;
   if (!members.length && !assets.length && !businesses.length && !policies.length) {
     el.innerHTML = pageTitle(t("portfolio.title"), t("portfolio.lead"))
       + `<div class="portfolio-empty card"><h3>${esc(t("portfolio.empty_title"))}</h3>
@@ -2543,7 +2544,7 @@ async function smePortfolio(el) {
           ${esc(t("portfolio.load_example"))}</button></div>`;
     return;
   }
-  el.innerHTML = portfolioSyntheticBanner()
+  el.innerHTML = portfolioSyntheticBanner(portfolio)
     + pageTitle(t("portfolio.title"), t("portfolio.lead"))
     + `<div class="portfolio-summary">
       ${portfolioCollection(t("portfolio.members"), members, member => `<div class="portfolio-row">
@@ -2731,7 +2732,6 @@ async function smeUpload(el) {
     if (nm) fd.append("business_name", nm);
     try {
       sessionStorage.removeItem(EXAMPLE_FLAG);
-      sessionStorage.removeItem(HOUSEHOLD_EXAMPLE_FLAG);
       sessionStorage.removeItem(WORDING_NOTICE_KEY);
       const done = await streamBundle(fd, ev => {
         if (ev.event === "reading") {
@@ -2761,7 +2761,6 @@ async function smeUpload(el) {
         // own established engine rather than treating the household bundle as a company.
         await api("/api/reset", { method: "POST" });
         S.pendingHouseholdExample = null;
-        sessionStorage.setItem(HOUSEHOLD_EXAMPLE_FLAG, "1");
         nav8("sme-portfolio");
         return;
       }

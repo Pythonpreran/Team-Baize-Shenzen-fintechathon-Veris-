@@ -705,8 +705,35 @@ class PortfolioRepository:
 
     def _household_out(self, row: sqlite3.Row, key: bytes, tenant_id: str) -> dict:
         detail = self._open_json(key, tenant_id, f"household:{row['id']}", row["details_encrypted"])
-        return {"id": row["id"], "name": detail.get("name", "Household"),
-                "created_at": row["created_at"]}
+        provenance = detail.get("provenance")
+        return {
+            "id": row["id"], "name": detail.get("name", "Household"),
+            "provenance": dict(provenance) if isinstance(provenance, dict) else None,
+            "created_at": row["created_at"],
+        }
+
+    def mark_synthetic_example(self, scope: TenantScope, *, household_id: str,
+                               name: str, seed_id: str) -> dict:
+        """Persist the fixture designation that the owner-facing portfolio must display."""
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            row = self._row_for_tenant(conn, "household", household_id, scope.tenant_id)
+            detail = self._open_json(key, scope.tenant_id, f"household:{household_id}",
+                                     row["details_encrypted"])
+            detail["name"] = _text(name, "synthetic household name")
+            detail["provenance"] = {
+                "kind": "SYNTHETIC_EXAMPLE",
+                "seed_id": _text(seed_id, "synthetic household seed id", limit=160),
+            }
+            conn.execute(
+                "UPDATE household SET details_encrypted=? WHERE id=? AND tenant_id=?",
+                (self._seal_json(key, scope.tenant_id, f"household:{household_id}", detail),
+                 household_id, scope.tenant_id),
+            )
+            self._audit(conn, scope, "MARK_SYNTHETIC_HOUSEHOLD", "household", household_id)
+            return self._household_out(
+                self._row_for_tenant(conn, "household", household_id, scope.tenant_id),
+                key, scope.tenant_id)
 
     def _member_out(self, row: sqlite3.Row, key: bytes, tenant_id: str) -> dict:
         detail = self._open_json(key, tenant_id, f"member:{row['id']}", row["details_encrypted"])
@@ -763,7 +790,8 @@ class PortfolioRepository:
             "insured_member_ids": _decoded_ids(row["insured_member_ids"]),
             "insured_asset_ids": _decoded_ids(row["insured_asset_ids"]),
             "source_document_ids": _decoded_ids(row["source_document_ids"]),
-            "source": "SME_ANALYSIS" if row["source_case_id"] else "PORTFOLIO",
+            "source": ("SYNTHETIC_EXAMPLE" if isinstance(detail.get("_seed_binding"), dict)
+                       else "SME_ANALYSIS" if row["source_case_id"] else "PORTFOLIO"),
             "coverage_items": self._coverage_out(conn, row["id"], key, tenant_id),
             "created_at": row["created_at"], "updated_at": row["updated_at"],
         }
@@ -915,9 +943,12 @@ class PortfolioRepository:
                       insured_member_ids: Optional[Sequence[str]] = None,
                       insured_asset_ids: Optional[Sequence[str]] = None,
                       source_document_ids: Optional[Sequence[str]] = None,
-                      coverage_items: Optional[Sequence[Mapping[str, object]]] = None) -> dict:
+                      coverage_items: Optional[Sequence[Mapping[str, object]]] = None,
+                      seed_binding: Optional[Mapping[str, object]] = None) -> dict:
         if household_id and business_id:
             raise PortfolioValidationError("A policy belongs to a household or a business, not both.")
+        if seed_binding is not None and not isinstance(seed_binding, Mapping):
+            raise PortfolioValidationError("synthetic evidence binding must be an object.")
         member_ids = _json_ids(insured_member_ids, "insured member ids")
         asset_ids = _json_ids(insured_asset_ids, "insured asset ids")
         document_ids = _json_ids(source_document_ids, "source document ids")
@@ -935,8 +966,45 @@ class PortfolioRepository:
             self._require_ids(conn, "asset", asset_ids, scope.tenant_id)
             self._require_ids(conn, "document", document_ids, scope.tenant_id)
 
+            binding: Optional[dict[str, object]] = None
+            if seed_binding is not None:
+                document_id = _text(seed_binding.get("document_id"), "synthetic document id", limit=160)
+                document_sha256 = _text(seed_binding.get("document_sha256"),
+                                        "synthetic document hash", limit=128).lower()
+                document_filename = _text(seed_binding.get("document_filename"),
+                                          "synthetic document filename", limit=300)
+                policy_index = seed_binding.get("policy_index")
+                if isinstance(policy_index, bool) or not isinstance(policy_index, int):
+                    raise PortfolioValidationError("synthetic policy index must be an integer.")
+                if document_id not in document_ids:
+                    raise PortfolioValidationError(
+                        "synthetic evidence binding must name a source document for its policy.")
+                source_document = self._row_for_tenant(
+                    conn, "document", document_id, scope.tenant_id)
+                source_metadata = self._open_json(
+                    key, scope.tenant_id, f"document:{document_id}",
+                    source_document["metadata_encrypted"])
+                if (source_document["sha256"] != document_sha256
+                        or source_metadata.get("filename", "") != document_filename):
+                    raise PortfolioValidationError(
+                        "synthetic evidence binding does not match its stored document.")
+                binding = {
+                    "seed_id": _text(seed_binding.get("seed_id"),
+                                      "synthetic evidence seed id", limit=160),
+                    "policy_index": policy_index,
+                    "document_id": document_id,
+                    "document_sha256": document_sha256,
+                    "document_filename": document_filename,
+                }
+
             policy_id = new_id()
             now = _now()
+            policy_detail: dict[str, object] = {
+                "insurer": _text(insurer, "insurer"), "product": _text(product, "product"),
+                "masked_number": _text(masked_number, "masked policy number", required=False),
+            }
+            if binding is not None:
+                policy_detail["_seed_binding"] = binding
             conn.execute(
                 "INSERT INTO policy (id, tenant_id, household_id, business_id, country, line_of_business, "
                 "details_encrypted, period_start, period_end, status, renewal_date, insured_member_ids, "
@@ -944,10 +1012,7 @@ class PortfolioRepository:
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (policy_id, scope.tenant_id, household_id, business_id, _country(country),
                  _text(line_of_business, "line of business", limit=120).upper(),
-                 self._seal_json(key, scope.tenant_id, f"policy:{policy_id}", {
-                     "insurer": _text(insurer, "insurer"), "product": _text(product, "product"),
-                     "masked_number": _text(masked_number, "masked policy number", required=False),
-                 }),
+                 self._seal_json(key, scope.tenant_id, f"policy:{policy_id}", policy_detail),
                  _text(period_start, "period start", required=False, limit=40) or None,
                  _text(period_end, "period end", required=False, limit=40) or None,
                  _text(status, "policy status", limit=80),
@@ -965,6 +1030,9 @@ class PortfolioRepository:
                 if source_id and source_id not in document_ids:
                     raise PortfolioValidationError(
                         "a coverage item's source document must be in source document ids.")
+                if binding is not None and source_id != binding["document_id"]:
+                    raise PortfolioValidationError(
+                        "synthetic evidence must cite the bound source document.")
                 evidence_class = self._coverage_class(conn, scope, source_id)
                 amount = _decimal_text(item.get("value"))
                 value = None if amount is None else self._seal_json(
@@ -984,6 +1052,16 @@ class PortfolioRepository:
             return self._policy_out(
                 conn, self._row_for_tenant(conn, "policy", policy_id, scope.tenant_id),
                 key, scope.tenant_id)
+
+    def get_seed_binding(self, scope: TenantScope, policy_id: str) -> Optional[dict[str, object]]:
+        """Return the loader-only binding for a reviewed synthetic policy, if any."""
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            row = self._row_for_tenant(conn, "policy", policy_id, scope.tenant_id)
+            detail = self._open_json(key, scope.tenant_id, f"policy:{policy_id}",
+                                     row["details_encrypted"])
+            binding = detail.get("_seed_binding")
+            return dict(binding) if isinstance(binding, dict) else None
 
     def list_policies(self, scope: TenantScope) -> list[dict]:
         with self._connection() as conn:

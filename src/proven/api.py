@@ -307,16 +307,33 @@ def portfolio_coverage_evidence(policy_id: str, coverage_id: str,
     """
     with session.lock:
         scope = _portfolio_scope(session)
-    policy = _portfolio_repository().get_policy(scope, policy_id)
+    repository = _portfolio_repository()
+    policy = repository.get_policy(scope, policy_id)
     item = next((coverage for coverage in policy["coverage_items"]
                  if coverage["id"] == coverage_id), None)
     if item is None or not item.get("source_document_id"):
         raise HTTPException(404, "No cited portfolio evidence is available for that value.")
-    found = household.evidence_for(policy.get("masked_number", ""),
-                                   item.get("mechanism_code", ""))
-    if found is None:
+    binding = repository.get_seed_binding(scope, policy_id)
+    if binding is None:
         raise HTTPException(404, "No cited portfolio evidence is available for that value.")
-    source_policy, evidence = found
+    source_policy_evidence = household.evidence_for_seeded_policy(
+        binding.get("seed_id"), binding.get("policy_index"),
+        item.get("mechanism_code", ""))
+    document_id = binding.get("document_id")
+    document_sha256 = binding.get("document_sha256")
+    document_filename = binding.get("document_filename")
+    if (source_policy_evidence is None or not isinstance(document_id, str)
+            or not isinstance(document_sha256, str) or not isinstance(document_filename, str)):
+        raise HTTPException(404, "No cited portfolio evidence is available for that value.")
+    source_policy, evidence = source_policy_evidence
+    if (item.get("source_document_id") != document_id
+            or document_id not in policy["source_document_ids"]
+            or source_policy.document_filename != document_filename):
+        raise HTTPException(404, "No cited portfolio evidence is available for that value.")
+    document = repository.get_document(scope, document_id)
+    if (document["id"] != document_id or document["sha256"] != document_sha256
+            or document["filename"] != document_filename):
+        raise HTTPException(404, "No cited portfolio evidence is available for that value.")
     return {
         "available": True,
         "quote": evidence.wording,
@@ -841,8 +858,14 @@ def reset(session: Session = Depends(_session)):
     cannot disturb another session's case."""
     with session.lock:
         _deny_foreign_role(session)
+        household_case = session.state.get("_household_example_case_id")
         session.reset_case()
         st = _state(session)
+        # The final step of the household loader restores the separate SME demo case.
+        # Preserve the replacement case marker so the portfolio does not wrap that
+        # restored case as a second business bundle.
+        if isinstance(household_case, str) and household_case:
+            session.state["_household_example_case_id"] = st["case_id"]
         return {"ok": True, "brief": _brief_with_events(session),
                 "case_id": st["case_id"]}
 

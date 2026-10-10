@@ -64,6 +64,9 @@ def test_household_example_uses_the_uploaded_pdfs_and_is_idempotent(client):
     assert {member["name"] for member in first["members"]} == {
         "Arjun Rao", "Meera Rao", "Anya Rao", "Raghavan", "Lakshmi",
     }
+    assert first["household"]["provenance"] == {
+        "kind": "SYNTHETIC_EXAMPLE", "seed_id": household.SEED_ID,
+    }
     assert {asset["kind"] for asset in first["assets"]} == {"CAR", "HOME_CONTENTS"}
     assert len(first["policies"]) == len(household.POLICIES) + 1
 
@@ -79,6 +82,14 @@ def test_household_example_uses_the_uploaded_pdfs_and_is_idempotent(client):
     assert len(repeated["members"]) == len(first["members"])
     assert len(repeated["assets"]) == len(first["assets"])
     assert len(repeated["policies"]) == len(first["policies"])
+
+    # This is the final reset the actual browser flow performs after persisting the
+    # household. It restores the SME case without making a second SME bundle.
+    assert client.post("/api/reset").status_code == 200
+    after_reset = client.get("/api/portfolio").json()
+    assert [business["name"] for business in after_reset["businesses"]] == ["Hock Lee Foods Pte Ltd"]
+    assert len(after_reset["policies"]) == len(household.POLICIES) + 1
+    assert sum(policy["source"] == "SME_ANALYSIS" for policy in after_reset["policies"]) == 1
 
 
 @pytest.mark.requires_corpus("sg-chubb-selectplus-wording")
@@ -98,6 +109,49 @@ def test_household_evidence_endpoint_returns_only_the_cited_synthetic_wording(cl
     }
     assert body["document"] == "rao-india-health-schedule.pdf"
     assert body["quote"] == "Synthetic family-floater sum insured: INR 500,000."
+
+    # An ordinary caller can copy visible policy fields, but cannot create the internal
+    # fixture binding or point the resulting card at unrelated synthetic wording.
+    other_document_id = next(
+        candidate["source_document_id"]
+        for candidate_policy in portfolio["policies"]
+        for candidate in candidate_policy["coverage_items"]
+        if candidate.get("source_document_id") != item["source_document_id"]
+    )
+    imitation = client.post("/api/policies", json={
+        "country": policy["country"],
+        "line_of_business": policy["line_of_business"],
+        "insurer": policy["insurer"],
+        "product": "Ordinary policy",
+        "masked_number": policy["masked_number"],
+        "status": "ACTIVE",
+        "source_document_ids": [other_document_id],
+        "coverage_items": [{
+            "mechanism_code": item["mechanism_code"],
+            "source_document_id": other_document_id,
+        }],
+    })
+    assert imitation.status_code == 200, imitation.text
+    imitation_policy = imitation.json()["policy"]
+    assert imitation_policy["source"] == "PORTFOLIO"
+    imitation_item = imitation_policy["coverage_items"][0]
+    refused = client.get(
+        f"/api/policies/{imitation_policy['id']}/coverage/{imitation_item['id']}/evidence")
+    assert refused.status_code == 404
+
+
+def test_household_synthetic_provenance_survives_a_fresh_session(client):
+    _load_household(client)
+    client.cookies.clear()
+    login = client.post("/api/auth/login", json={
+        "email": "owner@hockleefoods.demo", "password": "Demo@123",
+    })
+    assert login.status_code == 200
+    fresh_portfolio = client.get("/api/portfolio")
+    assert fresh_portfolio.status_code == 200
+    assert fresh_portfolio.json()["household"]["provenance"] == {
+        "kind": "SYNTHETIC_EXAMPLE", "seed_id": household.SEED_ID,
+    }
 
 
 def test_household_seed_refuses_bytes_that_do_not_match_the_generated_documents(client):
@@ -122,7 +176,9 @@ def test_portfolio_screen_has_a_standard_card_and_only_real_routes():
     assert "function planLayoutCard(" in script
     assert "function loadHouseholdExample(" in script
     assert 'data-act="portfolio-evidence"' in script
+    assert "portfolioSyntheticBanner(portfolio)" in script
+    assert "HOUSEHOLD_EXAMPLE_FLAG" not in script
     for section in ("covered", "limits", "waiting", "share", "exclusions", "renewal", "evidence"):
-        assert f'portfolio.section.{section}' in script
+        assert f"portfolio.section.{section}" in script
     assert '"/api/portfolio"' in script
     assert '"/api/portfolio/example-household"' in script

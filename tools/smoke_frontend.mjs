@@ -145,6 +145,17 @@ tryRun("planLayoutCard renders every section and preserves missing values", () =
   if (!html.includes('data-act="portfolio-evidence"')) throw new Error("no wording control");
   if (!html.includes('aria-label="Covered"')) throw new Error("section is not labelled");
 });
+tryRun("portfolio synthetic banner uses durable server provenance", () => {
+  sandbox.sessionStorage.setItem("veris_household_example_loaded", "1");
+  const label = g.t("portfolio.synthetic_banner");
+  const html = g.portfolioSyntheticBanner({ household: {
+    provenance: { kind: "SYNTHETIC_EXAMPLE", seed_id: "example" },
+  } });
+  if (!html.includes(label)) throw new Error("the durable synthetic label was not rendered");
+  if (g.portfolioSyntheticBanner({ household: { provenance: null } }) !== "")
+    throw new Error("a browser-only flag rendered a synthetic label");
+  sandbox.sessionStorage.removeItem("veris_household_example_loaded");
+});
 
 // The new pure components, called with realistic shapes.
 const score = { overall: 78, status: "Needs attention", assessed_dimensions: 4,
