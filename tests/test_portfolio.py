@@ -20,6 +20,10 @@ from fastapi.testclient import TestClient
 from proven import api, auth, persistence
 
 
+class _InterruptedErasure(BaseException):
+    """Simulate a process stop without pytest's special _InterruptedErasure handling."""
+
+
 def _key() -> bytes:
     return os.urandom(32)
 
@@ -144,6 +148,98 @@ def test_portfolio_crypto_shredding_deletes_the_tenant_key_not_the_ciphertext(tm
     with sqlite3.connect(path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM document").fetchone()[0] == 1
         assert conn.execute("SELECT COUNT(*) FROM tenant_key").fetchone()[0] == 0
+
+
+def test_interrupted_crypto_shred_can_restore_or_resume_after_restart(tmp_path, monkeypatch):
+    """A stop after durable key deletion remains recoverable on a new repository object."""
+    path = tmp_path / "portfolio.sqlite"
+    key = _key()
+    scope = _scope("tenant-recover", "user-recover")
+    repo = persistence.PortfolioRepository(path, key)
+    document = repo.add_document(
+        scope, kind="BASE_WORDING", blob=b"recoverable private bytes", language="en", country="SG")
+    real_purge = repo._purge_deleted_tenant_key
+    with sqlite3.connect(path) as conn:
+        original_wrapped_key = bytes(conn.execute(
+            "SELECT wrapped_key FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0])
+
+    def interrupted(_wrapped_key: bytes) -> None:
+        raise _InterruptedErasure("simulated process stop")
+
+    monkeypatch.setattr(repo, "_purge_deleted_tenant_key", interrupted)
+    with pytest.raises(_InterruptedErasure, match="simulated process stop"):
+        repo.crypto_shred(scope)
+
+    with sqlite3.connect(path) as conn:
+        assert conn.execute(
+            "SELECT shredded_at FROM tenant WHERE id=?", (scope.tenant_id,)
+        ).fetchone()[0] is None
+        assert conn.execute(
+            "SELECT stage FROM tenant_erasure WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == persistence.ERASURE_PENDING
+        assert conn.execute(
+            "SELECT COUNT(*) FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == 0
+
+    restarted = persistence.PortfolioRepository(path, key)
+    with pytest.raises(persistence.TenantErasureInProgress):
+        restarted.get_document(scope, document["id"])
+
+    def validation_unavailable(_wrapped_key: bytes) -> None:
+        raise persistence.PortfolioIntegrityError("simulated artifact lock")
+
+    monkeypatch.setattr(restarted, "_purge_deleted_tenant_key", validation_unavailable)
+    with pytest.raises(persistence.PortfolioIntegrityError, match="tenant key was restored"):
+        restarted.crypto_shred(scope)
+    assert restarted.get_document(scope, document["id"])["blob"] == b"recoverable private bytes"
+    with sqlite3.connect(path) as conn:
+        assert conn.execute(
+            "SELECT wrapped_key FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == original_wrapped_key
+        assert conn.execute(
+            "SELECT COUNT(*) FROM tenant_erasure WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == 0
+
+    monkeypatch.setattr(restarted, "_purge_deleted_tenant_key", real_purge)
+    assert restarted.crypto_shred(scope)["shredded"] is True
+
+
+def test_interrupted_final_tenant_key_validation_resumes_after_restart(tmp_path, monkeypatch):
+    """Digest-only final validation is resumable after recovery key bytes are discarded."""
+    path = tmp_path / "portfolio.sqlite"
+    key = _key()
+    scope = _scope("tenant-finalizing", "user-finalizing")
+    repo = persistence.PortfolioRepository(path, key)
+    document = repo.add_document(
+        scope, kind="BASE_WORDING", blob=b"finalizing private bytes", language="en", country="SG")
+
+    def interrupted(_digest: bytes, _length: int) -> None:
+        raise _InterruptedErasure("simulated final validation stop")
+
+    monkeypatch.setattr(repo, "_purge_deleted_tenant_key_digest", interrupted)
+    with pytest.raises(_InterruptedErasure, match="simulated final validation stop"):
+        repo.crypto_shred(scope)
+
+    with sqlite3.connect(path) as conn:
+        assert conn.execute(
+            "SELECT shredded_at FROM tenant WHERE id=?", (scope.tenant_id,)
+        ).fetchone()[0] is None
+        assert conn.execute(
+            "SELECT stage FROM tenant_erasure WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == persistence.ERASURE_FINALIZING
+        assert conn.execute(
+            "SELECT COUNT(*) FROM tenant_key WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == 0
+
+    restarted = persistence.PortfolioRepository(path, key)
+    with pytest.raises(persistence.TenantErasureInProgress):
+        restarted.get_document(scope, document["id"])
+    assert restarted.crypto_shred(scope)["shredded"] is True
+    with sqlite3.connect(path) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM tenant_erasure WHERE tenant_id=?", (scope.tenant_id,)
+        ).fetchone()[0] == 0
 
 
 def test_portfolio_tenant_queries_cannot_cross_the_boundary(tmp_path):
