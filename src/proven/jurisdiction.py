@@ -645,12 +645,15 @@ def _name_pattern(name: str) -> re.Pattern[str]:
 # A profiled country owns the patterns that recognise its governing-law clause. This
 # broader form exists only to notice an explicit clause we do *not* recognise. Such a
 # clause is contrary evidence: the safe response is GENERIC, never a local pack selected
-# by an incidental regulator name or currency.
+# by an incidental regulator name or currency. Generic boilerplate such as "subject to
+# applicable law" names no jurisdiction, so it is not contrary evidence.
 _ANY_GOVERNING_LAW = re.compile(
     r"\b(?:governed by|construed in accordance with|interpreted in accordance with|"
     r"determined in accordance with|subject to)\b[^.;]{0,80}?\b(?:"
     r"(?:the\s+)?laws? of\s+(?:the\s+)?[A-Za-z][A-Za-z '\-]{0,60}|"
-    r"[A-Za-z][A-Za-z '\-]{0,60}\s+[Ll]aw)\b",
+    r"(?!(?:(?:the|any|all)\s+)?(?:applicable|governing|relevant|local|prevailing|"
+    r"this|such)\s+[Ll]aw\b)(?-i:(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}|"
+    r"[A-Z]{2,}(?:\s+[A-Z]{2,}){0,3}))\s+[Ll]aw)\b",
     re.IGNORECASE,
 )
 

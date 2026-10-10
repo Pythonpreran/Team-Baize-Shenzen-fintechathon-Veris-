@@ -365,6 +365,14 @@ def test_an_unrecognised_governing_law_clause_overrides_a_local_name():
     assert any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
 
 
+def test_generic_applicable_law_boilerplate_does_not_override_a_recognised_clause():
+    d = jurisdiction.detect_jurisdiction(_pages(
+        "This policy is governed by the laws of Singapore.",
+        "This policy is subject to applicable law."))
+    assert (d.code, d.confidence) == ("SG", "HIGH")
+    assert not any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
+
+
 def test_conflicting_governing_law_clauses_force_generic_even_with_other_signals():
     name = next(n for n in jurisdiction.pack("SG").detection.names
                 if not (n.isupper() and len(n) <= 6))
@@ -840,6 +848,8 @@ def test_the_index_lists_packs_recognised_countries_and_the_detection_rule(clien
     weights = [s["weight"] for s in body["detection"]["signals"]]
     assert weights == sorted(weights, reverse=True)
     assert body["detection"]["signals"][0]["signal"] == "governing_law"
+    assert "governing-law clause or two independent signal kinds" in \
+        body["detection"]["rule"]
     assert body["verification_ladder"] == ["CANDIDATE", "SOURCE_QUOTED", "HUMAN_VERIFIED"]
 
 

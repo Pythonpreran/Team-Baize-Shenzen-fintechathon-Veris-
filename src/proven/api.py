@@ -851,9 +851,10 @@ def jurisdictions_index():
             "margin": jurisdiction.MARGIN,
             "method": "DETERMINISTIC",
             "rule": ("Each kind of signal counts once per country. A country is chosen "
-                     "only when it scores at least min_score and leads the next by at "
-                     "least margin; otherwise the GENERIC pack applies and the reasons "
-                     "both ways are reported."),
+                     "only when it has a governing-law clause or two independent signal "
+                     "kinds, scores at least min_score, and leads the next by at least "
+                     "margin; otherwise the GENERIC pack applies and the reasons both "
+                     "ways are reported."),
         },
         "verification_ladder": list(jurisdiction.STATUS_LADDER),
         "owner_facing_statuses": sorted(jurisdiction.OWNER_FACING_STATUSES),
