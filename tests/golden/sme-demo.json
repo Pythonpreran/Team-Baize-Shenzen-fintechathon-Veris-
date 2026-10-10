@@ -1,0 +1,3762 @@
+{
+ "brief": {
+  "accounting": {
+   "ambiguous_abstained": 4,
+   "carrier": "CHUBB",
+   "carrier_in_clause_map": true,
+   "classified": 58,
+   "classified_refs": [
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.1",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 79 chars, sha256 777dd627bee9fa3fe5a97730715c39d46b8e18f83f6627ba3cf583b701ed1396>",
+     "matched_on": "pattern",
+     "page_no": 3
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.2",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 67 chars, sha256 2ef49a8465f4bd5258a584f172cd7fbcfbc4e24013e0e4697f4a87517d634248>",
+     "matched_on": "pattern",
+     "page_no": 3
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.3",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 46 chars, sha256 92997439b375da6633f90cdcf7f3e4728bcba0b2d6465cf1a2ce18df67a87412>",
+     "matched_on": "pattern",
+     "page_no": 3
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.4",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "Damage means direct physical:",
+     "matched_on": "pattern",
+     "page_no": 3
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.6",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 9826ebb0df70c64f50eaeed87828af2b919e2d3f438a1a9124df77031629ce03>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.7",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 88c07ee44fcb3776948bb51cd2207245efdd6da5c80f7b71092a0ce8d6db84c6>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.8",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 69 chars, sha256 495b2ddd05392cf14e56fb8c72486b5ce400fefa360261f4d31b8f2de2b287ee>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.9",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 a1e5006308228b26d16975844027767879988a9cd44ec01ab63a2708482e65a2>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.10",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 74 chars, sha256 393d2eb22fccd22e7ae2514eb4ae40e57c7f46f3661a1099a7b701b4ece3d7f4>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.11",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 875291ef1f9f1355f6c74e713ae1ed24225bc78f1907093c465900be7eb17952>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.12",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 4826f1940d5e132c7210e4819c9990178049f067fca889eddb41a70fa063465f>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.13",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 60 chars, sha256 207c47f3de6328cbce5394e1486b6a5d2f7da51aac543f6c1f40d3ab019d2ed8>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.15",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 a59d8f44254e11f658dd5344fde72ddf1cd7f3894d084591041bc48fa46a6191>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.16",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 94ef9a13affc0a08692745cdf0e8e4010605c1e04b3cc36e97ef6f3b546cfedc>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.17",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 9f322e509b3c5303575df9de1a4ad56314f47489032cb4b16d2ec47d2e6ed938>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.18",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 c82b6eb80178c28ba7620b251245302472ebee6bcba991ac649a4f49ad425135>",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.19",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "Personal Injury means:",
+     "matched_on": "pattern",
+     "page_no": 4
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.20",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 62e51ecc640a2362e6511354959920daa2122729ccfc27678d3db65a7c3a0d3b>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.22",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 56ee84fa1242eaed4091b09566ee036acca5983df6e222a5b604ea20ab3a72d7>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.23",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 49 chars, sha256 456adacebb052b950b15198df42b33b80893c9e8357a9e6704cd7c78bd0fac7f>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.24",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 79 chars, sha256 fef1af06fc022da4fe77464a572defb10b070b60a5b18fbe3842eb6886e16206>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.26",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 49 chars, sha256 61ef51cdd0697ff3515d983e41fde4b8445513d95794fd663f350e2f553b51c6>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.27",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 b729beaaf3d4dad2cda608f2541ae28a7a69c7aa377f7917a345531016ad2d37>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.28",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "Property means tangible property.",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.29",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 42f28908ae4e0e4d019e46d7406cd07791317c37b044779d9ef88a807a51f064>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.30",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 558775eb11135bf9e379875d8caa24489de4e46a76675489a3f8e7904cfe3a02>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.31",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 c7d2fc96315a40338095c232948559696c3eb02b40e2c6cb8184e4af3f822348>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.32",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 3d70aef68e421d380ce02f725912e5e79b658f9a0c6fc8ec71f9f94b17b8d891>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.33",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 58 chars, sha256 21c15a54f320f5d18746bdd4cc00f88ae8da8c52755c6a0f13afffb421f0d5d0>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.34",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 bf253c0321eab6a6c2b9ae6fd21e46bbffd90f01654ba491c19b4d66317aa2a9>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "2.35",
+     "code": "DEFN.VACANT",
+     "heading": "<quotes the published wording: 59 chars, sha256 a1ddf75c0a19740db1f506cd902f6b68caea54318631aed7aa7f1ef4a6e2249f>",
+     "matched_on": "CHUBB 2.35",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.36",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 bc9b7e19132c0acc0fd655261bfc956cb757ae7b59c378c47bd0269b0d22b044>",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.37",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "Vicinity means 250 metres.",
+     "matched_on": "pattern",
+     "page_no": 5
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "2.38",
+     "code": "DEFN.DEFINED_TERM",
+     "heading": "<quotes the published wording: 80 chars, sha256 2a76beddde74b3fc25605335a3cd2c922742b6fc1577531d8e30bb8147bf639b>",
+     "matched_on": "pattern",
+     "page_no": 6
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "3.1",
+     "code": "COND.ALTERATION_NOTICE",
+     "heading": "Alteration",
+     "matched_on": "CHUBB 3.1",
+     "page_no": 6
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "3.2",
+     "code": "COND.ARBITRATION",
+     "heading": "Arbitration",
+     "matched_on": "arbitration",
+     "page_no": 6
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "3.6",
+     "code": "COND.CANCELLATION",
+     "heading": "Cancellation",
+     "matched_on": "cancellation",
+     "page_no": 6
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "3.7",
+     "code": "COND.CLAIMS_PROCEDURE",
+     "heading": "Claims Procedure",
+     "matched_on": "CHUBB 3.7",
+     "page_no": 7
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "3.9",
+     "code": "COND.CONTRIBUTION",
+     "heading": "Contribution",
+     "matched_on": "contribution",
+     "page_no": 7
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "3.12",
+     "code": "LIMIT.DEDUCTIBLE",
+     "heading": "Deductibles",
+     "matched_on": "CHUBB 3.12",
+     "page_no": 7
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "3.13",
+     "code": "COND.DISCLOSURE",
+     "heading": "Disclosure",
+     "matched_on": "CHUBB 3.13",
+     "page_no": 8
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "3.14",
+     "code": "COND.FRAUDULENT_CLAIM",
+     "heading": "Fraud",
+     "matched_on": "fraud",
+     "page_no": 8
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "3.16",
+     "code": "COND.ARBITRATION",
+     "heading": "Jurisdiction",
+     "matched_on": "jurisdiction",
+     "page_no": 8
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "3.20",
+     "code": "COND.PREMIUM_PAYMENT_WARRANTY",
+     "heading": "Premium Payment Warranty",
+     "matched_on": "CHUBB 3.20",
+     "page_no": 8
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "3.21",
+     "code": "COND.STATUTORY_COMPLIANCE_GENERAL",
+     "heading": "Safety and Maintenance",
+     "matched_on": "CHUBB 3.21",
+     "page_no": 9
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "3.22",
+     "code": "COND.SUBROGATION",
+     "heading": "Subrogation",
+     "matched_on": "subrogation",
+     "page_no": 9
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "4.2",
+     "code": "ADEQ.AVERAGE_CONDITION",
+     "heading": "<quotes the published wording: 44 chars, sha256 fd14027308b853ef4e987b346e3804a0fc721345746ec9250595dbedf1876e60>",
+     "matched_on": "CHUBB 4.2",
+     "page_no": 9
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "4.3",
+     "code": "EXCL.CYBER",
+     "heading": "<quotes the published wording: 41 chars, sha256 a07683561172ce14606981a6389a206febb5685a4cabd0535847b72e729d3863>",
+     "matched_on": "cyber",
+     "page_no": 9
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "4.4",
+     "code": "EXCL.SANCTIONS",
+     "heading": "Sanction Exclusion",
+     "matched_on": "sanction",
+     "page_no": 11
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "4.5",
+     "code": "EXCL.WAR_TERRORISM",
+     "heading": "NMA 2918 - War and Terrorism Exclusion",
+     "matched_on": "war",
+     "page_no": 11
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "4.6",
+     "code": "LIMIT.AGGREGATE",
+     "heading": "Nuclear and Ionising Exclusion",
+     "matched_on": "CHUBB 4.6",
+     "page_no": 11
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "4.9",
+     "code": "COND.MINIMUM_SECURITY",
+     "heading": "Minimum Security",
+     "matched_on": "CHUBB 4.9",
+     "page_no": 15
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "4.10",
+     "code": "ADEQ.INDEMNITY_BASIS",
+     "heading": "Indemnity",
+     "matched_on": "CHUBB 4.10",
+     "page_no": 16
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "4.11",
+     "code": "ADEQ.REINSTATEMENT_BASIS",
+     "heading": "Reinstatement",
+     "matched_on": "CHUBB 4.11",
+     "page_no": 16
+    },
+    {
+     "classifier": "EXACT_MAP",
+     "clause_ref": "4.13",
+     "code": "COND.CLAIM_TIME_LIMIT",
+     "heading": "Time Limit",
+     "matched_on": "CHUBB 4.13",
+     "page_no": 17
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "5.5",
+     "code": "EXCL.POLLUTION",
+     "heading": "<quotes the published wording: 55 chars, sha256 e9b5cd5ade3344e7b2223217e6a881da6fc177ee47a81cb93b27e08bf23a61dc>",
+     "matched_on": "pollution",
+     "page_no": 19
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "5.11",
+     "code": "COND.ALTERATION_NOTICE",
+     "heading": "Alteration Exclusion",
+     "matched_on": "alteration",
+     "page_no": 20
+    },
+    {
+     "classifier": "HEADING_KEYWORD",
+     "clause_ref": "5.15",
+     "code": "EXCL.COMMUNICABLE_DISEASE",
+     "heading": "Communicable Disease Exclusion",
+     "matched_on": "communicable disease",
+     "page_no": 20
+    }
+   ],
+   "detected": 97,
+   "detection_note": "Detected across all 28 pages by deterministic pattern matching. Schemes that fired: NUMERIC_DOTTED (140), NUMERIC_SIMPLE (14). Count is unique provision references (definitions and notices included); 57 recurring references (table-of-contents lines, running headers) were collapsed to their first occurrence. Classified: 13 by the hand-verified (carrier, clause_ref) map — the only classification a finding may rest on — and 45 by heading keyword, which shrinks the unaccounted bucket but feeds no finding. 4 provisions matched two or more candidate codes and were left UNACCOUNTED rather than resolved by guess. Classification above is deterministic string and regex comparison. Layer 2 step 3 is implemented as structural mechanism alignment (see the clause alignment view), not as constrained model classification: a candidate span may be proposed by any means, including a model, but it is bound only if every mandatory structural element matches and no disqualifying one does. No machine-learning model makes a consequential decision anywhere in this pipeline.",
+   "duplicates_collapsed": 57,
+   "has_construction_clause": false,
+   "keyword_classified": 45,
+   "schemes_used": [
+    {
+     "description": "Dotted decimal references such as 4.2 or 5.1(c)(i).",
+     "hits": 140,
+     "name": "NUMERIC_DOTTED"
+    },
+    {
+     "description": "Plain integer headings such as '5. Basis of Settlement'.",
+     "hits": 14,
+     "name": "NUMERIC_SIMPLE"
+    }
+   ],
+   "unaccounted": 39,
+   "unaccounted_quotes": [
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "1",
+     "detection_scheme": "NUMERIC_SIMPLE",
+     "heading": "<quotes the published wording: 48 chars, sha256 c601746f67fd9cc6c09e32c54dfc07849acc6854d55a8e6d84c0f04e565dfbbe>",
+     "page_no": 2,
+     "quote": "<quotes the published wording: 293 chars, sha256 6a713c2acdabd4d17a40e92d4676f47d78e8405360f995f7d706e0a9f78e51ec>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "2",
+     "detection_scheme": "NUMERIC_SIMPLE",
+     "heading": "<quotes the published wording: 61 chars, sha256 7999cfe19abc5fcde8d94ee2b99b53d1adec35b1289c809b30d3d8dad74a09d4>",
+     "page_no": 3,
+     "quote": "<quotes the published wording: 221 chars, sha256 9705acd7959785e0e04ea867ced1739272411e790420bb54bb8044e87cb4be82>"
+    },
+    {
+     "ambiguous_candidates": [
+      "DEFN.DEFINED_TERM",
+      "LIMIT.DEDUCTIBLE"
+     ],
+     "clause_ref": "2.5",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 80 chars, sha256 2b17c012c5570f6dfb9b3b8e94bed867e0d0713a52d5e5569b9eebfb585b1635>",
+     "page_no": 4,
+     "quote": "<quotes the published wording: 168 chars, sha256 4d0d3226923d0bbe0d6ad1eb5af62e5513f62b20bce5e627e2d568d585be294b>"
+    },
+    {
+     "ambiguous_candidates": [
+      "DEFN.DEFINED_TERM",
+      "LIMIT.AGGREGATE"
+     ],
+     "clause_ref": "2.14",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 80 chars, sha256 8f3bec8cf174268895274aa13efd740ba927ca146eb37dd566890edcefc6741f>",
+     "page_no": 4,
+     "quote": "<quotes the published wording: 118 chars, sha256 32e6e0bc0b0fb26f67a762597e0173abc48ae519dd8833d718be1283e29344e0>"
+    },
+    {
+     "ambiguous_candidates": [
+      "COND.ARBITRATION",
+      "DEFN.DEFINED_TERM"
+     ],
+     "clause_ref": "2.21",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 52 chars, sha256 5c6d181b38b7d4a20048dfd960b7a9d83857f6e19e5dbca1ed2b96b3284b5371>",
+     "page_no": 5,
+     "quote": "<quotes the published wording: 57 chars, sha256 cff3505ecef58b1be895b6188295d6d10a664bdb94a80848f79bd6a73831c423>"
+    },
+    {
+     "ambiguous_candidates": [
+      "DEFN.DEFINED_TERM",
+      "EXCL.POLLUTION"
+     ],
+     "clause_ref": "2.25",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 67 chars, sha256 7871a75ef8324dc88643ccf65f40873a18ea21ce27d2b7934228838a3105b959>",
+     "page_no": 5,
+     "quote": "<quotes the published wording: 72 chars, sha256 ec27d013f69a377230a99ac24baf4622f91913024bed322f776d9d535f4d6574>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3",
+     "detection_scheme": "NUMERIC_SIMPLE",
+     "heading": "<quotes the published wording: 60 chars, sha256 eb5be6522d1f442888230775827d1072e56960dc7d307d39793c210052a293f0>",
+     "page_no": 6,
+     "quote": "<quotes the published wording: 63 chars, sha256 6308559e42f226b11c7154ebfb757da2d196e438ebb92090424f5fb7f04d10b6>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.3",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Applicable Law",
+     "page_no": 6,
+     "quote": "<quotes the published wording: 139 chars, sha256 1edb22ea68978b736d8deb5ab2ef8c65742847f702e808607c0ab8c85a1e3075>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.4",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Assignment",
+     "page_no": 6,
+     "quote": "<quotes the published wording: 103 chars, sha256 e36dec7cedb2211a68f7a17498624570ed167b3d3e94ef6ed2237f027a0beef0>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.5",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Audits and Inspection",
+     "page_no": 6,
+     "quote": "<quotes the published wording: 293 chars, sha256 68b3bd3ffd2a36f00234c467620dcd61eafc96cc513f71e5f531db65c8792cce>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.8",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Clerical Error",
+     "page_no": 7,
+     "quote": "<quotes the published wording: 162 chars, sha256 28501890ed388213cac250add08cf0bad7726182038832a8703799e09af93eb7>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.10",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 44 chars, sha256 8005d080fce2faf48542a88efb0ca45cfaa10fb5fbfd4d4196f690405f209eb9>",
+     "page_no": 7,
+     "quote": "<quotes the published wording: 199 chars, sha256 2af829dc3d7f56a6af72c1c5b11ca888c7228e16867b6310a36f40cd88e85f54>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.11",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Currency",
+     "page_no": 7,
+     "quote": "<quotes the published wording: 268 chars, sha256 6ee2d1ec3c70cbf9f88c0179abda90d8d205347604cf5b60ad4cb9c1b10096fd>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.15",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Interest",
+     "page_no": 8,
+     "quote": "<quotes the published wording: 65 chars, sha256 04257efb59c269374ec86544dba0179df305b0b044855624cff8f9b757a73a43>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.17",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Mergers",
+     "page_no": 8,
+     "quote": "<quotes the published wording: 217 chars, sha256 ac81493661d843d2aec7aba147c43724dd3e7fa257b4e6d255898e2bc98a7c78>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.18",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Payment",
+     "page_no": 8,
+     "quote": "<quotes the published wording: 103 chars, sha256 81045a4a3675c1ee68e86b0487dd9e6f08ef9091970cba06998c2dab312451da>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "3.19",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Premium Adjustment",
+     "page_no": 8,
+     "quote": "<quotes the published wording: 293 chars, sha256 cb95140ec2cd9ff5a1279a02eb2e9d39c46d67c58665dbfa14312ea1f85e8419>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "4",
+     "detection_scheme": "NUMERIC_SIMPLE",
+     "heading": "<quotes the published wording: 60 chars, sha256 c52c2b29affb7379088ac2b324898cd8a2d49f76b2ebb7bcf1cb32ed143b8aec>",
+     "page_no": 9,
+     "quote": "<quotes the published wording: 63 chars, sha256 025c0b7f905456ca9c5ae9e3f407342f8f2d27d93152fa0f4649dd683281ad18>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "4.1",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 53 chars, sha256 1ea0a921da68aa0e4e12500f3596e7ca91f4cd77acb7cfb7d2184d8131335a41>",
+     "page_no": 9,
+     "quote": "<quotes the published wording: 291 chars, sha256 99760894c2fc902b12c93acf8c830fa1da24bd0f0b15012068a36650345fda44>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "1.1",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 46 chars, sha256 4517ec976124950e95261e54e9b4581b721102659d10b2045d8b713c1aa4e5fd>",
+     "page_no": 12,
+     "quote": "<quotes the published wording: 167 chars, sha256 9f48b37d2b6feb25182e09a980ad6216e0a0f8457dd519badfccd8001494e526>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "1.2",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Chubb will pay the insured for:",
+     "page_no": 12,
+     "quote": "<quotes the published wording: 282 chars, sha256 94ba967cf7fe8a441f54a01b8a7654377f67e27f4bdc357cc033c9d596de07d2>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "4.7",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Interest",
+     "page_no": 15,
+     "quote": "<quotes the published wording: 182 chars, sha256 593e8d9167dc402168cda6f29b9781789402263f22b5ef3d5146138d8c94672c>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "4.8",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Internal Removal",
+     "page_no": 15,
+     "quote": "<quotes the published wording: 292 chars, sha256 1d5e5bbb5c5df0b2946810636332540f94f882ef798304d11f96a3ad2dffb006>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "4.12",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Sue and Labour",
+     "page_no": 16,
+     "quote": "<quotes the published wording: 293 chars, sha256 b441d637c12b920a0d293db3b6cab27e0abdd0e23de00a1f36b766f1254fc98f>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5",
+     "detection_scheme": "NUMERIC_SIMPLE",
+     "heading": "Exclusions Applicable To This Section",
+     "page_no": 17,
+     "quote": "<quotes the published wording: 142 chars, sha256 4601e8ec1dcd775b08bd6371946622ab42704debade0247fe268d130050f181f>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.1",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Damage to Property Exclusion",
+     "page_no": 17,
+     "quote": "<quotes the published wording: 288 chars, sha256 ecc0a74a0aef9ed9a9a3f36413421cdf8e76f8db904f2452501d345d39b267c4>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.2",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Property Exclusion",
+     "page_no": 18,
+     "quote": "<quotes the published wording: 287 chars, sha256 0a196931965b4658c74f20a2d1c10fe3bdce58869f2c8fc51ec46745446386fb>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.3",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 40 chars, sha256 7af21b43ed97793b42ac9a8732f82d365175154930cbf1f586eee87462c46f73>",
+     "page_no": 18,
+     "quote": "<quotes the published wording: 293 chars, sha256 7ed851c0c7a3b4235e5f0ac5f6df0f9a420c816b3e0cbd4d12beed61513d3fb7>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.4",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Political Risks Exclusion",
+     "page_no": 18,
+     "quote": "<quotes the published wording: 282 chars, sha256 c6f434f1d2d0f3f74401e21358eb61bc52b0c9abeedfe46ad22545b22892a211>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.6",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "<quotes the published wording: 43 chars, sha256 e6378775c74e64e2437ecabf5cb68a9362bc053c5f03877fb50f2b3be9fa70d2>",
+     "page_no": 19,
+     "quote": "<quotes the published wording: 293 chars, sha256 dfb8ccbce3e403c3658270fda42f488c92ad9166bc72f4038e937013742ea706>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.7",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Specific Property Exclusion",
+     "page_no": 19,
+     "quote": "<quotes the published wording: 289 chars, sha256 3ca6d6148deb8748609ab73ec661eb6f095fcdd081b378dcfe80f8bc1eb8713a>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.8",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Demolition Exclusion",
+     "page_no": 20,
+     "quote": "<quotes the published wording: 144 chars, sha256 e3d9657d5c2e0f99d06aab2222def9a80a921e6fe67a0296b748c11e8df29e67>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.9",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Under Going Process Exclusion",
+     "page_no": 20,
+     "quote": "<quotes the published wording: 95 chars, sha256 5bfdb80e58ef53b5c7b1438b6b0581ab3f02aaa360359f9568e0339937ad84cf>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.10",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Installation Exclusion",
+     "page_no": 20,
+     "quote": "<quotes the published wording: 184 chars, sha256 b9c40d827a7816f34995e9d68d87bdd32ed32b2d0d8fbd5c8ccb4e3fdd9e0641>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.12",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "More Specifically Insured Exclusion",
+     "page_no": 20,
+     "quote": "<quotes the published wording: 86 chars, sha256 1a935eca522921c77272ac11fcefa767e3dfbd09845591853e71806aa7f1d6d3>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.13",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Marine Damage Exclusion",
+     "page_no": 20,
+     "quote": "<quotes the published wording: 295 chars, sha256 c925aed9e53503465368f083e585f39352735e1fb017cf3e754cc49002d45251>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.14",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Damage to Boilers Exclusion",
+     "page_no": 20,
+     "quote": "<quotes the published wording: 203 chars, sha256 0bf3ac388c98784a4d9ae8ae3b15d0e45043f754a0c410ca131803c1f9449805>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.16",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Vehicles Exclusion",
+     "page_no": 27,
+     "quote": "<quotes the published wording: 290 chars, sha256 76b4cb31222446a67edd8ba75a8f0a650fce4734f616322e7d259d7724ca2047>"
+    },
+    {
+     "ambiguous_candidates": [],
+     "clause_ref": "5.17",
+     "detection_scheme": "NUMERIC_DOTTED",
+     "heading": "Watercraft Exclusion",
+     "page_no": 27,
+     "quote": "<quotes the published wording: 145 chars, sha256 c9ff080d9090130cf87da9e7a05c933e70acdf93c5b5b97571a8c6e44c5ff13d>"
+    }
+   ],
+   "verified_classified": 13
+  },
+  "actions_prepared": 10,
+  "business": "Hock Lee Foods Pte Ltd",
+  "business_id": "hock-lee-foods",
+  "carrier": "CHUBB",
+  "case_id": "<id>",
+  "event_relevant_rules": [],
+  "event_requested_documents": [],
+  "events": [],
+  "facts": {
+   "acra_secondary_activity": {
+    "author_class": "AUTHORITY",
+    "document_kind": "ACRA_PROFILE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "Retail sale via online platforms"
+   },
+   "business_description": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade"
+   },
+   "contributor_count": {
+    "author_class": "AUTHORITY",
+    "document_kind": "CPF_RECORD",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": 14
+   },
+   "declared_headcount": {
+    "author_class": "INSURER",
+    "document_kind": "WIC_SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": 11
+   },
+   "deductible": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": "SGD",
+    "value": "5000"
+   },
+   "demised_premises": {
+    "author_class": "THIRD_PARTY",
+    "document_kind": "TENANCY",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": [
+     "Unit 03-11, 21 Tai Seng Avenue",
+     "Unit 03-12, 21 Tai Seng Avenue"
+    ]
+   },
+   "inception": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "2026-03-01"
+   },
+   "invoice_equipment_value": {
+    "author_class": "THIRD_PARTY",
+    "document_kind": "SUPPLIER_INVOICE",
+    "source": "STRUCTURED",
+    "unit": "SGD",
+    "value": "62000"
+   },
+   "operative_sections": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": [
+     "PROPERTY",
+     "PUBLIC_AND_PRODUCTS_LIABILITY"
+    ]
+   },
+   "permitted_use": {
+    "author_class": "THIRD_PARTY",
+    "document_kind": "TENANCY",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "Light food manufacturing, cold storage and ancillary office use"
+   },
+   "plant_sum_insured": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": "SGD",
+    "value": "180000"
+   },
+   "premium_received": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "2026-05-11"
+   },
+   "primary_ssic": {
+    "author_class": "AUTHORITY",
+    "document_kind": "ACRA_PROFILE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "10740"
+   },
+   "scheduled_premises": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": [
+     "Unit 03-11, 21 Tai Seng Avenue, Singapore 534054"
+    ]
+   },
+   "stock_sum_insured": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": "SGD",
+    "value": "100000"
+   },
+   "stock_value": {
+    "author_class": "SELF",
+    "document_kind": "ACCOUNTS",
+    "source": "STRUCTURED",
+    "unit": "SGD",
+    "value": "150000"
+   },
+   "theft_full_elected": {
+    "author_class": "INSURER",
+    "document_kind": "SCHEDULE",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": "not applicable"
+   },
+   "workpass_below_minimum_count": {
+    "author_class": "AUTHORITY",
+    "document_kind": "WORK_PASS_LIST",
+    "source": "STRUCTURED",
+    "unit": null,
+    "value": 1
+   },
+   "workpass_lowest_medical": {
+    "author_class": "AUTHORITY",
+    "document_kind": "WORK_PASS_LIST",
+    "source": "STRUCTURED",
+    "unit": "SGD",
+    "value": 45000
+   }
+  },
+  "findings": [
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "acra_secondary_activity": "Retail sale via online platforms",
+     "cite": [
+      {
+       "clause": "3.1",
+       "document_kind": "BASE_WORDING"
+      },
+      {
+       "clause": "3.13",
+       "document_kind": "BASE_WORDING",
+       "note": "Disclosure"
+      }
+     ]
+    },
+    "event_relevant": false,
+    "headline": "The ACRA profile carries a secondary activity (Retail sale via online platforms) that the policy's business description (manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade) does not reflect. Whether this is a material alteration under cl 3.1 or a disclosure question under cl 3.13 is a judgement for a licensed adviser. We locate and quote; we do not conclude.",
+    "never": [
+     "assert_breach",
+     "assert_claim_outcome"
+    ],
+    "resolution_path": null,
+    "rule_id": "ACTIVITY-SSIC-NOT-DECLARED",
+    "spans": [
+     {
+      "char_end": 307,
+      "char_start": 247,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "secondary_ssic_description: Retail sale via online platforms",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 352,
+      "char_start": 331,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "business_description:",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 754,
+      "char_start": 707,
+      "document_id": "<id>",
+      "page_no": 6,
+      "quote": "<quotes the published wording: 47 chars, sha256 da649b9913d8818cd3277eeab81c878f709bb64ca682ce6947dfa1dfc5eb9d8a>",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "REQUIRES_AUTHORISED_REVIEW",
+    "state_label": "Requires authorised review"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "3.1",
+       "document_kind": "BASE_WORDING"
+      }
+     ],
+     "missing_from_schedule": [
+      "Unit 03-12, 21 Tai Seng Avenue"
+     ]
+    },
+    "event_relevant": false,
+    "headline": "<quotes the published wording: 350 chars, sha256 1579a739eba2501ad224d441994d678b34d9984fe10662681c0b43bcbff3f90d>",
+    "never": [
+     "assert_breach",
+     "assert_claim_outcome"
+    ],
+    "resolution_path": null,
+    "rule_id": "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
+    "spans": [
+     {
+      "char_end": 731,
+      "char_start": 714,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "insured_premises:",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 267,
+      "char_start": 237,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "Unit 03-12, 21 Tai Seng Avenue",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 754,
+      "char_start": 707,
+      "document_id": "<id>",
+      "page_no": 6,
+      "quote": "<quotes the published wording: 47 chars, sha256 da649b9913d8818cd3277eeab81c878f709bb64ca682ce6947dfa1dfc5eb9d8a>",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "REQUIRES_AUTHORISED_REVIEW",
+    "state_label": "Requires authorised review"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "Operative Sections",
+       "document_kind": "SCHEDULE"
+      }
+     ],
+     "searched_sections": [
+      "PROPERTY",
+      "PUBLIC_AND_PRODUCTS_LIABILITY"
+     ]
+    },
+    "event_relevant": false,
+    "headline": "Business-interruption cover was searched for and not confirmed. The Schedule's operative sections list Property and Public/Products Liability only; no business interruption section is present in this variant. \"Not confirmed\" is not \"not covered\" — it states exactly what the reviewed documents do and do not show.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "BUSINESS-INTERRUPTION-NOT-CONFIRMED",
+    "spans": [
+     {
+      "char_end": 1069,
+      "char_start": 1050,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "operative_sections:",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "NOT_CONFIRMED",
+    "state_label": "Not confirmed in reviewed documents"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "4.13",
+       "document_kind": "BASE_WORDING"
+      }
+     ]
+    },
+    "event_relevant": false,
+    "headline": "<quotes the published wording: 217 chars, sha256 ecb04d1a0f2cfc8a560f3afde8afcfd794bbc7716fd61ebfb76b7a338d7acfd8>",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "CLAIM-TIME-LIMIT",
+    "spans": [
+     {
+      "char_end": 364,
+      "char_start": 345,
+      "document_id": "<id>",
+      "page_no": 17,
+      "quote": "twelve months after",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "activity": "Retail sale via online platforms",
+     "cite": [
+      {
+       "authority": "PDPC",
+       "proposition": "Organisations must protect personal data in their possession or control, and must notify the Commission of a data breach that is likely to result in significant harm to affected individuals or that affects at least 500 individuals.\n"
+      }
+     ],
+     "consequence_note": "From 1 October 2022 the maximum financial penalty under the PDPA is S$1 million, or 10% of annual turnover in Singapore where that turnover exceeds S$10 million, whichever is higher. That is a statutory ceiling and not a prediction: the Commission assesses harm and culpability case by case.",
+     "searched_sections": [
+      "PROPERTY",
+      "PUBLIC_AND_PRODUCTS_LIABILITY"
+     ]
+    },
+    "event_relevant": false,
+    "headline": "Your ACRA profile records an online activity, so you collect customer personal data. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY — none of which responds to a data breach. Both figures are from an authority document and an insurer document, so this is a PROVEN absence rather than an assumption.",
+    "never": [
+     "assert_breach",
+     "assert_claim_outcome"
+    ],
+    "resolution_path": null,
+    "rule_id": "CYBER-DATA-COVER-ABSENT",
+    "spans": [
+     {
+      "char_end": 307,
+      "char_start": 247,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "secondary_ssic_description: Retail sale via online platforms",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 1069,
+      "char_start": 1050,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "operative_sections:",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "authority": "MARKET_CONVENTION",
+       "proposition": "Contingent business interruption is conventionally written as an extension to a business interruption section, is commonly limited to suppliers named in the policy, and conventionally responds only to physical damage at the supplier's premises.\n"
+      }
+     ],
+     "consequence_note": "This is a structural observation about your schedule, not a statement that a claim would fail. Your own wording governs, and an extension we were not given may exist.",
+     "dependencies_are_not_exhaustive": true,
+     "dependencies_found": [
+      "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "Landlord and building"
+     ],
+     "searched_sections": [
+      "PROPERTY",
+      "PUBLIC_AND_PRODUCTS_LIABILITY"
+     ]
+    },
+    "event_relevant": false,
+    "headline": "Your documents evidence 2 outside dependency/dependencies that your income relies on. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY, which include no business interruption section. Cover for income lost when a supplier, utility or landlord fails is normally an extension to that section, so there is nothing for it to attach to.",
+    "never": [
+     "assert_breach",
+     "assert_claim_outcome"
+    ],
+    "resolution_path": null,
+    "rule_id": "DEPENDENCY-COVER-NOT-POSSIBLE",
+    "spans": [
+     {
+      "char_end": 1069,
+      "char_start": 1050,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "operative_sections:",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "4.9",
+       "document_kind": "BASE_WORDING"
+      }
+     ]
+    },
+    "event_relevant": false,
+    "headline": "When no one is on the premises, all external doors and internal doors to common areas must be locked and secured and all ground-floor and accessible windows securely closed (cl 4.9). This is a physically verifiable control that interacts with the theft exclusion.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "MINIMUM-SECURITY",
+    "spans": [
+     {
+      "char_end": 2569,
+      "char_start": 2541,
+      "document_id": "<id>",
+      "page_no": 15,
+      "quote": "when no Insured Person is on",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "3.20",
+       "document_kind": "BASE_WORDING"
+      }
+     ],
+     "days_from_inception": 71
+    },
+    "event_relevant": false,
+    "headline": "<quotes the published wording: 213 chars, sha256 3bff28176fc40770bd832301f5c6e5876c620342e7c5b7135047bac1ead996d2>",
+    "never": [
+     "assert_breach",
+     "assert_claim_outcome"
+    ],
+    "resolution_path": null,
+    "rule_id": "PREMIUM-PAYMENT-WARRANTY-TIMING",
+    "spans": [
+     {
+      "char_end": 497,
+      "char_start": 476,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "inception: 2026-03-01",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 576,
+      "char_start": 551,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "received_date: 2026-05-11",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 350,
+      "char_start": 326,
+      "document_id": "<id>",
+      "page_no": 9,
+      "quote": "automatically terminated",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "REQUIRES_AUTHORISED_REVIEW",
+    "state_label": "Requires authorised review"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "Additional Extension 2.5",
+       "document_kind": "ENDORSEMENT"
+      }
+     ],
+     "conflicting_values": "END-03 = S$5000, END-04 = S$25000"
+    },
+    "event_relevant": false,
+    "headline": "Two endorsements amend the food-and-drink liability sub-limit to different figures (END-03 = S$5000, END-04 = S$25000) at the same authority rank, with neither stating it supersedes the other. Precedence could not be established from the documents, so this is routed to a licensed adviser rather than resolved by the engine.",
+    "never": [
+     "assert_breach",
+     "assert_claim_outcome"
+    ],
+    "resolution_path": "Two endorsements at ENDORSEMENT rank amend LIMIT.SUB_LIMIT with no order of precedence — tie not broken.",
+    "rule_id": "SUBLIMIT-CONFLICTING-ENDORSEMENTS",
+    "spans": [
+     {
+      "char_end": 411,
+      "char_start": 309,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "Additional Extension 2.5 food and drink liability sub-limit is amended to SGD5,000 any one Occurrence.",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 413,
+      "char_start": 310,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "Additional Extension 2.5 food and drink liability sub-limit is amended to SGD25,000 any one Occurrence.",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "REQUIRES_AUTHORISED_REVIEW",
+    "state_label": "Requires authorised review"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "5.1(c)(i)",
+       "document_kind": "BASE_WORDING"
+      },
+      {
+       "clause": "Additional Extensions",
+       "document_kind": "SCHEDULE"
+      }
+     ]
+    },
+    "event_relevant": false,
+    "headline": "Theft is covered only where there was violent or forcible entry to a Building. Your Schedule does not elect Additional Extension 2.17, so shoplifting and employee theft are outside cover.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK",
+    "spans": [
+     {
+      "char_end": 2082,
+      "char_start": 2048,
+      "document_id": "<id>",
+      "page_no": 17,
+      "quote": "there is violent or forcible entry",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 1820,
+      "char_start": 1771,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "2.17_theft_endorsement_full_theft: not applicable",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "clause": "5.1(b)(v)",
+       "document_kind": "BASE_WORDING"
+      },
+      {
+       "clause": "2.35",
+       "document_kind": "BASE_WORDING",
+       "note": "definition of Vacant"
+      }
+     ]
+    },
+    "event_relevant": false,
+    "headline": "Escape-of-water cover is excluded once the premises are Vacant beyond the day count this policy states (Chubb: 14 days, cl 5.1(b)(v)). \"Vacant\" is defined broadly at cl 2.35 — non-occupation during normal working hours counts. The day count is read from this clause instance, never generalised across carriers.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "UNOCCUPANCY-WATER-EXCLUSION",
+    "spans": [
+     {
+      "char_end": 1871,
+      "char_start": 1852,
+      "document_id": "<id>",
+      "page_no": 17,
+      "quote": "Vacant for a period",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "authority": "MOM",
+       "proposition": "Employers must ensure declared headcount and occupational class are accurate; wrongful declaration may affect claims.\n"
+      }
+     ],
+     "consequence_note": "WICA non-insurance penalty up to $10,000 and/or 12 months. Compulsory for all employees doing manual work at any salary and non-manual employees earning $2,600 or less monthly.",
+     "deadline": {
+      "basis": "policy_inception",
+      "offset_days": -21
+     }
+    },
+    "event_relevant": false,
+    "headline": "Your work injury schedule declares 11 employees; the CPF contribution record shows 14. Both are third-party or insurer documents, so this is a PROVEN discrepancy.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "WICA-HEADCOUNT-UNDERDECLARED",
+    "spans": [
+     {
+      "char_end": 271,
+      "char_start": 244,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "declared_employee_count: 11",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 174,
+      "char_start": 153,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "contributor_count: 14",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "PROVEN",
+    "class_label": "Proven — every input authored by a third party, authority or insurer",
+    "detail": {
+     "cite": [
+      {
+       "authority": "MOM",
+       "proposition": "Employers must provide each Work Permit and S Pass holder with medical insurance meeting the prescribed annual minimum coverage.\n"
+      }
+     ],
+     "consequence_note": "Insufficient medical insurance for a migrant worker can affect work pass renewal and leaves the employer exposed to the worker's medical costs.",
+     "holders_below_minimum": 1,
+     "minimum_sgd": 60000
+    },
+    "event_relevant": false,
+    "headline": "At least one Work Permit holder carries medical insurance below the S$60,000 annual minimum required per migrant worker. Both figures are from the authority-authored work pass list, so this is a PROVEN discrepancy.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "WORKPASS-MEDICAL-BELOW-MINIMUM",
+    "spans": [
+     {
+      "char_end": 663,
+      "char_start": 631,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "medical_insurance_sum_sgd: 45000",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "MARKET_CONVENTION",
+    "class_label": "Market convention — inputs evidenced, but the policy does not state the arithmetic",
+    "detail": {
+     "adequacy_ratio": "66.7%",
+     "cite": [
+      {
+       "carrier": "CHUBB",
+       "clause": "4.2",
+       "document_kind": "BASE_WORDING"
+      },
+      {
+       "carrier": "MSIG",
+       "clause": "GC12",
+       "document_kind": "BASE_WORDING"
+      },
+      {
+       "carrier": "LIBERTY",
+       "clause": "GC4",
+       "document_kind": "BASE_WORDING"
+      },
+      {
+       "carrier": "LIBERTY",
+       "clause": "5",
+       "document_kind": "BASE_WORDING",
+       "note": "Basis of Settlement, states the formula"
+      }
+     ],
+     "computation_span": null,
+     "deductible": "5000",
+     "deductible_basis": "read from the schedule",
+     "formula_basis": "MARKET_CONVENTION",
+     "formula_basis_class": "MARKET_CONVENTION",
+     "has_computation": true,
+     "illustration": "35000.00000000000000000000000",
+     "loss": "60000",
+     "order_applied": "average -> sub-limit -> deductible (cl 3.12)",
+     "threshold_basis": "THRESHOLD_STATED",
+     "threshold_pct": "85.0%"
+    },
+    "event_relevant": false,
+    "headline": "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure shown is an illustration — where the wording states no formula it is labelled market convention, never \"amount payable\".",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",
+    "spans": [
+     {
+      "char_end": 1242,
+      "char_start": 1219,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "sum_insured_sgd: 100000",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 220,
+      "char_start": 199,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "inventory_sgd: 150000",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 735,
+      "char_start": 702,
+      "document_id": "<id>",
+      "page_no": 15,
+      "quote": "less than 85% of the actual value",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "DOCUMENTED",
+    "state_label": "Documented"
+   },
+   {
+    "class": "UNESTABLISHED",
+    "class_label": "Unestablished — a required input has no document behind it",
+    "detail": {
+     "cite": [
+      {
+       "clause": "4.11",
+       "document_kind": "BASE_WORDING",
+       "note": "Reinstatement"
+      }
+     ]
+    },
+    "event_relevant": false,
+    "headline": "No reinstatement cost assessment for the building is on record. We report the value as UNESTABLISHED rather than computing a figure with no basis.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "BUILDINGS-VALUE-UNESTABLISHED",
+    "spans": [],
+    "state": "INFORMATION_MISSING",
+    "state_label": "Information missing"
+   },
+   {
+    "class": "UNESTABLISHED",
+    "class_label": "Unestablished — a required input has no document behind it",
+    "detail": {
+     "document": "Endorsement 02 — DELIBERATELY ILLEGIBLE FIXTURE"
+    },
+    "event_relevant": false,
+    "headline": "Endorsement END-02 could not be read (illegible scan). Upload a clearer copy or request the wording from your insurer. The engine will not guess its effect.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "ENDORSEMENT-ILLEGIBLE-ABSTAIN",
+    "spans": [],
+    "state": "INFORMATION_MISSING",
+    "state_label": "Information missing"
+   },
+   {
+    "class": "UNESTABLISHED",
+    "class_label": "Unestablished — a required input has no document behind it",
+    "detail": {
+     "cite": [
+      {
+       "clause": "4.2",
+       "document_kind": "BASE_WORDING",
+       "note": "Average would apply once value is established"
+      }
+     ],
+     "invoice_value": "62000",
+     "plant_sum_insured": "180000"
+    },
+    "event_relevant": false,
+    "headline": "Plant and machinery are insured for a fixed sum, and one third-party invoice is on record (PROVEN for that item), but no complete asset register establishes the total plant value at risk. We report the plant adequacy as UNESTABLISHED rather than computing a ratio against an unknown denominator.",
+    "never": [],
+    "resolution_path": null,
+    "rule_id": "PLANT-ADEQUACY-UNESTABLISHED",
+    "spans": [
+     {
+      "char_end": 1430,
+      "char_start": 1407,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "sum_insured_sgd: 180000",
+      "span_id": "<id>"
+     },
+     {
+      "char_end": 236,
+      "char_start": 219,
+      "document_id": "<id>",
+      "page_no": 1,
+      "quote": "amount_sgd: 62000",
+      "span_id": "<id>"
+     }
+    ],
+    "state": "INFORMATION_MISSING",
+    "state_label": "Information missing"
+   }
+  ],
+  "not_searched": [
+   "MSIG and Liberty full theft clauses — keyword-counted only, not read in full",
+   "JTC lease insurance covenant — unread (trigger row, not a demo dependency)",
+   "Business interruption section — not operative in the Chubb Lite variant"
+  ],
+  "precedence_note": "Precedence asserted by market convention. This policy states no express order of precedence — searched, not found.",
+  "searched": [
+   "Chubb Select+ base wording (28 pp, all pages)",
+   "Policy Schedule (fixture)",
+   "CPF contribution record, WIC schedule, tenancy, accounts, ACRA profile, supplier invoice, endorsements 01 and 02 (fixtures)"
+  ],
+  "source": "DEMO_BUNDLE",
+  "summary": {
+   "abstained": 8,
+   "by_class": {
+    "MARKET_CONVENTION": 1,
+    "PROVEN": 13,
+    "UNESTABLISHED": 3
+   },
+   "by_state": {
+    "DOCUMENTED": 9,
+    "INFORMATION_MISSING": 3,
+    "NOT_CONFIRMED": 1,
+    "REQUIRES_AUTHORISED_REVIEW": 4
+   },
+   "finding_count": 17
+  },
+  "synthetic": true,
+  "synthetic_notice": "SYNTHETIC DEMO DATA — fictional business. The only real document in the pipeline is the Chubb Select+ base wording."
+ },
+ "derived": {
+  "/api/bi": {
+   "body": {
+    "abstained": false,
+    "abstentions": [
+     {
+      "abstained": true,
+      "question": "Is the business interruption sum insured adequate?",
+      "reason": "There is no business interruption sum insured to test. The finding is the absence of the section, not the size of a figure.",
+      "resolved_by": []
+     }
+    ],
+    "available": true,
+    "cover_present": false,
+    "disclaimer": "Deterministic illustration — not a quotation and not advice on what to buy. Sizing a business interruption sum insured is a licensed adviser's determination.",
+    "evidence_base": {
+     "citations": [
+      {
+       "finding": "Up to 43% of business interruption policies underinsured, by an average of 53%.",
+       "source": "Chartered Institute of Loss Adjusters, as reported in an insurer's published SME guidance"
+      },
+      {
+       "finding": "48% of SMEs had a physical premises; of those only 23% carried business interruption insurance.",
+       "source": "ABI, Small Business Big Risk (Jan 2026, Public First, 1,002 SME owners)"
+      },
+      {
+       "finding": "One in five businesses suffer a major disruption each year; around 80% of those affected close within 18 months.",
+       "source": "Sedgwick, reporting UK government research"
+      },
+      {
+       "finding": "Once the indemnity period has elapsed, further loss of profit is not insured.",
+       "source": "Swiss Re"
+      }
+     ],
+     "note": "Business interruption is the gap the industry itself names, which is why this screen exists."
+    },
+    "findings": [
+     {
+      "basis": "PROVEN_FROM_DOCUMENT",
+      "detail": "The schedule's operative sections are ['PROPERTY', 'PUBLIC_AND_PRODUCTS_LIABILITY']. None of them is a business interruption, consequential loss or loss-of-profits section, while the policy does insure physical property. Damage to the premises would therefore be met on the property section, and the trading lost while the premises were unusable would not be met at all. On the declared activity, returning to prior trading would take an estimated 18 months, none of it insured.",
+      "headline": "No business interruption cover on this policy, for a business that trades from insured premises.",
+      "key": "NO_BI_COVER",
+      "numbers": {
+       "recovery_basis": "DECLARED planning assumption, not a measured Singapore statistic. Used to question an indemnity period, never to size a sum insured.",
+       "recovery_rationale": "Premises-dependent production: plant reinstatement, regulatory re-approval and customer re-qualification all sit on the critical path.",
+       "uninsured_recovery_months": 18
+      },
+      "operands": [
+       {
+        "author_class": "INSURER",
+        "document_id": "<id>",
+        "document_kind": "SCHEDULE",
+        "operand": "operative_sections",
+        "page": 1,
+        "quote": "operative_sections:",
+        "value": "['PROPERTY', 'PUBLIC_AND_PRODUCTS_LIABILITY']"
+       },
+       {
+        "author_class": "INSURER",
+        "document_id": "<id>",
+        "document_kind": "SCHEDULE",
+        "operand": "scheduled_premises",
+        "page": 1,
+        "quote": "insured_premises:",
+        "value": "['Unit 03-11, 21 Tai Seng Avenue, Singapore 534054']"
+       },
+       {
+        "author_class": "INSURER",
+        "document_id": "<id>",
+        "document_kind": "SCHEDULE",
+        "operand": "business_description",
+        "page": 1,
+        "quote": "business_description:",
+        "value": "manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade"
+       }
+      ],
+      "severity": "HIGH"
+     }
+    ],
+    "highest_severity": "HIGH",
+    "notice": "Absence of cover is proven from the schedule. Adequacy is computed only where gross profit and an indemnity period are both on record; otherwise the engine abstains and names the document that would resolve it. Recovery-time benchmarks are a declared assumption and are never used to size a sum insured.",
+    "provenance": {
+     "bi_sum_insured": null,
+     "business_description": {
+      "author_class": "INSURER",
+      "document_id": "<id>",
+      "document_kind": "SCHEDULE",
+      "operand": "business_description",
+      "page": 1,
+      "quote": "business_description:",
+      "value": "manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade"
+     },
+     "gross_profit": null,
+     "indemnity_period_months": null,
+     "operative_sections": {
+      "author_class": "INSURER",
+      "document_id": "<id>",
+      "document_kind": "SCHEDULE",
+      "operand": "operative_sections",
+      "page": 1,
+      "quote": "operative_sections:",
+      "value": "['PROPERTY', 'PUBLIC_AND_PRODUCTS_LIABILITY']"
+     },
+     "turnover": null
+    },
+    "recovery_benchmark": {
+     "basis": "DECLARED planning assumption, not a measured Singapore statistic. Used to question an indemnity period, never to size a sum insured.",
+     "months": 18,
+     "rationale": "Premises-dependent production: plant reinstatement, regulatory re-approval and customer re-qualification all sit on the critical path."
+    },
+    "section_matching": {
+     "matched": [],
+     "names_searched": [
+      "BUSINESS_INTERRUPTION",
+      "BUSINESS INTERRUPTION",
+      "CONSEQUENTIAL_LOSS",
+      "CONSEQUENTIAL LOSS",
+      "LOSS_OF_PROFITS",
+      "LOSS OF PROFITS",
+      "PROFITS",
+      "REVENUE",
+      "GROSS_PROFIT",
+      "GROSS PROFIT",
+      "BUSINESS_INCOME",
+      "BUSINESS INCOME",
+      "TIME_ELEMENT",
+      "TIME ELEMENT"
+     ],
+     "note": "Matched against the whole family of section names carriers use for this cover, not one literal, so a policy calling it consequential loss is not mis-reported as having no cover."
+    }
+   },
+   "status": 200
+  },
+  "/api/blindspots": {
+   "body": {
+    "areas": [
+     {
+      "checked": [
+       "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure s",
+       "No reinstatement cost assessment for the building is on record. We report the value as UNESTABLISHED rather than computing a figure with no basis.",
+       "Plant and machinery are insured for a fixed sum, and one third-party invoice is on record (PROVEN for that item), but no complete asset register establishes the total plant value at risk. We report th",
+       "Theft is covered only where there was violent or forcible entry to a Building. Your Schedule does not elect Additional Extension 2.17, so shoplifting and employee theft are outside cover.",
+       "Two endorsements amend the food-and-drink liability sub-limit to different figures (END-03 = S$5000, END-04 = S$25000) at the same authority rank, with neither stating it supersedes the other. Precede"
+      ],
+      "could_not_check": [],
+      "finding_count": 5,
+      "key": "property",
+      "label": "Property and assets",
+      "plain": "Buildings, stock, plant and fittings, and whether the sums insured keep up with what you actually hold.",
+      "score": 40,
+      "state": "ASSESSED",
+      "state_label": "Checked",
+      "state_plain": "We read the documents this needs and we have an answer for you.",
+      "unlocking_document": "Management accounts and an asset register",
+      "unlocks_what": "What your stock and equipment are really worth today."
+     },
+     {
+      "checked": [
+       "Business-interruption cover was searched for and not confirmed. The Schedule's operative sections list Property and Public/Products Liability only; no business interruption section is present in this "
+      ],
+      "could_not_check": [],
+      "finding_count": 1,
+      "key": "continuity",
+      "label": "Trading through a loss",
+      "plain": "Whether income is insured while you cannot trade.",
+      "score": 90,
+      "state": "ASSESSED",
+      "state_label": "Checked",
+      "state_plain": "We read the documents this needs and we have an answer for you.",
+      "unlocking_document": "Your policy schedule showing operative sections",
+      "unlocks_what": "Whether you hold a business interruption section at all."
+     },
+     {
+      "checked": [
+       "<quotes the published wording: 200 chars, sha256 d3714521eb9b0162aabaf26e563a01b816ac14ed229e7b6a9c455d886d88bb71>",
+       "<quotes the published wording: 200 chars, sha256 13bc158dac0b5bbfca1909e1290de5572da6e2d6d83edae05bd031d8ccb14198>",
+       "The ACRA profile carries a secondary activity (Retail sale via online platforms) that the policy's business description (manufacture of prepared meals and sauces; wholesale to grocery and hospitality ",
+       "Endorsement END-02 could not be read (illegible scan). Upload a clearer copy or request the wording from your insurer. The engine will not guess its effect."
+      ],
+      "could_not_check": [],
+      "finding_count": 4,
+      "key": "obligations",
+      "label": "Conditions you must meet",
+      "plain": "Warranties, premium payment terms and notification duties that can stop a policy responding.",
+      "score": 52,
+      "state": "ASSESSED",
+      "state_label": "Checked",
+      "state_plain": "We read the documents this needs and we have an answer for you.",
+      "unlocking_document": "The full policy wording and every endorsement",
+      "unlocks_what": "Which conditions attach, and by when."
+     },
+     {
+      "checked": [
+       "Your work injury schedule declares 11 employees; the CPF contribution record shows 14. Both are third-party or insurer documents, so this is a PROVEN discrepancy.",
+       "At least one Work Permit holder carries medical insurance below the S$60,000 annual minimum required per migrant worker. Both figures are from the authority-authored work pass list, so this is a PROVE"
+      ],
+      "could_not_check": [],
+      "finding_count": 2,
+      "key": "workforce",
+      "label": "Your people",
+      "plain": "Compulsory work injury cover and migrant worker obligations.",
+      "score": 64,
+      "state": "ASSESSED",
+      "state_label": "Checked",
+      "state_plain": "We read the documents this needs and we have an answer for you.",
+      "unlocking_document": "CPF contribution record and work injury schedule",
+      "unlocks_what": "Whether your declared headcount matches who you employ."
+     },
+     {
+      "checked": [
+       "Established that you hold customers personal data.",
+       "Established that you hold employees personal data.",
+       "Read your policy's position: Your policy excludes it in writing."
+      ],
+      "could_not_check": [],
+      "finding_count": 5,
+      "key": "digital",
+      "label": "Data and systems",
+      "plain": "Personal data you hold, and whether anything responds when it is lost or stolen.",
+      "score": 82,
+      "state": "ASSESSED",
+      "state_label": "Checked",
+      "state_plain": "We read the documents this needs and we have an answer for you.",
+      "unlocking_document": "Your ACRA profile and policy wording",
+      "unlocks_what": "Whether you are inside the PDPA, and whether your policy excludes data loss."
+     },
+     {
+      "checked": [
+       "Found: SYNTHETIC EQUIPMENT SUPPLIER PTE LTD.",
+       "Found: Electricity supply to your cold storage.",
+       "Found: Your route to customers.",
+       "Found: Your landlord and the building."
+      ],
+      "could_not_check": [
+       "Your supplier list or purchase ledger — would establish Who you buy from, and how concentrated that is.",
+       "Your top-customer revenue split — would establish Whether one customer leaving would stop the business.",
+       "Your list of critical software and platforms — would establish Which systems you cannot trade without."
+      ],
+      "finding_count": 10,
+      "key": "dependencies",
+      "label": "Who you depend on",
+      "plain": "Suppliers, utilities, landlords and channels your income relies on.",
+      "score": null,
+      "state": "PARTIAL",
+      "state_label": "Partly checked",
+      "state_plain": "We answered part of this. The rest needs a document we do not have.",
+      "unlocking_document": "Your supplier list and tenancy agreement",
+      "unlocks_what": "Which outside failures would stop you trading."
+     }
+    ],
+    "counts": {
+     "assessed": 5,
+     "not_assessed": 0,
+     "partial": 1,
+     "total_areas": 6
+    },
+    "coverage": {
+     "areas_total": 6,
+     "areas_we_can_speak_to": 6,
+     "percent": 100,
+     "statement": "We can speak to 6 of 6 areas of your protection. Your score is calculated only from those 6."
+    },
+    "method": "DETERMINISTIC",
+    "not_assessed": [],
+    "notice": "Nothing on this screen is a prediction or a severity. An area we did not check is not automatically dangerous — it is simply unknown, and it is listed by what it would take to find out rather than by how bad it might be.",
+    "score_caveat": {
+     "applies": true,
+     "excluded_areas": [],
+     "overall": 68,
+     "statement": "Your score covers every area in the register. Nothing was left out of it."
+    },
+    "silent_gap_count": 1,
+    "silent_gaps": [
+     {
+      "area": "dependencies",
+      "area_label": "Who you depend on",
+      "resolved_by": "Your supplier list and tenancy agreement",
+      "resolving_establishes": "Which outside failures would stop you trading.",
+      "state": "PARTIAL",
+      "what_we_could_not_check": "Your supplier list or purchase ledger — would establish Who you buy from, and how concentrated that is.",
+      "why_quiet_is_not_safe": "With nothing to read, who you depend on produces no findings. An area with no findings looks exactly like an area with no problems."
+     }
+    ],
+    "why_this_screen_exists": "Every other screen tells you what we found. This one tells you where we could not look, because an empty screen and a clean screen look identical and only one of them is good news."
+   },
+   "status": 200
+  },
+  "/api/cyber": {
+   "body": {
+    "available": true,
+    "cost_heads": [
+     {
+      "head": "Finding out what happened",
+      "plain": "A forensic investigation to establish which records were taken and how.",
+      "responds": "NOTHING",
+      "why": "A property section responds to physical damage to insured property. Data is not physical property, so there is nothing for it to attach to."
+     },
+     {
+      "head": "Telling the regulator and your customers",
+      "plain": "The PDPA requires notifying the PDPC within 3 days of assessing a breach as notifiable, and notifying affected individuals where significant harm is likely.",
+      "responds": "NOTHING",
+      "why": "Notification is a statutory duty owed to the regulator and to individuals. It is a compliance cost, not damage to property, so no property or liability section reaches it."
+     },
+     {
+      "head": "Getting your systems and records back",
+      "plain": "Restoring data from backups, rebuilding systems, and paying for the time it takes.",
+      "responds": "NOTHING",
+      "why": "Rebuilding data is not repair of insured property. The property section measures loss by the cost of reinstating physical items."
+     },
+     {
+      "head": "A PDPC financial penalty",
+      "plain": "The Commission may impose a financial penalty where it finds the Protection Obligation was breached.",
+      "responds": "NOTHING",
+      "why": "A financial penalty is imposed on the business for its own conduct. Liability cover responds to what you owe someone else, and penalties are commonly excluded or uninsurable in part."
+     },
+     {
+      "head": "Income lost while you are down",
+      "plain": "Trading stops or slows while systems are rebuilt.",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section at all, so income lost during downtime is not insured from any cause — cyber or otherwise."
+     },
+     {
+      "head": "Claims from the people whose data was taken",
+      "plain": "Individuals affected by a breach may bring a claim.",
+      "responds": "REVIEW",
+      "why": "You hold a public and products liability section. It responds to injury and physical damage; whether it reaches a pure data loss depends on its definitions and any cyber exclusion, which needs a licensed adviser."
+     }
+    ],
+    "cover_label": "Your policy excludes it in writing",
+    "cover_state": "EXCLUDED",
+    "evidence_class": "PROVEN",
+    "exclusion": {
+     "author_class": "INSURER",
+     "document_kind": "BASE_WORDING",
+     "evidence_class": "PROVEN",
+     "page_no": 9,
+     "quote": "<quotes the published wording: 170 chars, sha256 5c8f5966a7e924d9a373ad8fc01d4e14401faf765eda19ec671e99578fbbd488>",
+     "why_it_matters": "This is your insurer, in its own document, saying this is not covered. It is the strongest kind of evidence we can show you — there is nothing to argue about."
+    },
+    "gap_open": true,
+    "holdings": [
+     {
+      "author_class": "AUTHORITY",
+      "basis": "Your ACRA business profile records an online sales channel. Selling online means collecting customer names, contact details and delivery addresses, which are personal data under the PDPA.",
+      "count": null,
+      "document_kind": "ACRA_PROFILE",
+      "evidence_class": "PROVEN",
+      "page_no": null,
+      "quote": "Retail sale via online platforms",
+      "subject": "Customers"
+     },
+     {
+      "author_class": "AUTHORITY",
+      "basis": "Your CPF contribution record evidences 14 employees. Payroll, NRIC and bank details are personal data, and an employer holds them whether or not it sells anything online.",
+      "count": 14,
+      "document_kind": "CPF_RECORD",
+      "evidence_class": "PROVEN",
+      "page_no": null,
+      "quote": "contributor_count: 14",
+      "subject": "Employees"
+     }
+    ],
+    "method": "DETERMINISTIC",
+    "notice": "Everything above is read from your own documents. We do not scan your network, estimate how likely a breach is, or price one. What we can show you is that you hold personal data and what your policy says about responding to its loss.",
+    "review_count": 1,
+    "statutory": {
+     "authority": "PDPC, Advisory Guidelines on Enforcement of the Data Protection Provisions (30 September 2022)",
+     "not_a_prediction": "This is the statutory ceiling, not an expected cost. The PDPC assesses harm and culpability case by case. We do not predict penalties and this figure must not be read as one.",
+     "notifiable_scale": 500,
+     "notification_duty": "A breach must be notified to the PDPC if it is likely to cause significant harm to affected individuals, or affects at least 500 individuals. Notification to the PDPC is due within 3 calendar days of assessing it as notifiable.",
+     "penalty_ceiling_basis": "From 2022-10-01 the maximum financial penalty is S$1,000,000, or 10% of annual turnover in Singapore where that turnover exceeds S$10,000,000, whichever is higher.",
+     "penalty_ceiling_sgd": "1000000",
+     "regime": "Personal Data Protection Act 2012 (Singapore)",
+     "which_branch_applies": "We have not established your annual turnover in Singapore from your documents, so we cannot tell you which branch applies. For a business under the S$10 million threshold the ceiling is S$1,000,000."
+    },
+    "uncovered_count": 5,
+    "unestablished": []
+   },
+   "status": 200
+  },
+  "/api/gap-summary": {
+   "body": {
+    "available": true,
+    "best_next_action": {
+     "basis": "Ranked by how much it would settle, not by how bad it looks.",
+     "because": "A surveyor's reinstatement assessment is the only document that establishes what the building would cost to rebuild.",
+     "settles": "UNBOUNDED",
+     "what": "Send us your reinstatement cost assessment"
+    },
+    "categories": [
+     {
+      "category": "ACTION_REQUIRED",
+      "colour_hint": "red",
+      "count": 15,
+      "icon": "!",
+      "items": [
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "WORKPASS-MEDICAL-BELOW-MINIMUM",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "At least one Work Permit holder carries medical insurance below the S$60,000 annual minimum required per migrant worker. Both figures are from the authority-authored work pass list, so this is a PROVEN discrepancy.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "UNOCCUPANCY-WATER-EXCLUSION",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Escape-of-water cover is excluded once the premises are Vacant beyond the day count this policy states (Chubb: 14 days, cl 5.1(b)(v)). \"Vacant\" is defined broadly at cl 2.35 — non-occupation during normal working hours counts. The day count is read from this clause instance, never generalised across carriers.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "CLAIM-TIME-LIMIT",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "<quotes the published wording: 217 chars, sha256 ecb04d1a0f2cfc8a560f3afde8afcfd794bbc7716fd61ebfb76b7a338d7acfd8>",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "PREMIUM-PAYMENT-WARRANTY-TIMING",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "<quotes the published wording: 213 chars, sha256 3bff28176fc40770bd832301f5c6e5876c620342e7c5b7135047bac1ead996d2>",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Requires authorised review"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": null,
+        "icon": "!",
+        "key": "dependencies",
+        "resolved_by": null,
+        "source": "Who you depend on",
+        "title": "Supplier dependency cover cannot attach — you hold no business interruption section",
+        "tone": "critical",
+        "verbatim_from_engine": false,
+        "why": "Not possible — you hold no business interruption section"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "ACTIVITY-SSIC-NOT-DECLARED",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "The ACRA profile carries a secondary activity (Retail sale via online platforms) that the policy's business description (manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade) does not reflect. Whether this is a material alteration under cl 3.1 or a disclosure question under cl 3.13 is a judgement for a licensed adviser. We locate and quote; we do not conclude.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Requires authorised review"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Theft is covered only where there was violent or forcible entry to a Building. Your Schedule does not elect Additional Extension 2.17, so shoplifting and employee theft are outside cover.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "SUBLIMIT-CONFLICTING-ENDORSEMENTS",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Two endorsements amend the food-and-drink liability sub-limit to different figures (END-03 = S$5000, END-04 = S$25000) at the same authority rank, with neither stating it supersedes the other. Precedence could not be established from the documents, so this is routed to a licensed adviser rather than resolved by the engine.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Requires authorised review"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "MINIMUM-SECURITY",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "When no one is on the premises, all external doors and internal doors to common areas must be locked and secured and all ground-floor and accessible windows securely closed (cl 4.9). This is a physically verifiable control that interacts with the theft exclusion.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "CYBER-DATA-COVER-ABSENT",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Your ACRA profile records an online activity, so you collect customer personal data. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY — none of which responds to a data breach. Both figures are from an authority document and an insurer document, so this is a PROVEN absence rather than an assumption.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "DEPENDENCY-COVER-NOT-POSSIBLE",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Your documents evidence 2 outside dependency/dependencies that your income relies on. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY, which include no business interruption section. Cover for income lost when a supplier, utility or landlord fails is normally an extension to that section, so there is nothing for it to attach to.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "cyber",
+        "resolved_by": null,
+        "source": "Cyber and data",
+        "title": "Your policy excludes cover for data loss in writing",
+        "tone": "critical",
+        "verbatim_from_engine": false,
+        "why": "Your policy excludes it in writing"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "MARKET_CONVENTION",
+        "icon": "!",
+        "key": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure shown is an illustration — where the wording states no formula it is labelled market convention, never \"amount payable\".",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "<quotes the published wording: 350 chars, sha256 1579a739eba2501ad224d441994d678b34d9984fe10662681c0b43bcbff3f90d>",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Requires authorised review"
+       },
+       {
+        "age_days": null,
+        "category": "ACTION_REQUIRED",
+        "category_label": "Action required",
+        "category_plain": "We can show you the documents that prove this needs attention.",
+        "colour_hint": "red",
+        "evidence_class": "PROVEN",
+        "icon": "!",
+        "key": "WICA-HEADCOUNT-UNDERDECLARED",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Your work injury schedule declares 11 employees; the CPF contribution record shows 14. Both are third-party or insurer documents, so this is a PROVEN discrepancy.",
+        "tone": "critical",
+        "verbatim_from_engine": true,
+        "why": "Documented"
+       }
+      ],
+      "label": "Action required",
+      "plain": "We can show you the documents that prove this needs attention.",
+      "tone": "critical"
+     },
+     {
+      "category": "NEEDS_VERIFICATION",
+      "colour_hint": "amber",
+      "count": 4,
+      "icon": "?",
+      "items": [
+       {
+        "age_days": 121,
+        "category": "NEEDS_VERIFICATION",
+        "category_label": "Needs verification",
+        "category_plain": "This might be a problem. We cannot confirm it yet, and we are not going to tell you it is one until we can.",
+        "colour_hint": "amber",
+        "evidence_class": "PROVEN",
+        "icon": "?",
+        "key": "loop:You added an activity on the register",
+        "resolved_by": "A schedule amendment updating your business description, and a conversation about whether the new activity needs different cover.",
+        "source": "Timeline",
+        "title": "You added an activity on the register",
+        "tone": "warning",
+        "verbatim_from_engine": true,
+        "why": "ACRA records a secondary activity: \"Retail sale via online platforms\". Your schedule's business description does not mention it. We do not know the date this was filed, so it is shown at policy inception."
+       },
+       {
+        "age_days": 29,
+        "category": "NEEDS_VERIFICATION",
+        "category_label": "Needs verification",
+        "category_plain": "This might be a problem. We cannot confirm it yet, and we are not going to tell you it is one until we can.",
+        "colour_hint": "amber",
+        "evidence_class": "PROVEN",
+        "icon": "?",
+        "key": "loop:You took on another unit",
+        "resolved_by": "An endorsement adding the second unit to your schedule, or the endorsement you already hold if we have not seen it.",
+        "source": "Timeline",
+        "title": "You took on another unit",
+        "tone": "warning",
+        "verbatim_from_engine": true,
+        "why": "Your tenancy covers 2 units: Unit 03-11, 21 Tai Seng Avenue; Unit 03-12, 21 Tai Seng Avenue."
+       },
+       {
+        "age_days": null,
+        "category": "NEEDS_VERIFICATION",
+        "category_label": "Needs verification",
+        "category_plain": "This might be a problem. We cannot confirm it yet, and we are not going to tell you it is one until we can.",
+        "colour_hint": "amber",
+        "evidence_class": "PROVEN",
+        "icon": "?",
+        "key": "BUSINESS-INTERRUPTION-NOT-CONFIRMED",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Business-interruption cover was searched for and not confirmed. The Schedule's operative sections list Property and Public/Products Liability only; no business interruption section is present in this variant. \"Not confirmed\" is not \"not covered\" — it states exactly what the reviewed documents do and do not show.",
+        "tone": "warning",
+        "verbatim_from_engine": true,
+        "why": "Not confirmed in reviewed documents"
+       },
+       {
+        "age_days": 0,
+        "category": "NEEDS_VERIFICATION",
+        "category_label": "Needs verification",
+        "category_plain": "This might be a problem. We cannot confirm it yet, and we are not going to tell you it is one until we can.",
+        "colour_hint": "amber",
+        "evidence_class": "DECLARED",
+        "icon": "?",
+        "key": "loop:Your stock outgrew its sum insured",
+        "resolved_by": "An endorsement raising the stock sum insured to what you actually carry.",
+        "source": "Timeline",
+        "title": "Your stock outgrew its sum insured",
+        "tone": "warning",
+        "verbatim_from_engine": true,
+        "why": "Accounts show S$150,000 of stock against S$100,000 insured."
+       }
+      ],
+      "label": "Needs verification",
+      "plain": "This might be a problem. We cannot confirm it yet, and we are not going to tell you it is one until we can.",
+      "tone": "warning"
+     },
+     {
+      "category": "NOT_YET_ASSESSED",
+      "colour_hint": "grey",
+      "count": 6,
+      "icon": "–",
+      "items": [
+       {
+        "age_days": null,
+        "category": "NOT_YET_ASSESSED",
+        "category_label": "Not yet assessed",
+        "category_plain": "We have not looked at this. That is not the same as it being wrong.",
+        "colour_hint": "grey",
+        "evidence_class": null,
+        "icon": "–",
+        "key": "voi:total_plant_value",
+        "resolved_by": "Complete asset register",
+        "source": "What would help",
+        "title": "Complete asset register would settle this",
+        "tone": "neutral",
+        "verbatim_from_engine": false,
+        "why": "One invoice evidences one machine. Adequacy needs the total value of plant at risk, which only a full register establishes."
+       },
+       {
+        "age_days": null,
+        "category": "NOT_YET_ASSESSED",
+        "category_label": "Not yet assessed",
+        "category_plain": "We have not looked at this. That is not the same as it being wrong.",
+        "colour_hint": "grey",
+        "evidence_class": "UNESTABLISHED",
+        "icon": "–",
+        "key": "ENDORSEMENT-ILLEGIBLE-ABSTAIN",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Endorsement END-02 could not be read (illegible scan). Upload a clearer copy or request the wording from your insurer. The engine will not guess its effect.",
+        "tone": "neutral",
+        "verbatim_from_engine": true,
+        "why": "Information missing"
+       },
+       {
+        "age_days": null,
+        "category": "NOT_YET_ASSESSED",
+        "category_label": "Not yet assessed",
+        "category_plain": "We have not looked at this. That is not the same as it being wrong.",
+        "colour_hint": "grey",
+        "evidence_class": null,
+        "icon": "–",
+        "key": "voi:endorsement_effect",
+        "resolved_by": "Legible copy of the endorsement",
+        "source": "What would help",
+        "title": "Legible copy of the endorsement would settle this",
+        "tone": "neutral",
+        "verbatim_from_engine": false,
+        "why": "An endorsement can amend any term in the policy, so an unreadable one leaves every finding it touches provisional. Its effect cannot be priced without reading it."
+       },
+       {
+        "age_days": null,
+        "category": "NOT_YET_ASSESSED",
+        "category_label": "Not yet assessed",
+        "category_plain": "We have not looked at this. That is not the same as it being wrong.",
+        "colour_hint": "grey",
+        "evidence_class": "UNESTABLISHED",
+        "icon": "–",
+        "key": "BUILDINGS-VALUE-UNESTABLISHED",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "No reinstatement cost assessment for the building is on record. We report the value as UNESTABLISHED rather than computing a figure with no basis.",
+        "tone": "neutral",
+        "verbatim_from_engine": true,
+        "why": "Information missing"
+       },
+       {
+        "age_days": null,
+        "category": "NOT_YET_ASSESSED",
+        "category_label": "Not yet assessed",
+        "category_plain": "We have not looked at this. That is not the same as it being wrong.",
+        "colour_hint": "grey",
+        "evidence_class": "UNESTABLISHED",
+        "icon": "–",
+        "key": "PLANT-ADEQUACY-UNESTABLISHED",
+        "resolved_by": null,
+        "source": "Your documents",
+        "title": "Plant and machinery are insured for a fixed sum, and one third-party invoice is on record (PROVEN for that item), but no complete asset register establishes the total plant value at risk. We report the plant adequacy as UNESTABLISHED rather than computing a ratio against an unknown denominator.",
+        "tone": "neutral",
+        "verbatim_from_engine": true,
+        "why": "Information missing"
+       },
+       {
+        "age_days": null,
+        "category": "NOT_YET_ASSESSED",
+        "category_label": "Not yet assessed",
+        "category_plain": "We have not looked at this. That is not the same as it being wrong.",
+        "colour_hint": "grey",
+        "evidence_class": null,
+        "icon": "–",
+        "key": "voi:building_value",
+        "resolved_by": "Reinstatement cost assessment",
+        "source": "What would help",
+        "title": "Reinstatement cost assessment would settle this",
+        "tone": "neutral",
+        "verbatim_from_engine": false,
+        "why": "A surveyor's reinstatement assessment is the only document that establishes what the building would cost to rebuild."
+       }
+      ],
+      "label": "Not yet assessed",
+      "plain": "We have not looked at this. That is not the same as it being wrong.",
+      "tone": "neutral"
+     }
+    ],
+    "composed_from": [
+     "/api/brief",
+     "/api/score",
+     "/api/blindspots",
+     "/api/cyber",
+     "/api/supply-chain",
+     "/api/information-value",
+     "/api/compounding"
+    ],
+    "counts": {
+     "ACTION_REQUIRED": 15,
+     "NEEDS_VERIFICATION": 4,
+     "NOT_YET_ASSESSED": 6
+    },
+    "executive_summary": "15 thing(s) need action, and 4 cannot be confirmed yet, and 6 area(s) have not been assessed. Your score covers 6 of 6 areas.",
+    "language_rules": {
+     "not_colour_alone": "Every status carries an icon and a label as well as a colour.",
+     "unassessed_is_not_uncovered": "An area we did not examine is neutral. It is not rendered as a risk and carries no severity.",
+     "uncertain_is_not_a_gap": "Something we cannot confirm is reported as needing verification, never as a gap."
+    },
+    "method": "COMPOSITION_ONLY",
+    "notice": "This screen groups and words results the engine already produced. It evaluates nothing of its own, so it cannot disagree with the screen you came from.",
+    "oldest_open_days": 121,
+    "top_three": [
+     {
+      "age_days": null,
+      "category": "ACTION_REQUIRED",
+      "category_label": "Action required",
+      "category_plain": "We can show you the documents that prove this needs attention.",
+      "colour_hint": "red",
+      "evidence_class": "PROVEN",
+      "icon": "!",
+      "key": "WORKPASS-MEDICAL-BELOW-MINIMUM",
+      "resolved_by": null,
+      "source": "Your documents",
+      "title": "At least one Work Permit holder carries medical insurance below the S$60,000 annual minimum required per migrant worker. Both figures are from the authority-authored work pass list, so this is a PROVEN discrepancy.",
+      "tone": "critical",
+      "verbatim_from_engine": true,
+      "why": "Documented"
+     },
+     {
+      "age_days": null,
+      "category": "ACTION_REQUIRED",
+      "category_label": "Action required",
+      "category_plain": "We can show you the documents that prove this needs attention.",
+      "colour_hint": "red",
+      "evidence_class": "PROVEN",
+      "icon": "!",
+      "key": "UNOCCUPANCY-WATER-EXCLUSION",
+      "resolved_by": null,
+      "source": "Your documents",
+      "title": "Escape-of-water cover is excluded once the premises are Vacant beyond the day count this policy states (Chubb: 14 days, cl 5.1(b)(v)). \"Vacant\" is defined broadly at cl 2.35 — non-occupation during normal working hours counts. The day count is read from this clause instance, never generalised across carriers.",
+      "tone": "critical",
+      "verbatim_from_engine": true,
+      "why": "Documented"
+     },
+     {
+      "age_days": null,
+      "category": "ACTION_REQUIRED",
+      "category_label": "Action required",
+      "category_plain": "We can show you the documents that prove this needs attention.",
+      "colour_hint": "red",
+      "evidence_class": "PROVEN",
+      "icon": "!",
+      "key": "CLAIM-TIME-LIMIT",
+      "resolved_by": null,
+      "source": "Your documents",
+      "title": "<quotes the published wording: 217 chars, sha256 ecb04d1a0f2cfc8a560f3afde8afcfd794bbc7716fd61ebfb76b7a338d7acfd8>",
+      "tone": "critical",
+      "verbatim_from_engine": true,
+      "why": "Documented"
+     }
+    ],
+    "total": 25,
+    "unassessed_count": 6,
+    "uncertain_count": 4
+   },
+   "status": 200
+  },
+  "/api/information-value": {
+   "body": {
+    "available": true,
+    "caveat": "Bounds carry their basis. EVIDENCED means read from a document in this bundle; ASSUMED_RANGE means a declared multiple rather than a reading, and is stated so it can never be mistaken for evidence; ZERO is the floor. UNBOUNDED means nothing here bounds it at all, so no interval and no percentage is shown. Statutory gaps get no interval because their consequence is a penalty and a deadline rather than a range of payouts. Every operand listed here will remain UNESTABLISHED until the document actually arrives — nothing on this page changes a finding.",
+    "count": 3,
+    "gaps": [
+     {
+      "author_class": "THIRD_PARTY",
+      "becomes_class": "PROVEN",
+      "document_kind": "REINSTATEMENT_VALUATION",
+      "document_needed": "Reinstatement cost assessment",
+      "interval": null,
+      "note": "A surveyor's reinstatement assessment is the only document that establishes what the building would cost to rebuild.",
+      "operand": "building_value",
+      "share_of_total": null,
+      "still_unestablished_until_supplied": true,
+      "unbounded": true,
+      "uncertainty_removed": "UNBOUNDED"
+     },
+     {
+      "author_class": "INSURER",
+      "becomes_class": "PROVEN",
+      "document_kind": "ENDORSEMENT",
+      "document_needed": "Legible copy of the endorsement",
+      "interval": null,
+      "note": "An endorsement can amend any term in the policy, so an unreadable one leaves every finding it touches provisional. Its effect cannot be priced without reading it.",
+      "operand": "endorsement_effect",
+      "share_of_total": null,
+      "still_unestablished_until_supplied": true,
+      "unbounded": true,
+      "uncertainty_removed": "UNBOUNDED"
+     },
+     {
+      "author_class": "THIRD_PARTY",
+      "becomes_class": "PROVEN",
+      "document_kind": "ASSET_REGISTER",
+      "document_needed": "Complete asset register",
+      "interval": {
+       "high": "180000",
+       "high_basis": "EVIDENCED",
+       "low": "0",
+       "low_basis": "ZERO",
+       "unit": "SGD",
+       "width": "180000"
+      },
+      "note": "One invoice evidences one machine. Adequacy needs the total value of plant at risk, which only a full register establishes.",
+      "operand": "total_plant_value",
+      "share_of_total": "100%",
+      "still_unestablished_until_supplied": true,
+      "unbounded": false,
+      "uncertainty_removed": "180000"
+     }
+    ],
+    "method": "Each unevidenced operand is ranked by the width of the exposure it leaves open, not by any guess at its value. An exposure nothing in the bundle bounds is reported as UNBOUNDED and ranked first, because a gap of unknown size is not a small one. This is a measure of what is not known — not a prediction of what the figure will turn out to be.",
+    "recommendation": "Obtain: Reinstatement cost assessment. Nothing in the documents supplied bounds this exposure, so its size is unknown rather than small — which is why it is ranked above gaps that do carry a figure. Obtaining it would make building value proven rather than unestablished.",
+    "total_uncertainty": "180000",
+    "unbounded_count": 2
+   },
+   "status": 200
+  },
+  "/api/score": {
+   "body": {
+    "assessed_dimensions": 6,
+    "available": true,
+    "dimensions": [
+     {
+      "assessed": true,
+      "deductions": [
+       {
+        "evidence_class": "MARKET_CONVENTION",
+        "headline": "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure s",
+        "points": 16,
+        "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",
+        "state": "DOCUMENTED"
+       },
+       {
+        "evidence_class": "UNESTABLISHED",
+        "headline": "No reinstatement cost assessment for the building is on record. We report the value as UNESTABLISHED rather than computing a figure with no basis.",
+        "points": 6,
+        "rule_id": "BUILDINGS-VALUE-UNESTABLISHED",
+        "state": "INFORMATION_MISSING"
+       },
+       {
+        "evidence_class": "UNESTABLISHED",
+        "headline": "Plant and machinery are insured for a fixed sum, and one third-party invoice is on record (PROVEN for that item), but no complete asset register establishes the total plant value at risk. We report th",
+        "points": 6,
+        "rule_id": "PLANT-ADEQUACY-UNESTABLISHED",
+        "state": "INFORMATION_MISSING"
+       },
+       {
+        "evidence_class": "PROVEN",
+        "headline": "Theft is covered only where there was violent or forcible entry to a Building. Your Schedule does not elect Additional Extension 2.17, so shoplifting and employee theft are outside cover.",
+        "points": 18,
+        "rule_id": "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK",
+        "state": "DOCUMENTED"
+       },
+       {
+        "evidence_class": "PROVEN",
+        "headline": "Two endorsements amend the food-and-drink liability sub-limit to different figures (END-03 = S$5000, END-04 = S$25000) at the same authority rank, with neither stating it supersedes the other. Precede",
+        "points": 14,
+        "rule_id": "SUBLIMIT-CONFLICTING-ENDORSEMENTS",
+        "state": "REQUIRES_AUTHORISED_REVIEW"
+       }
+      ],
+      "description": "Buildings, stock, plant and equipment.",
+      "key": "property",
+      "label": "Property & assets",
+      "reason": "5 item(s) reduced this. Largest: Theft is covered only where there was violent or forcible entry to a Building. Your Schedule does not elect Additional E",
+      "score": 40
+     },
+     {
+      "assessed": true,
+      "deductions": [
+       {
+        "evidence_class": "PROVEN",
+        "headline": "Business-interruption cover was searched for and not confirmed. The Schedule's operative sections list Property and Public/Products Liability only; no business interruption section is present in this ",
+        "points": 10,
+        "rule_id": "BUSINESS-INTERRUPTION-NOT-CONFIRMED",
+        "state": "NOT_CONFIRMED"
+       }
+      ],
+      "description": "Cover for lost income if you cannot trade.",
+      "key": "continuity",
+      "label": "Business continuity",
+      "reason": "1 item(s) reduced this. Largest: Business-interruption cover was searched for and not confirmed. The Schedule's operative sections list Property and Publ",
+      "score": 90
+     },
+     {
+      "assessed": true,
+      "deductions": [
+       {
+        "evidence_class": "PROVEN",
+        "headline": "<quotes the published wording: 200 chars, sha256 d3714521eb9b0162aabaf26e563a01b816ac14ed229e7b6a9c455d886d88bb71>",
+        "points": 14,
+        "rule_id": "PREMIUM-PAYMENT-WARRANTY-TIMING",
+        "state": "REQUIRES_AUTHORISED_REVIEW"
+       },
+       {
+        "evidence_class": "PROVEN",
+        "headline": "<quotes the published wording: 200 chars, sha256 13bc158dac0b5bbfca1909e1290de5572da6e2d6d83edae05bd031d8ccb14198>",
+        "points": 14,
+        "rule_id": "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
+        "state": "REQUIRES_AUTHORISED_REVIEW"
+       },
+       {
+        "evidence_class": "PROVEN",
+        "headline": "The ACRA profile carries a secondary activity (Retail sale via online platforms) that the policy's business description (manufacture of prepared meals and sauces; wholesale to grocery and hospitality ",
+        "points": 14,
+        "rule_id": "ACTIVITY-SSIC-NOT-DECLARED",
+        "state": "REQUIRES_AUTHORISED_REVIEW"
+       },
+       {
+        "evidence_class": "UNESTABLISHED",
+        "headline": "Endorsement END-02 could not be read (illegible scan). Upload a clearer copy or request the wording from your insurer. The engine will not guess its effect.",
+        "points": 6,
+        "rule_id": "ENDORSEMENT-ILLEGIBLE-ABSTAIN",
+        "state": "INFORMATION_MISSING"
+       }
+      ],
+      "description": "Conditions you must meet for the policy to respond.",
+      "key": "obligations",
+      "label": "Policy obligations",
+      "reason": "4 item(s) reduced this. Largest: Premium appears to have been received on day 71 of the policy period. cl 3.20 provides that cover is automatically termi",
+      "score": 52
+     },
+     {
+      "assessed": true,
+      "deductions": [
+       {
+        "evidence_class": "PROVEN",
+        "headline": "Your work injury schedule declares 11 employees; the CPF contribution record shows 14. Both are third-party or insurer documents, so this is a PROVEN discrepancy.",
+        "points": 18,
+        "rule_id": "WICA-HEADCOUNT-UNDERDECLARED",
+        "state": "DOCUMENTED"
+       },
+       {
+        "evidence_class": "PROVEN",
+        "headline": "At least one Work Permit holder carries medical insurance below the S$60,000 annual minimum required per migrant worker. Both figures are from the authority-authored work pass list, so this is a PROVE",
+        "points": 18,
+        "rule_id": "WORKPASS-MEDICAL-BELOW-MINIMUM",
+        "state": "DOCUMENTED"
+       }
+      ],
+      "description": "Work injury and migrant worker obligations.",
+      "key": "workforce",
+      "label": "Workforce",
+      "reason": "2 item(s) reduced this. Largest: Your work injury schedule declares 11 employees; the CPF contribution record shows 14. Both are third-party or insurer d",
+      "score": 64
+     },
+     {
+      "assessed": true,
+      "deductions": [
+       {
+        "evidence_class": "PROVEN",
+        "headline": "Your ACRA profile records an online activity, so you collect customer personal data. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY — none of which responds to a d",
+        "points": 18,
+        "rule_id": "CYBER-DATA-COVER-ABSENT",
+        "state": "DOCUMENTED"
+       }
+      ],
+      "description": "Cyber exposure and customer data.",
+      "key": "digital",
+      "label": "Digital & data",
+      "reason": "1 item(s) reduced this. Largest: Your ACRA profile records an online activity, so you collect customer personal data. The operative sections on your sche",
+      "score": 82
+     },
+     {
+      "assessed": true,
+      "deductions": [
+       {
+        "evidence_class": "PROVEN",
+        "headline": "Your documents evidence 2 outside dependency/dependencies that your income relies on. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY, which include no business int",
+        "points": 18,
+        "rule_id": "DEPENDENCY-COVER-NOT-POSSIBLE",
+        "state": "DOCUMENTED"
+       }
+      ],
+      "description": "Suppliers, utilities and landlords your income relies on.",
+      "key": "dependencies",
+      "label": "Who you depend on",
+      "reason": "1 item(s) reduced this. Largest: Your documents evidence 2 outside dependency/dependencies that your income relies on. The operative sections on your sch",
+      "score": 82
+     }
+    ],
+    "headline_exposure": {
+     "adequacy_ratio": "66.7%",
+     "amount_sgd": 25000.0,
+     "assessed_loss_sgd": 60000.0,
+     "basis": "MARKET_CONVENTION",
+     "caveat": "Illustrative. This policy states the trigger but not the formula, so this is market convention, not the amount payable.",
+     "evidence_class": "MARKET_CONVENTION",
+     "illustrated_settlement_sgd": 35000.0,
+     "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD"
+    },
+    "issues": [
+     {
+      "evidence_class": "MARKET_CONVENTION",
+      "exposure_sgd": 25000.0,
+      "headline": "Your stock sum insured is below the level the policy's average condition requires. The stock value is self-authored (DECLARED), so under-insurance proportionately reduces any stock claim. The figure shown is an illustration — where the wording states no formula it is labelled market convention, never \"amount payable\".",
+      "missing_documents": [],
+      "rule_id": "AVERAGE-ADEQUACY-BELOW-THRESHOLD",
+      "severity": "HIGH",
+      "state": "DOCUMENTED",
+      "state_label": "Documented"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "Your ACRA profile records an online activity, so you collect customer personal data. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY — none of which responds to a data breach. Both figures are from an authority document and an insurer document, so this is a PROVEN absence rather than an assumption.",
+      "missing_documents": [],
+      "rule_id": "CYBER-DATA-COVER-ABSENT",
+      "severity": "HIGH",
+      "state": "DOCUMENTED",
+      "state_label": "Documented"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "Your documents evidence 2 outside dependency/dependencies that your income relies on. The operative sections on your schedule are PROPERTY, PUBLIC_AND_PRODUCTS_LIABILITY, which include no business interruption section. Cover for income lost when a supplier, utility or landlord fails is normally an extension to that section, so there is nothing for it to attach to.",
+      "missing_documents": [],
+      "rule_id": "DEPENDENCY-COVER-NOT-POSSIBLE",
+      "severity": "HIGH",
+      "state": "DOCUMENTED",
+      "state_label": "Documented"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "Theft is covered only where there was violent or forcible entry to a Building. Your Schedule does not elect Additional Extension 2.17, so shoplifting and employee theft are outside cover.",
+      "missing_documents": [],
+      "rule_id": "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK",
+      "severity": "HIGH",
+      "state": "DOCUMENTED",
+      "state_label": "Documented"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "Your work injury schedule declares 11 employees; the CPF contribution record shows 14. Both are third-party or insurer documents, so this is a PROVEN discrepancy.",
+      "missing_documents": [],
+      "rule_id": "WICA-HEADCOUNT-UNDERDECLARED",
+      "severity": "HIGH",
+      "state": "DOCUMENTED",
+      "state_label": "Documented"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "At least one Work Permit holder carries medical insurance below the S$60,000 annual minimum required per migrant worker. Both figures are from the authority-authored work pass list, so this is a PROVEN discrepancy.",
+      "missing_documents": [],
+      "rule_id": "WORKPASS-MEDICAL-BELOW-MINIMUM",
+      "severity": "HIGH",
+      "state": "DOCUMENTED",
+      "state_label": "Documented"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "The ACRA profile carries a secondary activity (Retail sale via online platforms) that the policy's business description (manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade) does not reflect. Whether this is a material alteration under cl 3.1 or a disclosure question under cl 3.13 is a judgement for a licensed adviser. We locate and quote; we do not conclude.",
+      "missing_documents": [],
+      "rule_id": "ACTIVITY-SSIC-NOT-DECLARED",
+      "severity": "MEDIUM",
+      "state": "REQUIRES_AUTHORISED_REVIEW",
+      "state_label": "Requires authorised review"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "<quotes the published wording: 350 chars, sha256 1579a739eba2501ad224d441994d678b34d9984fe10662681c0b43bcbff3f90d>",
+      "missing_documents": [],
+      "rule_id": "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
+      "severity": "MEDIUM",
+      "state": "REQUIRES_AUTHORISED_REVIEW",
+      "state_label": "Requires authorised review"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "<quotes the published wording: 213 chars, sha256 3bff28176fc40770bd832301f5c6e5876c620342e7c5b7135047bac1ead996d2>",
+      "missing_documents": [],
+      "rule_id": "PREMIUM-PAYMENT-WARRANTY-TIMING",
+      "severity": "MEDIUM",
+      "state": "REQUIRES_AUTHORISED_REVIEW",
+      "state_label": "Requires authorised review"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "Two endorsements amend the food-and-drink liability sub-limit to different figures (END-03 = S$5000, END-04 = S$25000) at the same authority rank, with neither stating it supersedes the other. Precedence could not be established from the documents, so this is routed to a licensed adviser rather than resolved by the engine.",
+      "missing_documents": [],
+      "rule_id": "SUBLIMIT-CONFLICTING-ENDORSEMENTS",
+      "severity": "MEDIUM",
+      "state": "REQUIRES_AUTHORISED_REVIEW",
+      "state_label": "Requires authorised review"
+     },
+     {
+      "evidence_class": "PROVEN",
+      "exposure_sgd": null,
+      "headline": "Business-interruption cover was searched for and not confirmed. The Schedule's operative sections list Property and Public/Products Liability only; no business interruption section is present in this variant. \"Not confirmed\" is not \"not covered\" — it states exactly what the reviewed documents do and do not show.",
+      "missing_documents": [],
+      "rule_id": "BUSINESS-INTERRUPTION-NOT-CONFIRMED",
+      "severity": "REVIEW",
+      "state": "NOT_CONFIRMED",
+      "state_label": "Not confirmed in reviewed documents"
+     },
+     {
+      "evidence_class": "UNESTABLISHED",
+      "exposure_sgd": null,
+      "headline": "No reinstatement cost assessment for the building is on record. We report the value as UNESTABLISHED rather than computing a figure with no basis.",
+      "missing_documents": [],
+      "rule_id": "BUILDINGS-VALUE-UNESTABLISHED",
+      "severity": "REVIEW",
+      "state": "INFORMATION_MISSING",
+      "state_label": "Information missing"
+     },
+     {
+      "evidence_class": "UNESTABLISHED",
+      "exposure_sgd": null,
+      "headline": "Endorsement END-02 could not be read (illegible scan). Upload a clearer copy or request the wording from your insurer. The engine will not guess its effect.",
+      "missing_documents": [],
+      "rule_id": "ENDORSEMENT-ILLEGIBLE-ABSTAIN",
+      "severity": "REVIEW",
+      "state": "INFORMATION_MISSING",
+      "state_label": "Information missing"
+     },
+     {
+      "evidence_class": "UNESTABLISHED",
+      "exposure_sgd": null,
+      "headline": "Plant and machinery are insured for a fixed sum, and one third-party invoice is on record (PROVEN for that item), but no complete asset register establishes the total plant value at risk. We report the plant adequacy as UNESTABLISHED rather than computing a ratio against an unknown denominator.",
+      "missing_documents": [],
+      "rule_id": "PLANT-ADEQUACY-UNESTABLISHED",
+      "severity": "REVIEW",
+      "state": "INFORMATION_MISSING",
+      "state_label": "Information missing"
+     }
+    ],
+    "method": "DETERMINISTIC",
+    "notice": "Computed only from findings the engine could evidence. No model contributes to this number, and every point deducted names the finding it came from. This measures how much of your protection is established by documents — it is not a risk rating, and there is nowhere in the schema to store one.",
+    "overall": 68,
+    "status": "Significant gaps",
+    "status_note": "Several important items are unevidenced or documented as shortfalls.",
+    "total_dimensions": 6
+   },
+   "status": 200
+  },
+  "/api/stages": {
+   "body": {
+    "absent": [
+     "BUSINESS_INTERRUPTION",
+     "GOODS_IN_TRANSIT",
+     "CYBER_AND_DATA"
+    ],
+    "absent_convention": [
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "With 2 sites and a payroll to meet every month, a stoppage costs money even when the damage itself is repaired. Businesses at this size commonly insure the lost income as well as the damage.",
+      "label": "Business interruption",
+      "plain": "Replaces the income you lose while you cannot trade after damage to your own premises.",
+      "protection": "BUSINESS_INTERRUPTION"
+     },
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "Your documents describe moving goods to customers. A property section covers stock at the insured address, so stock in a vehicle is commonly insured separately.",
+      "label": "Goods in transit",
+      "plain": "Covers stock damaged or lost while it is being moved, which a premises-based property section does not reach.",
+      "protection": "GOODS_IN_TRANSIT"
+     },
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "Your ACRA profile records an online channel — \"Retail sale via online platforms\". Businesses that collect customer details online commonly carry cover for a data breach, because a standard property and liability policy generally excludes it.",
+      "label": "Cyber and data",
+      "plain": "Covers a data breach or a system attack: investigation, notifying the people affected, restoring data, and regulatory penalties where they are insurable.",
+      "protection": "CYBER_AND_DATA"
+     }
+    ],
+    "absent_statutory": [],
+    "available": true,
+    "basis_notice": "STATUTORY items are traceable to a named Singapore instrument. MARKET_CONVENTION items are what comparable businesses commonly hold and are not obligations — they are questions worth answering, not failures.",
+    "counts": {
+     "absent": 3,
+     "expected": 6,
+     "held": 2,
+     "indeterminate": 1,
+     "market_convention": 5,
+     "statutory": 1
+    },
+    "evidence": [
+     {
+      "established": true,
+      "signal": "People on the payroll",
+      "source": "CPF contribution record",
+      "value": 14
+     },
+     {
+      "established": true,
+      "signal": "Places you occupy",
+      "source": "tenancy agreement",
+      "value": 2
+     },
+     {
+      "established": true,
+      "quote": "Retail sale via online platforms",
+      "signal": "Online sales channel",
+      "source": "ACRA business profile",
+      "value": "Yes"
+     }
+    ],
+    "expectations": [
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "Every business with stock, equipment or fittings at a fixed address commonly insures them.",
+      "label": "Property and assets",
+      "plain": "Pays to repair or replace buildings, stock, plant and fittings.",
+      "protection": "PROPERTY"
+     },
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "You have customers and you make a product. Cover for harm caused to other people or by what you sell is commonly the first liability a business buys.",
+      "label": "Public and products liability",
+      "plain": "Covers injury or damage you cause to other people or their things, including by the products you sell.",
+      "protection": "PUBLIC_AND_PRODUCTS_LIABILITY"
+     },
+     {
+      "authority": "Work Injury Compensation Act 2019 (Singapore)",
+      "basis": "STATUTORY",
+      "because": "Your documents evidence 14 people on the payroll. Work injury cover is compulsory in Singapore for every employee doing manual work at any salary, and for non-manual employees earning $2,600 or less a month.",
+      "label": "Work injury compensation",
+      "plain": "Covers employees injured at work. Compulsory in Singapore for all employees doing manual work at any salary, and non-manual employees earning $2,600 or less a month.",
+      "protection": "WORK_INJURY"
+     },
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "With 2 sites and a payroll to meet every month, a stoppage costs money even when the damage itself is repaired. Businesses at this size commonly insure the lost income as well as the damage.",
+      "label": "Business interruption",
+      "plain": "Replaces the income you lose while you cannot trade after damage to your own premises.",
+      "protection": "BUSINESS_INTERRUPTION"
+     },
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "Your documents describe moving goods to customers. A property section covers stock at the insured address, so stock in a vehicle is commonly insured separately.",
+      "label": "Goods in transit",
+      "plain": "Covers stock damaged or lost while it is being moved, which a premises-based property section does not reach.",
+      "protection": "GOODS_IN_TRANSIT"
+     },
+     {
+      "authority": null,
+      "basis": "MARKET_CONVENTION",
+      "because": "Your ACRA profile records an online channel — \"Retail sale via online platforms\". Businesses that collect customer details online commonly carry cover for a data breach, because a standard property and liability policy generally excludes it.",
+      "label": "Cyber and data",
+      "plain": "Covers a data breach or a system attack: investigation, notifying the people affected, restoring data, and regulatory penalties where they are insurable.",
+      "protection": "CYBER_AND_DATA"
+     }
+    ],
+    "held": [
+     "PROPERTY",
+     "PUBLIC_AND_PRODUCTS_LIABILITY"
+    ],
+    "indeterminate": [
+     "WORK_INJURY"
+    ],
+    "ladder": [
+     {
+      "describes": "One place, few or no employees, selling locally.",
+      "key": "FOUNDING",
+      "label": "Just starting out",
+      "ordinal": 0
+     },
+     {
+      "describes": "Employees on the books and a single place of business.",
+      "key": "ESTABLISHED",
+      "label": "Trading steadily",
+      "ordinal": 1
+     },
+     {
+      "describes": "More than one site, or an online channel, or a payroll into double figures.",
+      "key": "SCALING",
+      "label": "Growing",
+      "ordinal": 2
+     },
+     {
+      "describes": "Several sites, an online channel and a payroll large enough that a stoppage is expensive.",
+      "key": "COMPLEX",
+      "label": "Multi-site and data-handling",
+      "ordinal": 3
+     }
+    ],
+    "method": "DETERMINISTIC",
+    "next_stage": {
+     "describes": "Several sites, an online channel and a payroll large enough that a stoppage is expensive.",
+     "key": "COMPLEX",
+     "label": "Multi-site and data-handling",
+     "ordinal": 3
+    },
+    "notice": "Your stage is read from documents, not from anything you told us. Whether a protection is present is read from the operative sections on your schedule; where a schedule cannot evidence it either way we say so rather than guess. Nothing here is a quotation or an offer of cover.",
+    "stage": {
+     "describes": "More than one site, or an online channel, or a payroll into double figures.",
+     "key": "SCALING",
+     "label": "Growing",
+     "ordinal": 2
+    },
+    "unestablished": []
+   },
+   "status": 200
+  },
+  "/api/supply-chain": {
+   "body": {
+    "available": true,
+    "cbi_label": "Not possible — you hold no business interruption section",
+    "cbi_state": "IMPOSSIBLE_NO_BI",
+    "concentrations": [
+     {
+      "evidence_class": "PROVEN",
+      "inferred": false,
+      "kind": "SINGLE_SOURCE",
+      "label": "One supplier, no alternate named",
+      "reading": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD is the only supplier your documents name, and no alternate appears anywhere. We cannot tell whether one exists — only that nothing we read mentions one.",
+      "subject": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "why_it_bites": "Contingent business interruption conventionally responds only to suppliers listed on the schedule. Yours lists none."
+     },
+     {
+      "evidence_class": "PROVEN",
+      "inferred": false,
+      "kind": "UTILITY_SINGLE_POINT_OF_FAILURE",
+      "label": "One utility supply, nothing behind it",
+      "reading": "Your premises are used for cold storage. Stock in a cold room starts degrading as soon as the power stops, and the building itself is never damaged — so there is no physical damage for a property section to respond to.",
+      "subject": "Electricity supply to your cold storage",
+      "why_it_bites": "No physical damage occurs, so a property section has nothing to attach to, and a supplier extension conventionally requires damage at a supplier's premises."
+     },
+     {
+      "evidence_class": "PROVEN",
+      "inferred": false,
+      "kind": "LANDLORD_SINGLE_POINT_OF_FAILURE",
+      "label": "One landlord, one building",
+      "reading": "You lease 2 unit(s). If the building is damaged or access is blocked, you stop trading whether or not your own stock and equipment are touched.",
+      "subject": "Your landlord and the building",
+      "why_it_bites": "Damage to the building, or loss of access to it, stops trading whether or not your own property is touched."
+     }
+    ],
+    "counts": {
+     "dependencies": 4,
+     "failure_paths": 10,
+     "uncovered_paths": 10
+    },
+    "dependencies": [
+     {
+      "author_class": "THIRD_PARTY",
+      "document_kind": "SUPPLIER_INVOICE",
+      "evidence_class": "PROVEN",
+      "failure_modes": [
+       {
+        "cbi_conventionally_responds": true,
+        "label": "Fire, flood or damage at their premises",
+        "mode": "PHYSICAL_DAMAGE",
+        "note": "The classic CBI trigger, and usually the only one."
+       },
+       {
+        "cbi_conventionally_responds": false,
+        "label": "They go out of business",
+        "mode": "INSOLVENCY",
+        "note": "No physical damage occurs, so a damage-triggered extension does not engage."
+       },
+       {
+        "cbi_conventionally_responds": false,
+        "label": "Their systems are attacked",
+        "mode": "CYBER_AT_SUPPLIER",
+        "note": "No physical damage, and commonly excluded by a cyber exclusion as well."
+       }
+      ],
+      "kind": "SUPPLIER",
+      "name": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "quote": "supplier: SYNTHETIC EQUIPMENT SUPPLIER PTE LTD — Blast freezer, 8-tray",
+      "value_sgd": "62000",
+      "why": "This supplier issued you an invoice for Blast freezer, 8-tray. Your documents evidence the relationship; they do not tell us how quickly you could replace them."
+     },
+     {
+      "author_class": "THIRD_PARTY",
+      "document_kind": "TENANCY",
+      "evidence_class": "PROVEN",
+      "failure_modes": [
+       {
+        "cbi_conventionally_responds": false,
+        "label": "Power or water supply fails",
+        "mode": "UTILITY_FAILURE",
+        "note": "Normally a separate public utilities extension, not CBI itself."
+       },
+       {
+        "cbi_conventionally_responds": true,
+        "label": "Fire, flood or damage at their premises",
+        "mode": "PHYSICAL_DAMAGE",
+        "note": "The classic CBI trigger, and usually the only one."
+       }
+      ],
+      "kind": "UTILITY",
+      "name": "Electricity supply to your cold storage",
+      "quote": "Light food manufacturing, cold storage and ancillary office use",
+      "value_sgd": null,
+      "why": "Your premises are used for cold storage. Stock in a cold room starts degrading as soon as the power stops, and the building itself is never damaged — so there is no physical damage for a property section to respond to."
+     },
+     {
+      "author_class": "INSURER",
+      "document_kind": "SCHEDULE",
+      "evidence_class": "PROVEN",
+      "failure_modes": [
+       {
+        "cbi_conventionally_responds": true,
+        "label": "Fire, flood or damage at their premises",
+        "mode": "PHYSICAL_DAMAGE",
+        "note": "The classic CBI trigger, and usually the only one."
+       },
+       {
+        "cbi_conventionally_responds": false,
+        "label": "You cannot reach your premises",
+        "mode": "ACCESS_DENIED",
+        "note": "Normally a separate ingress/egress or prevention-of-access extension."
+       }
+      ],
+      "kind": "CHANNEL",
+      "name": "Your route to customers",
+      "quote": "manufacture of prepared meals and sauces; wholesale to grocery and hospitality trade",
+      "value_sgd": null,
+      "why": "Your documents describe wholesale or distribution. Income depends on goods reaching customers, and stock in a vehicle has left the insured address."
+     },
+     {
+      "author_class": "THIRD_PARTY",
+      "document_kind": "TENANCY",
+      "evidence_class": "PROVEN",
+      "failure_modes": [
+       {
+        "cbi_conventionally_responds": true,
+        "label": "Fire, flood or damage at their premises",
+        "mode": "PHYSICAL_DAMAGE",
+        "note": "The classic CBI trigger, and usually the only one."
+       },
+       {
+        "cbi_conventionally_responds": false,
+        "label": "You cannot reach your premises",
+        "mode": "ACCESS_DENIED",
+        "note": "Normally a separate ingress/egress or prevention-of-access extension."
+       },
+       {
+        "cbi_conventionally_responds": false,
+        "label": "Power or water supply fails",
+        "mode": "UTILITY_FAILURE",
+        "note": "Normally a separate public utilities extension, not CBI itself."
+       }
+      ],
+      "kind": "LANDLORD",
+      "name": "Your landlord and the building",
+      "quote": "Unit 03-11, 21 Tai Seng Avenue; Unit 03-12, 21 Tai Seng Avenue",
+      "value_sgd": null,
+      "why": "You lease 2 unit(s). If the building is damaged or access is blocked, you stop trading whether or not your own stock and equipment are touched."
+     }
+    ],
+    "exposure_matrix": [
+     {
+      "dependency": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "dependency_kind": "SUPPLIER",
+      "evidence_class": "PROVEN",
+      "mode": "PHYSICAL_DAMAGE",
+      "mode_label": "Fire, flood or damage at their premises",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "dependency_kind": "SUPPLIER",
+      "evidence_class": "PROVEN",
+      "mode": "INSOLVENCY",
+      "mode_label": "They go out of business",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "SYNTHETIC EQUIPMENT SUPPLIER PTE LTD",
+      "dependency_kind": "SUPPLIER",
+      "evidence_class": "PROVEN",
+      "mode": "CYBER_AT_SUPPLIER",
+      "mode_label": "Their systems are attacked",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Electricity supply to your cold storage",
+      "dependency_kind": "UTILITY",
+      "evidence_class": "PROVEN",
+      "mode": "UTILITY_FAILURE",
+      "mode_label": "Power or water supply fails",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Electricity supply to your cold storage",
+      "dependency_kind": "UTILITY",
+      "evidence_class": "PROVEN",
+      "mode": "PHYSICAL_DAMAGE",
+      "mode_label": "Fire, flood or damage at their premises",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Your route to customers",
+      "dependency_kind": "CHANNEL",
+      "evidence_class": "PROVEN",
+      "mode": "PHYSICAL_DAMAGE",
+      "mode_label": "Fire, flood or damage at their premises",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Your route to customers",
+      "dependency_kind": "CHANNEL",
+      "evidence_class": "PROVEN",
+      "mode": "ACCESS_DENIED",
+      "mode_label": "You cannot reach your premises",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Your landlord and the building",
+      "dependency_kind": "LANDLORD",
+      "evidence_class": "PROVEN",
+      "mode": "PHYSICAL_DAMAGE",
+      "mode_label": "Fire, flood or damage at their premises",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Your landlord and the building",
+      "dependency_kind": "LANDLORD",
+      "evidence_class": "PROVEN",
+      "mode": "ACCESS_DENIED",
+      "mode_label": "You cannot reach your premises",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     },
+     {
+      "dependency": "Your landlord and the building",
+      "dependency_kind": "LANDLORD",
+      "evidence_class": "PROVEN",
+      "mode": "UTILITY_FAILURE",
+      "mode_label": "Power or water supply fails",
+      "responds": "NOTHING",
+      "why": "You hold no business interruption section, and supplier dependency cover is an extension to one. There is nothing for it to attach to."
+     }
+    ],
+    "gap_open": true,
+    "how_cbi_works": {
+     "basis_caveat": "These are common market structures, not terms of your policy. Your own wording governs, and where we have not read a term we say so.",
+     "basis_class": "MARKET_CONVENTION",
+     "named_basis": "Where it exists, cover is commonly limited to suppliers named in the policy. Changing supplier without updating the policy can leave the new one outside cover.",
+     "physical_damage_basis": "It conventionally responds only to physical damage at the supplier's own premises. A supplier that fails for any other reason causes the same loss of income and is conventionally outside the trigger.",
+     "structure": "Supplier dependency cover is normally an extension to a business interruption section, so it cannot exist without one."
+    },
+    "method": "DETERMINISTIC",
+    "named_suppliers": [],
+    "notice": "Every dependency above was read from a document you gave us. We cannot see the ones that never appear in a document, and those are usually the ones that matter most.",
+    "sub_tier": {
+     "statement": "We cannot see your suppliers' suppliers. A purchase ledger shows who you buy from; it does not show who they cannot function without.",
+     "visible": false,
+     "what_would_reveal_it": "Asking your critical suppliers who their own single points of failure are. That is a conversation, not a data feed.",
+     "why_we_do_not_estimate_it": "Three suppliers who all depend on one upstream plant are one supplier, not three. That is a real exposure and we have no document that evidences it, so we name it rather than model it."
+    },
+    "unestablished": [],
+    "visibility": {
+     "dependencies_found": 4,
+     "is_exhaustive": false,
+     "statement": "We found 4 dependency/dependencies in your documents. This is NOT a complete list. We can only see a supplier who issued an invoice you uploaded, or a landlord named on a lease we read.",
+     "what_would_complete_it": [
+      {
+       "document": "Your supplier list or purchase ledger",
+       "establishes": "Who you buy from, and how concentrated that is."
+      },
+      {
+       "document": "Your top-customer revenue split",
+       "establishes": "Whether one customer leaving would stop the business."
+      },
+      {
+       "document": "Your list of critical software and platforms",
+       "establishes": "Which systems you cannot trade without."
+      }
+     ],
+     "why_it_matters": "A partial map shown as a complete one is worse than no map, because it turns something you did not know into something you wrongly believe you do know."
+    }
+   },
+   "status": 200
+  },
+  "/api/warranty": {
+   "body": {
+    "available": true,
+    "conditions_precedent_breached": 1,
+    "counts": {
+     "BREACHED": 2,
+     "COMPLIANT": 0,
+     "NOT_IN_POLICY": 6,
+     "UNVERIFIED": 2
+    },
+    "discipline": "UNVERIFIED is the default and it is deliberate. COMPLIANT requires evidence of compliance; silence is not compliance. BREACHED requires evidence of the breach and is never inferred from absence.",
+    "disclaimer": "Compliance state read from the documents on record. Not a coverage determination and not legal advice — whether a breach defeats a particular claim depends on the wording, the loss and applicable law.",
+    "headline": "2 of 4 obligations in this policy are in breach.",
+    "highest_severity": "CRITICAL",
+    "obligations_in_policy": 4,
+    "register": [
+     {
+      "clause_located": true,
+      "clause_page": 6,
+      "clause_quote": "<quotes the published wording: 400 chars, sha256 5d8df67aa7027e33236011ccb09ee03b475e1a86e3913d590854d64358ee8f39>",
+      "consequence": "Breach may reduce or defeat a claim affected by the non-compliance.",
+      "detail": "1 occupied premises is not on the policy schedule: Unit 03-12, 21 Tai Seng Avenue. Property at an undeclared location is outside the cover, and the alteration condition may be engaged for the policy as a whole.",
+      "evidence": [
+       {
+        "author_class": "INSURER",
+        "document_id": "<id>",
+        "document_kind": "SCHEDULE",
+        "operand": "scheduled_premises",
+        "page": 1,
+        "quote": "insured_premises:",
+        "value": "['Unit 03-11, 21 Tai Seng Avenue, Singapore 534054']"
+       },
+       {
+        "author_class": "THIRD_PARTY",
+        "document_id": "<id>",
+        "document_kind": "TENANCY",
+        "operand": "demised_premises",
+        "page": 1,
+        "quote": "demised_premises:",
+        "value": "['Unit 03-11, 21 Tai Seng Avenue', 'Unit 03-12, 21 Tai Seng Avenue']"
+       }
+      ],
+      "id": "PREMISES_DECLARED",
+      "kind": "CONTINUING_CONDITION",
+      "matched_phrase": "alteration",
+      "needles_searched": [
+       "alteration",
+       "material alteration",
+       "change in the risk"
+      ],
+      "phrases_set_aside": [],
+      "severity": "CRITICAL",
+      "state": "BREACHED",
+      "title": "All occupied premises declared",
+      "verified_by": [
+       "POLICY_SCHEDULE",
+       "TENANCY"
+      ],
+      "why_it_matters": "Cover attaches to the premises on the schedule. Trading from an undeclared unit leaves that unit, and the stock and plant in it, outside the policy."
+     },
+     {
+      "clause_located": true,
+      "clause_page": 9,
+      "clause_quote": "<quotes the published wording: 414 chars, sha256 71a588bd2320d3cdbc4271d7e92685ba90827db8b0220370f944f983b7e6abac>",
+      "consequence": "Insurers may be entitled to decline the claim entirely, and depending on the wording regardless of whether the breach was connected to the loss.",
+      "detail": "Premium was received on day 71 of the policy period against a 60-day condition. On wordings where payment within the period is a condition precedent, cover can terminate automatically — meaning the business may have been trading uninsured for 11 days before anyone noticed. Confirm the position with the insurer in writing.",
+      "evidence": [
+       {
+        "author_class": "INSURER",
+        "document_id": "<id>",
+        "document_kind": "SCHEDULE",
+        "operand": "inception",
+        "page": 1,
+        "quote": "inception: 2026-03-01",
+        "value": "2026-03-01"
+       },
+       {
+        "author_class": "INSURER",
+        "document_id": "<id>",
+        "document_kind": "SCHEDULE",
+        "operand": "premium_received",
+        "page": 1,
+        "quote": "received_date: 2026-05-11",
+        "value": "2026-05-11"
+       }
+      ],
+      "id": "PREMIUM_PAYMENT",
+      "kind": "CONDITION_PRECEDENT",
+      "matched_phrase": "automatically terminated",
+      "needles_searched": [
+       "automatically terminated",
+       "premium payment",
+       "premium warranty"
+      ],
+      "phrases_set_aside": [],
+      "severity": "CRITICAL",
+      "state": "BREACHED",
+      "title": "Premium payment period",
+      "verified_by": [
+       "POLICY_SCHEDULE",
+       "PREMIUM_RECEIPT"
+      ],
+      "why_it_matters": "Cover can terminate automatically if premium is not received within the stated period, leaving the business uninsured while it believes it is covered."
+     },
+     {
+      "clause_located": true,
+      "clause_page": 7,
+      "clause_quote": "<quotes the published wording: 393 chars, sha256 5ce8aaa2f6a70514e98f0d96efb339248fbea84f0f503e3075eaa0adfb2c3ac3>",
+      "consequence": "Insurers may be entitled to decline the claim entirely, and depending on the wording regardless of whether the breach was connected to the loss.",
+      "detail": "This obligation is in the policy and nothing on record shows whether it is met. That is not a clean bill of health — it is an open exposure. Supply claims correspondence to close it.",
+      "evidence": [],
+      "id": "CLAIM_NOTIFICATION",
+      "kind": "CONDITION_PRECEDENT",
+      "matched_phrase": "notify",
+      "needles_searched": [
+       "as soon as reasonably practicable",
+       "immediate written notice",
+       "give notice in writing",
+       "written notice",
+       "notify"
+      ],
+      "phrases_set_aside": [],
+      "severity": "MODERATE",
+      "state": "UNVERIFIED",
+      "title": "Claim notification period",
+      "verified_by": [
+       "CLAIMS_CORRESPONDENCE"
+      ],
+      "why_it_matters": "Late notification is one of the most common grounds for declinature, and it is usually a condition precedent — so it can defeat an otherwise valid claim on timing alone."
+     },
+     {
+      "clause_located": true,
+      "clause_page": 24,
+      "clause_quote": "<quotes the published wording: 413 chars, sha256 b31a2da612f4e55e317d280f7102ded1c26b46ce46dc8b408b4f360e05886c51>",
+      "consequence": "Insurers may be entitled to decline the claim entirely, and depending on the wording regardless of whether the breach was connected to the loss.",
+      "detail": "This obligation is in the policy and nothing on record shows whether it is met. That is not a clean bill of health — it is an open exposure. Supply risk survey or maintenance records to close it.",
+      "evidence": [],
+      "id": "REASONABLE_PRECAUTIONS",
+      "kind": "CONDITION_PRECEDENT",
+      "matched_phrase": "reasonable precautions",
+      "needles_searched": [
+       "reasonable precautions",
+       "reasonable care to prevent",
+       "take all reasonable"
+      ],
+      "phrases_set_aside": [],
+      "severity": "MODERATE",
+      "state": "UNVERIFIED",
+      "title": "Reasonable precautions to prevent loss",
+      "verified_by": [
+       "RISK_SURVEY",
+       "MAINTENANCE_RECORDS"
+      ],
+      "why_it_matters": "A general obligation to take reasonable care. Broad, frequently a condition precedent, and assessed after the loss with hindsight."
+     },
+     {
+      "clause_located": false,
+      "clause_page": null,
+      "clause_quote": null,
+      "consequence": "Not applicable — the obligation is not in this wording.",
+      "detail": "The wording contains this phrase but not as an obligation on the insured. The phrase appears here but no duty language ('shall', 'must', 'condition precedent', 'warranted') sits near it, so this reads as descriptive text rather than an obligation. Reported rather than dropped, because a reader deserves to know the difference between 'not in your policy' and 'we found the word and judged it was not a duty'.",
+      "evidence": [],
+      "id": "ELECTRICAL_INSPECTION",
+      "kind": "WARRANTY",
+      "matched_phrase": null,
+      "needles_searched": [
+       "electrical installation",
+       "electrical inspection",
+       "electrical wiring",
+       "electrical"
+      ],
+      "phrases_set_aside": [
+       {
+        "excerpt": "<quotes the published wording: 260 chars, sha256 d68c24e3db75800bf37ca57e909474e63c2f405a140d17705b75e02f78bcb6f5>",
+        "page": 17,
+        "phrase": "electrical",
+        "reason": "The phrase appears here but no duty language ('shall', 'must', 'condition precedent', 'warranted') sits near it, so this reads as descriptive text rather than an obligation."
+       }
+      ],
+      "severity": "NONE",
+      "state": "NOT_IN_POLICY",
+      "title": "Electrical installation inspection",
+      "verified_by": [
+       "ELECTRICAL_INSPECTION_CERTIFICATE"
+      ],
+      "why_it_matters": "Periodic inspection of the fixed electrical installation is commonly required. Electrical fault is a leading cause of commercial fire, which is exactly why insurers warrant it."
+     },
+     {
+      "clause_located": false,
+      "clause_page": null,
+      "clause_quote": null,
+      "consequence": "Not applicable — the obligation is not in this wording.",
+      "detail": "Searched this wording for the obligation and did not find it. Reported so the reader can see what was checked, not only what was found.",
+      "evidence": [],
+      "id": "HOT_WORKS",
+      "kind": "CONDITION_PRECEDENT",
+      "matched_phrase": null,
+      "needles_searched": [
+       "hot work",
+       "blow lamp",
+       "welding or cutting"
+      ],
+      "phrases_set_aside": [],
+      "severity": "NONE",
+      "state": "NOT_IN_POLICY",
+      "title": "Hot works permit",
+      "verified_by": [
+       "HOT_WORKS_PERMITS"
+      ],
+      "why_it_matters": "Welding, cutting and soldering usually require a written permit procedure. Hot works without a permit is a classic total declinature in food and manufacturing premises."
+     },
+     {
+      "clause_located": false,
+      "clause_page": null,
+      "clause_quote": null,
+      "consequence": "Not applicable — the obligation is not in this wording.",
+      "detail": "Searched this wording for the obligation and did not find it. Reported so the reader can see what was checked, not only what was found.",
+      "evidence": [],
+      "id": "PROTECTIONS_MAINTAINED",
+      "kind": "WARRANTY",
+      "matched_phrase": null,
+      "needles_searched": [
+       "intruder alarm",
+       "alarm system",
+       "security protections",
+       "protections specified",
+       "burglar alarm"
+      ],
+      "phrases_set_aside": [],
+      "severity": "NONE",
+      "state": "NOT_IN_POLICY",
+      "title": "Security protections maintained and set",
+      "verified_by": [
+       "ALARM_MAINTENANCE_CONTRACT",
+       "SERVICE_CERTIFICATE"
+      ],
+      "why_it_matters": "Alarms and locks specified in the policy must be maintained under contract and set when the premises are closed. A lapsed maintenance contract is a breach even if the alarm works."
+     },
+     {
+      "clause_located": false,
+      "clause_page": null,
+      "clause_quote": null,
+      "consequence": "Not applicable — the obligation is not in this wording.",
+      "detail": "The wording contains this phrase but not as an obligation on the insured. The phrase appears here but no duty language ('shall', 'must', 'condition precedent', 'warranted') sits near it, so this reads as descriptive text rather than an obligation. Reported rather than dropped, because a reader deserves to know the difference between 'not in your policy' and 'we found the word and judged it was not a duty'.",
+      "evidence": [],
+      "id": "SPRINKLER_MAINTAINED",
+      "kind": "WARRANTY",
+      "matched_phrase": null,
+      "needles_searched": [
+       "sprinkler leakage",
+       "automatic sprinkler",
+       "sprinkler installation",
+       "fire extinguishing",
+       "sprinkler"
+      ],
+      "phrases_set_aside": [
+       {
+        "excerpt": "<quotes the published wording: 260 chars, sha256 58bc5ce2f3be94be7e5d1d9510ebcf984bae9a990869c52c9037514fb8d71ffa>",
+        "page": 13,
+        "phrase": "sprinkler",
+        "reason": "The phrase appears here but no duty language ('shall', 'must', 'condition precedent', 'warranted') sits near it, so this reads as descriptive text rather than an obligation."
+       }
+      ],
+      "severity": "NONE",
+      "state": "NOT_IN_POLICY",
+      "title": "Sprinkler and fire system certification",
+      "verified_by": [
+       "SPRINKLER_CERTIFICATE",
+       "FIRE_SAFETY_CERTIFICATE"
+      ],
+      "why_it_matters": "Where the policy recognises a sprinkler or suppression system, it normally requires periodic certification. An out-of-date certificate is a breach of warranty."
+     },
+     {
+      "clause_located": false,
+      "clause_page": null,
+      "clause_quote": null,
+      "consequence": "Not applicable — the obligation is not in this wording.",
+      "detail": "Searched this wording for the obligation and did not find it. Reported so the reader can see what was checked, not only what was found.",
+      "evidence": [],
+      "id": "UNOCCUPANCY",
+      "kind": "CONTINUING_CONDITION",
+      "matched_phrase": null,
+      "needles_searched": [
+       "unoccupied",
+       "unoccupancy",
+       "left empty"
+      ],
+      "phrases_set_aside": [],
+      "severity": "NONE",
+      "state": "NOT_IN_POLICY",
+      "title": "Unoccupancy notification",
+      "verified_by": [
+       "POLICY_SCHEDULE",
+       "OWNER_DECLARATION"
+      ],
+      "why_it_matters": "Premises left unoccupied beyond a stated period usually trigger notification and restricted cover — often removing escape of water and malicious damage."
+     },
+     {
+      "clause_located": false,
+      "clause_page": null,
+      "clause_quote": null,
+      "consequence": "Not applicable — the obligation is not in this wording.",
+      "detail": "The wording contains this phrase but not as an obligation on the insured. The phrase appears here but no duty language ('shall', 'must', 'condition precedent', 'warranted') sits near it, so this reads as descriptive text rather than an obligation. Reported rather than dropped, because a reader deserves to know the difference between 'not in your policy' and 'we found the word and judged it was not a duty'.",
+      "evidence": [],
+      "id": "WASTE_REMOVAL",
+      "kind": "CONTINUING_CONDITION",
+      "matched_phrase": null,
+      "needles_searched": [
+       "combustible material",
+       "removal of waste",
+       "waste material",
+       "rubbish",
+       "waste"
+      ],
+      "phrases_set_aside": [
+       {
+        "excerpt": "<quotes the published wording: 260 chars, sha256 bed49f13ff74a78722233c1aedfb3d8ffdfdb3aaae45810f33d58dd5cc20dede>",
+        "page": 5,
+        "phrase": "waste",
+        "reason": "The phrase appears here but no duty language ('shall', 'must', 'condition precedent', 'warranted') sits near it, so this reads as descriptive text rather than an obligation."
+       }
+      ],
+      "severity": "NONE",
+      "state": "NOT_IN_POLICY",
+      "title": "Waste and combustible material removal",
+      "verified_by": [
+       "WASTE_CONTRACT",
+       "RISK_SURVEY"
+      ],
+      "why_it_matters": "Accumulated packaging and waste is both a fire cause and a breach of a housekeeping condition. Acute in food production."
+     }
+    ],
+    "why_this_matters": {
+     "citations": [
+      {
+       "finding": "Where a condition precedent to liability is not satisfied and the policy does not spell out a remedy, common law principles apply and the insurer may be entitled to decline the claim entirely.",
+       "source": "Pinsent Masons, on conditions precedent under the Insurance Act 2015"
+      },
+      {
+       "finding": "For some conditions precedent, insurers may not have to pay the claim regardless of whether the breach had any causal connection to the loss.",
+       "source": "DLA Piper, Practical Guide for Claims Managers"
+      }
+     ],
+     "market_position": "A search of the market found law-firm guidance on the principle and no product that tracks compliance for an in-force SME policy.",
+     "note": "Cover responding to a loss is not the same as a claim being paid. Warranties and conditions precedent sit between the two."
+    }
+   },
+   "status": 200
+  }
+ }
+}

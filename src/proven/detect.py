@@ -6,11 +6,13 @@ check a finding. No model, and no silent default.
 
 Two rules that are load-bearing rather than stylistic:
 
-  1. `author_class` is NEVER caller-supplied. It derives from the detected kind,
-     because author_class derives evidence_class (grading.py) and a caller who could
-     assert "AUTHORITY" could manufacture a PROVEN finding out of a self-written
-     spreadsheet. An undetectable kind falls back to SELF — the weakest class —
-     so an unknown document can only ever weaken a finding, never strengthen it.
+  1. `author_class` is NEVER caller-supplied. It derives from the detected kind AND
+     the jurisdiction pack that applies (who authors a CPF record is a fact about
+     Singapore, so it lives in jurisdictions/SG.yaml), because author_class derives
+     evidence_class (grading.py) and a caller who could assert "AUTHORITY" could
+     manufacture a PROVEN finding out of a self-written spreadsheet. An undetectable
+     kind, or a kind the applicable pack does not list, falls back to SELF — the
+     weakest class — so an unknown document can only ever weaken a finding.
 
   2. An unrecognised carrier is reported as UNKNOWN, not guessed. Classification
      then degrades to the heading-keyword path and the accounting header says so.
@@ -23,6 +25,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Optional
+
+from . import jurisdiction
 
 UNKNOWN_CARRIER = "UNKNOWN"
 
@@ -94,22 +98,11 @@ KIND_MARKERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("SUPPLIER_INVOICE", ("invoice no", "tax invoice", "invoice number")),
 )
 
-# author_class is DERIVED from kind. Never widen this without reading grading.py:
-# every entry here is a claim about who had an independent reason to get it right.
-KIND_AUTHOR_CLASS: dict[str, str] = {
-    "BASE_WORDING": "INSURER",
-    "SCHEDULE": "INSURER",
-    "ENDORSEMENT": "INSURER",
-    "WIC_SCHEDULE": "INSURER",
-    "CPF_RECORD": "AUTHORITY",
-    "ACRA_PROFILE": "AUTHORITY",
-    "WORK_PASS_LIST": "AUTHORITY",
-    "TENANCY": "THIRD_PARTY",
-    "SUPPLIER_INVOICE": "THIRD_PARTY",
-    "PROPOSAL": "SELF",
-    "ACCOUNTS": "SELF",
-    "UNKNOWN": "SELF",
-}
+# author_class is DERIVED from kind, by the jurisdiction pack that applies: each pack's
+# `document_kinds` block is the table that used to sit here. Never widen one without
+# reading grading.py — every entry is a claim about who had an independent reason to get
+# the document right, and the loader refuses a country pack that re-grades a kind the
+# GENERIC pack shares.
 
 # A kind the owner may choose in the UI. Anything else is detected only.
 DECLARABLE_KINDS: tuple[str, ...] = (
@@ -234,7 +227,12 @@ def detect_kind(pages: list[str], filename: str = "") -> Detection:
     return Detection(best[3], confidence, best[1], best[2], scores)
 
 
-def author_class_for(kind: str) -> str:
+def author_class_for(kind: str,
+                     pack: Optional["jurisdiction.Pack"] = None) -> str:
     """The evidence-authorship class for a detected kind. Unknown -> SELF, the
-    weakest class, so an unidentified document can never strengthen a finding."""
-    return KIND_AUTHOR_CLASS.get(kind, "SELF")
+    weakest class, so an unidentified document can never strengthen a finding.
+
+    With a pack — which is how the pipeline always calls it — that pack's answer. With
+    none (the upload screen's list of kinds, which has no case yet), the answer every
+    pack that lists the kind agrees on, and SELF where they disagree."""
+    return jurisdiction.author_class_for(kind, pack)

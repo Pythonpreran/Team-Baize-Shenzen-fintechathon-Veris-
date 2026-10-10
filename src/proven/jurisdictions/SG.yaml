@@ -1,0 +1,437 @@
+# VERIS jurisdiction pack — Singapore.
+#
+# Country behaviour is data. Every figure the engine uses for Singapore, and every statement it
+# makes about Singapore law, comes from this file, and every entry that states something about
+# the law carries a `verification` block (see src/proven/jurisdiction.py for the ladder):
+#
+#   CANDIDATE       recorded, never shown to an owner as a statement
+#   SOURCE_QUOTED   a verbatim quote from the primary source, its URL and the retrieval date,
+#                   machine-checked against the fetched text (scripts/verify_pack_sources.py)
+#   HUMAN_VERIFIED  a named person or the team confirmed it
+#
+# The values the prior SME engine already used (the work injury thresholds and penalty, the
+# 21-day renewal window, the work-pass medical minimum, the CPF / ACRA / MOM authorship mapping,
+# the premium payment warranty day count) moved here UNCHANGED and are HUMAN_VERIFIED on the
+# strength of the team's earlier regulatory research, with a re-confirmation requested. Where a
+# primary source could be fetched on 2026-10-10, its quote is recorded too, so the figure can be
+# re-checked against the regulator's own words rather than against our memory of them.
+#
+# Never add a figure, date, section number or time limit that you cannot source. Record it as
+# CANDIDATE with a null value instead, and say what would establish it.
+
+code: SG
+name: Singapore
+version: 1
+summary: >
+  Singapore. Work injury compensation, the work-pass medical insurance minimum and the CPF,
+  ACRA and Ministry of Manpower records that evidence them; personal data protection; the
+  premium payment warranty convention in Singapore commercial wordings.
+locales: [en-SG]
+timezone: Asia/Singapore
+holiday_calendar:
+  provider: holidays
+  country: SG
+  wired: false
+  note: Not yet wired. Working-day arithmetic arrives with the deadline engine.
+
+# How Singapore amounts are written. `symbol` is the international form used across the
+# product; `local_symbol` is how Singapore's own authorities write the same currency, which is
+# the form the statutory sentences quote.
+currency:
+  code: SGD
+  symbol: "S$"
+  local_symbol: "$"
+  minor_units: 2
+  group_separator: ","
+  decimal_separator: "."
+  grouping: THREE
+
+regulators:
+  - id: SG-REG-INSURANCE
+    title: Monetary Authority of Singapore
+    statement: The Monetary Authority of Singapore (MAS) regulates insurers in Singapore.
+    values: {short_name: MAS, role: insurance regulator, url: "https://www.mas.gov.sg/"}
+    verification:
+      status: CANDIDATE
+      source_url: "https://www.mas.gov.sg/who-we-are"
+      retrieved_on: 2026-10-10
+      quote: null
+      verified_by: null
+      note: >
+        The page was fetched but carries no single sentence stating the insurance mandate.
+        Not shown to an owner until a primary sentence is quoted or a person confirms it.
+  - id: SG-REG-MOM
+    title: Ministry of Manpower
+    statement: >
+      The Ministry of Manpower administers work injury compensation and work passes, and sets
+      the compulsory terms of work injury compensation policies.
+    values: {short_name: MOM, url: "https://www.mom.gov.sg/"}
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/work-injury-compensation-insurance"
+      retrieved_on: 2026-10-10
+      quote: all WIC insurance policies must be issued by a designated insurer
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: null
+  - id: SG-REG-PDPC
+    title: Personal Data Protection Commission
+    statement: The Personal Data Protection Commission administers and enforces the PDPA.
+    values: {short_name: PDPC, url: "https://www.pdpc.gov.sg/"}
+    verification:
+      status: CANDIDATE
+      source_url: "https://www.pdpc.gov.sg/overview-of-pdpa/the-legislation/personal-data-protection-act"
+      retrieved_on: 2026-10-10
+      quote: null
+      verified_by: null
+      note: The page renders its text with script, so no sentence could be fetched and quoted.
+
+statutes:
+  - id: SG-STAT-WICA
+    title: Work Injury Compensation Act 2019
+    statement: The Work Injury Compensation Act 2019 requires an employer to be insured against its liabilities under the Act.
+    values: {short_title: WICA, section: "24"}
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://sso.agc.gov.sg/Act/WICA2019"
+      retrieved_on: 2026-10-10
+      quote: Employer must be insured against liabilities under Act
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: The quote is the heading of section 24 as listed in the Act's arrangement of sections.
+  - id: SG-STAT-WICA-COMPENSATION-LIMITS
+    title: Work injury compensation limits for accidents from 1 November 2025
+    statement: >
+      For accidents from 1 November 2025 the compensation limits are: medical expenses up to
+      $53,000 (or one year from the accident, whichever is reached first); permanent incapacity
+      $116,000 to $346,000 multiplied by the percentage of incapacity; death $91,000 to $269,000.
+    values:
+      effective_from: 2025-11-01
+      medical_expenses_max: 53000
+      permanent_incapacity_min: 116000
+      permanent_incapacity_max: 346000
+      death_min: 91000
+      death_max: 269000
+      before_effective_date:
+        medical_expenses_max: 45000
+        permanent_incapacity_min: 97000
+        permanent_incapacity_max: 289000
+        death_min: 76000
+        death_max: 225000
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/types-of-compensation"
+      retrieved_on: 2026-10-10
+      quote: within one year from the date of the accident, or up to a maximum of $53,000, whichever is reached first
+      verified_by: VERIS team, prior regulatory research (all six figures checked against the Ministry's annex; re-confirmation requested)
+      note: >
+        The quote pins the medical expenses figure; the same page tabulates the others. Not yet
+        used by any finding — recorded so the work injury card can compare a schedule's stated
+        limits against them.
+  - id: SG-STAT-PDPA-PENALTY
+    title: Maximum financial penalty on an organisation under the PDPA
+    statement: >
+      For a contravention on or after 1 October 2022, a financial penalty on an organisation
+      may not be more than 10% of its annual turnover in Singapore where that turnover exceeds
+      $10 million, and $1 million in any other case.
+    values:
+      penalty_ceiling: 1000000
+      turnover_trigger: 10000000
+      turnover_share: 10% of annual turnover in Singapore
+      effective_from: 2022-10-01
+      # The citation the prior build displayed beside the ceiling, kept unchanged.
+      cited_as: PDPC, Advisory Guidelines on Enforcement of the Data Protection Provisions (30 September 2022)
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr48J-"
+      retrieved_on: 2026-10-10
+      quote: "whose annual turnover in Singapore exceeds $10 million — 10% of the annual turnover in Singapore of the organisation; (b) in any other case — $1 million. [Act 40 of 2020 wef 01/10/2022]"
+      verified_by: null
+      note: Section 48J(3) of the Personal Data Protection Act 2012, as amended by Act 40 of 2020 with effect from 1 October 2022.
+  - id: SG-STAT-PDPA-SIGNIFICANT-SCALE
+    title: Data breach of significant scale
+    statement: A data breach affecting 500 or more individuals is of significant scale, and must be notified.
+    values: {affected_individuals: 500}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://sso.agc.gov.sg/SL/PDPA2012-S64-2021"
+      retrieved_on: 2026-10-10
+      quote: the prescribed number of affected individuals is 500
+      verified_by: null
+      note: Regulation 4 of the Personal Data Protection (Notification of Data Breaches) Regulations 2021.
+
+compulsory_covers:
+  - id: SG-COMP-WORK-INJURY
+    title: Work injury compensation insurance
+    statement: >
+      Work injury compensation insurance is compulsory for every employee doing manual work, at
+      any salary, and for every employee doing non-manual work who earns $2,600 or less a month.
+    values:
+      protection: WORK_INJURY
+      statute: SG-STAT-WICA
+      manual_work_any_salary: true
+      non_manual_monthly_salary_threshold: 2600
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/work-injury-compensation-insurance"
+      retrieved_on: 2026-10-10
+      quote: You need to get work injury compensation insurance for all employees doing manual work, as well as all employees earning $2,600 or less a month.
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: The threshold excludes overtime, bonus, annual wage supplement, productivity incentive and allowances.
+  - id: SG-COMP-WORK-INJURY-PENALTY
+    title: Penalty for not insuring
+    statement: >
+      Failing to provide adequate work injury compensation insurance is an offence carrying a
+      fine of up to $10,000 or jail of up to 12 months, or both.
+    values: {max_fine: 10000, max_jail_months: 12, statute: SG-STAT-WICA}
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/work-injury-compensation-insurance"
+      retrieved_on: 2026-10-10
+      quote: Failure to provide adequate insurance is an offence carrying a fine of up to $10,000 or jail of up to 12 months, or both.
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: >
+        The Act itself, s 25(1)(a), retrieved 2026-10-10 from
+        https://sso.agc.gov.sg/Act/WICA2019?ProvIds=pr25- reads "to a fine not exceeding $10,000
+        or to imprisonment for a term not exceeding 12 months or to both"; s 25(1)(b) sets a
+        higher fine for a repeat offender, which no finding states.
+  - id: SG-COMP-WORKPASS-MEDICAL
+    title: Medical insurance for Work Permit holders
+    statement: >
+      An employer must buy medical insurance for each Work Permit holder with coverage of at
+      least $60,000 per year.
+    values: {protection: WORKPASS_MEDICAL, minimum_annual_cover: 60000, per: Work Permit holder}
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/passes-and-permits/work-permit-for-foreign-worker/sector-specific-rules/medical-insurance"
+      retrieved_on: 2026-10-10
+      quote: The coverage for each Work Permit holder has to be at least $60,000 per year
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: Where the plan has sub-limits, each sub-limit must meet the minimum (same page).
+
+regulatory_timelines:
+  - id: SG-TL-WICA-RENEWAL-INFORMATION
+    title: Work injury renewal information
+    statement: >
+      Insurance contracts must be finalised, and the information the insurer requires provided,
+      at least 21 days before policy commencement.
+    values: {days_before_commencement: 21, basis: policy_inception}
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/work-injury-compensation-insurance"
+      retrieved_on: 2026-10-10
+      quote: Finalise all insurance contracts and provide the information required to your insurer at least 21 days before policy commencement.
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: null
+  - id: SG-TL-PDPA-BREACH-NOTIFICATION
+    title: Notifying the Commission of a notifiable data breach
+    statement: >
+      An organisation that assesses a data breach as notifiable must notify the Personal Data
+      Protection Commission as soon as is practicable, and no later than 3 calendar days after
+      making that assessment.
+    values: {days: 3, regulator: SG-REG-PDPC}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://sso.agc.gov.sg/Act/PDPA2012?ProvIds=pr26D-"
+      retrieved_on: 2026-10-10
+      quote: "the organisation must notify the Commission as soon as is practicable, but in any case no later than 3 calendar days after the day the organisation makes that assessment"
+      verified_by: null
+      note: Section 26D(1) of the Personal Data Protection Act 2012.
+
+# The route a complaint takes. A step records a time limit ONLY with a sourced quote for it;
+# none is recorded here yet, and none may be inferred.
+complaint_ladder:
+  - id: SG-CL-INSURER
+    title: The insurer's own complaints process
+    statement: Raise the complaint with the insurer first, through its own complaints process.
+    values: {order: 1, time_limit_days: null}
+    verification:
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: No primary source quoted yet for the requirement that an insurer is approached first.
+  - id: SG-CL-FIDREC
+    title: Financial Industry Disputes Resolution Centre (FIDReC)
+    statement: >
+      FIDReC is an independent dispute resolution body for disputes between consumers and
+      financial institutions, through mediation and adjudication.
+    values: {order: 2, time_limit_days: null, url: "https://www.fidrec.com.sg/"}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://www.fidrec.com.sg/"
+      retrieved_on: 2026-10-10
+      quote: We encourage and assist in the resolution of disputes between consumers and financial institutions through mediation and adjudication
+      verified_by: null
+      note: The quote establishes what FIDReC does. Eligibility limits and time limits are not recorded.
+
+# What Singapore commercial wordings conventionally say. Not law: a convention is labelled as
+# one wherever it is used, and the customer's own wording governs.
+market_conventions:
+  - id: SG-MC-PREMIUM-PAYMENT-WARRANTY
+    title: Premium payment warranty period
+    statement: >
+      The Singapore commercial wording the engine is measured against states a 60-day premium
+      payment warranty: cover terminates automatically if the premium is not received within
+      60 days of inception.
+    values: {days: 60}
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.dbs.com.sg/sme/pdf/oaos-selectpluslite-policywording.pdf"
+      retrieved_on: 2026-10-09
+      quote: is not paid and received in full by Chubb within 60 days of the inception of Policy Period
+      verified_by: VERIS team (prior build's PREMIUM-PAYMENT-WARRANTY-TIMING rule, read against cl 3.20 of that wording)
+      note: Quoted from the corpus copy of the published wording (corpus id sg-chubb-selectplus-wording).
+
+# Who authors each kind of document. This decides the evidence class, so it is never accepted
+# from a caller (see detect.author_class_for). The kinds every pack shares must agree with the
+# GENERIC pack; the loader refuses a pack that raises the authorship of one.
+#
+# `absent_note` is the line the Brief's "not searched" list carries when a bundle lacks that
+# document, in the order it is listed here.
+document_kinds:
+  - kind: BASE_WORDING
+    author_class: INSURER
+    verification: &team_grading
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, evidence-class design (src/proven/grading.py), migrated unchanged
+      note: null
+  - kind: SCHEDULE
+    author_class: INSURER
+    verification: *team_grading
+  - kind: ENDORSEMENT
+    author_class: INSURER
+    verification: *team_grading
+  - kind: CPF_RECORD
+    author_class: AUTHORITY
+    author: Central Provident Fund Board
+    absent_note: CPF contribution record — actual headcount not verified
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.cpf.gov.sg/member/who-we-are"
+      retrieved_on: 2026-10-10
+      quote: The CPF Board is a statutory board under the Ministry of Manpower.
+      verified_by: VERIS team, prior regulatory research (CPF / ACRA authorship mapping, migrated unchanged; re-confirmation requested)
+      note: null
+  - kind: WIC_SCHEDULE
+    author_class: INSURER
+    absent_note: Work injury schedule — declared headcount not verified
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.mom.gov.sg/workplace-safety-and-health/work-injury-compensation/work-injury-compensation-insurance"
+      retrieved_on: 2026-10-10
+      quote: all WIC insurance policies must be issued by a designated insurer
+      verified_by: VERIS team, prior regulatory research (migrated unchanged; re-confirmation requested)
+      note: null
+  - kind: TENANCY
+    author_class: THIRD_PARTY
+    absent_note: Tenancy agreement — premises and permitted use not verified
+    verification: *team_grading
+  - kind: ACCOUNTS
+    author_class: SELF
+    absent_note: Accounts — value at risk for stock not verified
+    verification: *team_grading
+  - kind: ACRA_PROFILE
+    author_class: AUTHORITY
+    author: Accounting and Corporate Regulatory Authority
+    absent_note: ACRA profile — registered activities not verified
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: "https://www.acra.gov.sg/"
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, prior regulatory research (CPF / ACRA authorship mapping, migrated unchanged; re-confirmation requested)
+      note: The authority's overview page could not be fetched on 2026-10-10 (HTTP 404).
+  - kind: WORK_PASS_LIST
+    author_class: AUTHORITY
+    author: Ministry of Manpower
+    verification:
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, prior regulatory research (authorship mapping migrated unchanged; re-confirmation requested)
+      note: A work pass list is the Ministry's own online enquiry printout.
+  - kind: SUPPLIER_INVOICE
+    author_class: THIRD_PARTY
+    verification: *team_grading
+  - kind: PROPOSAL
+    author_class: SELF
+    verification: *team_grading
+  - kind: UNKNOWN
+    author_class: SELF
+    verification: *team_grading
+
+data_protection:
+  id: SG-DP-PDPA
+  title: Personal Data Protection Act 2012
+  statement: >
+    The collection, use and disclosure of personal data by organisations in Singapore is
+    governed by the Personal Data Protection Act 2012.
+  # The entries the cyber and data screen reads its figures from, each verified on its own.
+  # The screen states the law only when every one of them is owner-facing, and otherwise
+  # states none of it (cyber.regime): half a statement of the law is worse than none.
+  values:
+    statute: Personal Data Protection Act 2012
+    short_title: PDPA
+    label: Personal Data Protection Act 2012 (Singapore)
+    regulator: SG-REG-PDPC
+    regulator_short: PDPC
+    penalty: SG-STAT-PDPA-PENALTY
+    notification: SG-TL-PDPA-BREACH-NOTIFICATION
+    significant_scale: SG-STAT-PDPA-SIGNIFICANT-SCALE
+  verification:
+    status: SOURCE_QUOTED
+    source_url: "https://sso.agc.gov.sg/Act/PDPA2012"
+    retrieved_on: 2026-10-10
+    quote: An Act to govern the collection, use and disclosure of personal data by organisations
+    verified_by: null
+    note: The quote is the Act's long title.
+
+advice_boundary:
+  product_boundary: >
+    VERIS states what your documents say and where they say it. It does not recommend a
+    product, an insurer or a premium, and it never suggests that you buy, cancel, switch or
+    surrender cover. For advice, speak to a licensed adviser or to your insurer.
+  regulatory_basis:
+    id: SG-AB-FINANCIAL-ADVISERS
+    title: Financial Advisers Act 2001
+    statement: Financial advisory services in Singapore are regulated under the Financial Advisers Act 2001.
+    values: {}
+    verification:
+      status: CANDIDATE
+      source_url: "https://sso.agc.gov.sg/Act/FAA2001"
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: Not fetched or quoted. The product boundary above does not depend on it.
+
+# How a document is recognised as Singaporean. Weights live in jurisdiction.py, not here: they
+# rank the KINDS of signal (a governing-law clause outranks a phone number everywhere), and only
+# the patterns are a country's own. Patterns are matched against whitespace-normalised text.
+detection:
+  governing_law:
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of (?:the )?(?:Republic of )?Singapore\b'
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bSingapore [Ll]aw\b'
+  names:
+    - Monetary Authority of Singapore
+    - MAS
+    - Ministry of Manpower
+    - Central Provident Fund
+    - Accounting and Corporate Regulatory Authority
+    - Personal Data Protection Commission
+    - Work Injury Compensation Act
+    - Personal Data Protection Act 2012
+    - FIDReC
+  currency_codes: [SGD]
+  currency_symbols: ["S$"]
+  registration_numbers:
+    # Unique Entity Number: business (8 digits + letter), local company (year + 5 digits +
+    # letter) and other entities (T/S/R, year, entity type, 4 digits, letter).
+    - '\b(?:\d{8}[A-Z]|(?:19|20)\d{7}[A-Z]|[TSR]\d{2}[A-Z]{2}\d{4}[A-Z])\b'
+  postcodes:
+    - '\bSingapore\s?\(?\d{6}\)?(?!\d)'
+  phone_numbers:
+    - '\+65[\s-]?[3689]\d{3}[\s-]?\d{4}\b'

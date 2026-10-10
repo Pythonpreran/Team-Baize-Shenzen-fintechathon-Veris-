@@ -46,7 +46,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Callable, Optional
 
-from . import account, ingest
+from . import account, ingest, jurisdiction
 
 DISCLAIMER = ("Compliance state read from the documents on record. Not a coverage "
               "determination and not legal advice — whether a breach defeats a "
@@ -231,6 +231,8 @@ class ConditionState:
     matched_phrase: Optional[str] = None
     needles_searched: list = field(default_factory=list)
     phrases_set_aside: list = field(default_factory=list)
+    # Quote, link and status of a jurisdiction-pack figure the detail states.
+    pack_sources: list = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -250,6 +252,7 @@ class ConditionState:
             # Phrases that were located but judged not to create an obligation, each with
             # the excerpt and the reason. Published so a reader can overrule the judgement.
             "phrases_set_aside": self.phrases_set_aside,
+            **({"pack_sources": self.pack_sources} if self.pack_sources else {}),
         }
 
 
@@ -350,11 +353,32 @@ def _operand(facts, name: str) -> Optional[dict]:
 # Each returns (state, detail, evidence). A checker that cannot decide returns
 # UNVERIFIED — it never guesses toward COMPLIANT, because a false clean bill of health is
 # the one output that actively harms the customer.
+#
+# Each takes the jurisdiction pack the case is read under. A checker called without one
+# reads under GENERIC: no figure from any country is assumed.
 
-_PREMIUM_THRESHOLD_DAYS = 60
+def _premium_period_entry(pack: Optional["jurisdiction.Pack"]
+                          ) -> Optional["jurisdiction.Entry"]:
+    entry = (pack or jurisdiction.generic()).find("MC-PREMIUM-PAYMENT-WARRANTY")
+    if entry is None or not entry.owner_facing or entry.values.get("days") is None:
+        return None
+    return entry
 
 
-def _check_premium_payment(facts, today: Optional[date]) -> tuple:
+def _premium_period_days(pack: Optional["jurisdiction.Pack"]) -> Optional[int]:
+    """The premium payment period the pack verifies, or None.
+
+    This was a module constant, 60 — the period the Singapore wording the engine was
+    measured against states — applied to every wording from anywhere. It now lives in
+    jurisdictions/SG.yaml with its quote, and a pack that does not verify one gets no
+    comparison rather than a borrowed number.
+    """
+    entry = _premium_period_entry(pack)
+    return None if entry is None else int(entry.values["days"])
+
+
+def _check_premium_payment(facts, today: Optional[date],
+                           pack: Optional["jurisdiction.Pack"] = None) -> tuple:
     inc = _operand(facts, "inception")
     rec = _operand(facts, "premium_received")
     if inc is None:
@@ -375,22 +399,32 @@ def _check_premium_payment(facts, today: Optional[date]) -> tuple:
                 "Inception or receipt date could not be read as a date. Abstaining "
                 "rather than assuming compliance.", [inc, rec])
     days = (received - inception).days
-    if days > _PREMIUM_THRESHOLD_DAYS:
+    period = _premium_period_days(pack)
+    if period is None:
+        return (UNVERIFIED,
+                (f"Premium was received on day {days} of the policy period. The premium "
+                 f"payment clause is in this wording, but these documents are not read "
+                 f"under a jurisdiction pack that verifies a payment period, so no "
+                 f"period is assumed. Read the period the clause itself states and "
+                 f"compare it with day {days}."),
+                [inc, rec])
+    if days > period:
         return (BREACHED,
                 (f"Premium was received on day {days} of the policy period against a "
-                 f"{_PREMIUM_THRESHOLD_DAYS}-day condition. On wordings where payment "
+                 f"{period}-day condition. On wordings where payment "
                  f"within the period is a condition precedent, cover can terminate "
                  f"automatically — meaning the business may have been trading uninsured "
-                 f"for {days - _PREMIUM_THRESHOLD_DAYS} days before anyone noticed. "
+                 f"for {days - period} days before anyone noticed. "
                  f"Confirm the position with the insurer in writing."),
                 [inc, rec])
     return (COMPLIANT,
             (f"Premium received on day {days}, within the "
-             f"{_PREMIUM_THRESHOLD_DAYS}-day condition."),
+             f"{period}-day condition."),
             [inc, rec])
 
 
-def _check_premises_declared(facts, today: Optional[date]) -> tuple:
+def _check_premises_declared(facts, today: Optional[date],
+                             pack: Optional["jurisdiction.Pack"] = None) -> tuple:
     sch = _operand(facts, "scheduled_premises")
     ten = _operand(facts, "demised_premises")
     if sch is None or ten is None:
@@ -450,6 +484,7 @@ def register(case: dict, *, today: Optional[date] = None) -> dict:
     facts = case.get("facts") if isinstance(case, dict) else case
     conn = case.get("conn") if isinstance(case, dict) else None
     base_doc_id = case.get("base_doc_id") if isinstance(case, dict) else None
+    pack = jurisdiction.pack_of(case)
 
     states: list[ConditionState] = []
     for spec in CATALOGUE:
@@ -519,7 +554,15 @@ def register(case: dict, *, today: Optional[date] = None) -> dict:
                  + " to close it."),
                 [])
         else:
-            state, detail, evidence = checker(facts, today)
+            state, detail, evidence = checker(facts, today, pack)
+
+        # The premium period, where one was compared against, is a pack figure: show its
+        # quote and source with it.
+        sources: list = []
+        if spec.checker == "premium_payment" and state in (BREACHED, COMPLIANT):
+            entry = _premium_period_entry(pack)
+            if entry is not None:
+                sources = [entry.provenance()]
 
         states.append(ConditionState(
             id=spec.id, kind=spec.kind, title=spec.title,
@@ -532,7 +575,8 @@ def register(case: dict, *, today: Optional[date] = None) -> dict:
             clause_quote=(quote[:520] if isinstance(quote, str) else None),
             clause_page=page,
             matched_phrase=matched,
-            needles_searched=list(spec.needles)))
+            needles_searched=list(spec.needles),
+            pack_sources=sources))
 
     states.sort(key=lambda s: (_STATE_ORDER[s.state], s.id))
 

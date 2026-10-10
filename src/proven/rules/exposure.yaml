@@ -16,10 +16,22 @@
 #
 # Neither rule adjudicates. Neither says a claim would be declined. Both say what the
 # schedule contains, what the business demonstrably does, and that the two do not meet.
-
+#
+# The cyber rule is a SINGAPORE rule: it reads the ACRA register and states Singapore's data
+# protection law, so it runs only under the SG pack, and its figures come from the pack (see
+# the header of compulsion.yaml for how `pack_values` and the `.money` / `.millions` /
+# `.long_date` forms work). The dependency rule reads only the schedule and states a market
+# convention, so it runs under every pack.
 - id: CYBER-DATA-COVER-ABSENT
   version: 1
+  jurisdiction: SG
   title: Personal data held with no section that responds to its loss
+  pack_values:
+    significant_scale: STAT-PDPA-SIGNIFICANT-SCALE:affected_individuals
+    effective_from: STAT-PDPA-PENALTY:effective_from
+    ceiling: STAT-PDPA-PENALTY:penalty_ceiling
+    trigger: STAT-PDPA-PENALTY:turnover_trigger
+    turnover_share: STAT-PDPA-PENALTY:turnover_share
   requires:
     - operand: sections
       from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
@@ -39,15 +51,14 @@
       proposition: >
         Organisations must protect personal data in their possession or control, and
         must notify the Commission of a data breach that is likely to result in
-        significant harm to affected individuals or that affects at least 500
-        individuals.
+        significant harm to affected individuals or that affects at least
+        {significant_scale} individuals.
   consequence_note: >
-    From 1 October 2022 the maximum financial penalty under the PDPA is S$1 million,
-    or 10% of annual turnover in Singapore where that turnover exceeds S$10 million,
-    whichever is higher. That is a statutory ceiling and not a prediction: the
-    Commission assesses harm and culpability case by case.
+    From {effective_from.long_date} the maximum financial penalty under the PDPA is
+    {ceiling.millions}, or {turnover_share} where that turnover exceeds
+    {trigger.millions}, whichever is higher. That is a statutory ceiling and not a
+    prediction: the Commission assesses harm and culpability case by case.
   never: [assert_breach, assert_claim_outcome]
-
 - id: DEPENDENCY-COVER-NOT-POSSIBLE
   version: 1
   title: Income depends on outside parties with no business interruption section

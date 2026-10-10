@@ -43,6 +43,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from . import jurisdiction
+
 # ── states of knowledge ─────────────────────────────────────────────────────
 ASSESSED = "ASSESSED"          # we looked, and we have a verdict
 PARTIAL = "PARTIAL"            # we looked, and could only answer part of it
@@ -70,11 +72,20 @@ class RiskArea:
     # The single document that most moves this area from NOT_ASSESSED to ASSESSED.
     unlocking_document: str
     unlocks_what: str
+    # Some areas are described in one country's terms — its records, its compulsory cover,
+    # its data-protection law. `country_kinds` names the document kinds that description
+    # depends on; under a pack that does not define them, the `neutral` wording is used
+    # instead, so a business from elsewhere is not told about Singapore's law.
+    country_kinds: tuple[str, ...] = ()
+    neutral: Optional[dict] = None
 
-    def as_dict(self) -> dict:
-        return {"key": self.key, "label": self.label, "plain": self.plain,
-                "unlocking_document": self.unlocking_document,
-                "unlocks_what": self.unlocks_what}
+    def as_dict(self, pack: Optional["jurisdiction.Pack"] = None) -> dict:
+        out = {"key": self.key, "label": self.label, "plain": self.plain,
+               "unlocking_document": self.unlocking_document,
+               "unlocks_what": self.unlocks_what}
+        if self.neutral and (pack is None or not pack.lists(*self.country_kinds)):
+            out.update(self.neutral)
+        return out
 
 
 # The register. This is the denominator: the areas a business of any size has, whether
@@ -98,13 +109,23 @@ AREAS: tuple[RiskArea, ...] = (
     RiskArea("workforce", "Your people",
              "Compulsory work injury cover and migrant worker obligations.",
              "CPF contribution record and work injury schedule",
-             "Whether your declared headcount matches who you employ."),
+             "Whether your declared headcount matches who you employ.",
+             country_kinds=("CPF_RECORD", "WIC_SCHEDULE", "WORK_PASS_LIST"),
+             neutral={"plain": "Work injury cover, and the obligations that come with "
+                               "employing people.",
+                      "unlocking_document": "Your payroll records and any work injury "
+                                            "policy schedule"}),
     RiskArea("digital", "Data and systems",
              "Personal data you hold, and whether anything responds when it is "
              "lost or stolen.",
              "Your ACRA profile and policy wording",
              "Whether you are inside the PDPA, and whether your policy excludes "
-             "data loss."),
+             "data loss.",
+             country_kinds=("ACRA_PROFILE",),
+             neutral={"unlocking_document": "A record of how you sell, and your policy "
+                                            "wording",
+                      "unlocks_what": "Whether a data-protection law applies to you, "
+                                      "and whether your policy excludes data loss."}),
     RiskArea("dependencies", "Who you depend on",
              "Suppliers, utilities, landlords and channels your income relies on.",
              "Your supplier list and tenancy agreement",
@@ -124,9 +145,9 @@ class Assessment:
     finding_count: int = 0
     score: Optional[int] = None
 
-    def as_dict(self) -> dict:
+    def as_dict(self, pack: Optional["jurisdiction.Pack"] = None) -> dict:
         return {
-            **self.area.as_dict(),
+            **self.area.as_dict(pack),
             "state": self.state,
             "state_label": _STATE_LABELS[self.state],
             "state_plain": _STATE_PLAIN[self.state],
@@ -183,6 +204,7 @@ def assess(case: dict, *, score: Optional[dict] = None,
     report = BlindSpotReport()
     dims = _dimension_index(score)
     findings = (case or {}).get("findings") or []
+    pack = jurisdiction.pack_of(case)
 
     for area in AREAS:
         if area.key == "digital":
@@ -192,7 +214,7 @@ def assess(case: dict, *, score: Optional[dict] = None,
         else:
             report.assessments.append(_from_dimension(area, dims.get(area.key)))
 
-    report.silent_gaps = _silent_gaps(report.assessments, cyber, dependency)
+    report.silent_gaps = _silent_gaps(report.assessments, cyber, dependency, pack)
     report.assert_invariant()
 
     assessed = [a for a in report.assessments if a.state == ASSESSED]
@@ -202,7 +224,7 @@ def assess(case: dict, *, score: Optional[dict] = None,
     speakable = len(assessed) + len(partial)
 
     return {
-        "areas": [a.as_dict() for a in report.assessments],
+        "areas": [a.as_dict(pack) for a in report.assessments],
         "counts": {
             "total_areas": total,
             "assessed": len(assessed),
@@ -312,7 +334,8 @@ def _dependencies(area: RiskArea, dependency: Optional[dict]) -> Assessment:
 
 
 def _silent_gaps(assessments: list[Assessment], cyber: Optional[dict],
-                 dependency: Optional[dict]) -> list[dict]:
+                 dependency: Optional[dict],
+                 pack: Optional["jurisdiction.Pack"] = None) -> list[dict]:
     """Places where quiet is caused by missing evidence, not by safety.
 
     Ordered by how cheaply the unknown can be resolved — one document first — because
@@ -322,14 +345,15 @@ def _silent_gaps(assessments: list[Assessment], cyber: Optional[dict],
     for a in assessments:
         if a.state == ASSESSED:
             continue
+        view = a.area.as_dict(pack)
         for reason in (a.could_not_check or ()):
             out.append({
                 "area": a.area.key,
                 "area_label": a.area.label,
                 "state": a.state,
                 "what_we_could_not_check": reason,
-                "resolved_by": a.area.unlocking_document,
-                "resolving_establishes": a.area.unlocks_what,
+                "resolved_by": view["unlocking_document"],
+                "resolving_establishes": view["unlocks_what"],
                 "why_quiet_is_not_safe": (
                     f"With nothing to read, {a.area.label.lower()} produces no "
                     f"findings. An area with no findings looks exactly like an area "

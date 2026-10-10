@@ -1,7 +1,19 @@
 # PROVEN — compulsion and date-trigger rules (WICA, premium payment warranty).
-
+#
+# THESE ARE SINGAPORE RULES, and say so. `jurisdiction: SG` means the engine runs the rule
+# only when the bundle's own documents select the Singapore pack; under any other pack it is
+# reported as not applied, by name, rather than read against the wrong country's law.
+#
+# THE FIGURES ARE NOT HERE. Every number these sentences state — the penalty, the salary
+# threshold, the 21-day window, the medical minimum, the warranty period — lives once, in
+# src/proven/jurisdictions/SG.yaml, with its source and verification status. `pack_values`
+# names which pack entry each placeholder reads (`LOCAL-ID:key`, resolved against the pack
+# that applies). `{x.money}` writes an amount as the pack's currency writes it (S$60,000) and
+# `{x.local}` as the country's own authorities write it ($2,600). A sentence whose figures are
+# not verified for owner-facing use is dropped rather than shown; see rules._pack_text.
 - id: WICA-HEADCOUNT-UNDERDECLARED
   version: 1
+  jurisdiction: SG
   title: Work injury declaration understated against the CPF record
   requires:
     - operand: declared
@@ -19,12 +31,17 @@
       proposition: >
         Employers must ensure declared headcount and occupational class are
         accurate; wrongful declaration may affect claims.
+  pack_values:
+    max_fine: COMP-WORK-INJURY-PENALTY:max_fine
+    max_jail_months: COMP-WORK-INJURY-PENALTY:max_jail_months
+    salary_threshold: COMP-WORK-INJURY:non_manual_monthly_salary_threshold
+    renewal_days: TL-WICA-RENEWAL-INFORMATION:days_before_commencement
   consequence_note: >
-    WICA non-insurance penalty up to $10,000 and/or 12 months. Compulsory for all
-    employees doing manual work at any salary and non-manual employees earning
-    $2,600 or less monthly.
-  deadline: {basis: policy_inception, offset_days: -21}
-
+    WICA non-insurance penalty up to {max_fine.local} and/or {max_jail_months} months.
+    Compulsory for all employees doing manual work at any salary and non-manual
+    employees earning {salary_threshold.local} or less monthly.
+  # Rendered as {basis, offset_days}: the window ends `renewal_days` before inception.
+  deadline: {basis: policy_inception, days_before: renewal_days}
 # RENAMED from PREMIUM-PAYMENT-WARRANTY-BREACHED. The old id asserted the thing this
 # product exists not to assert. `never: [assert_breach]` is enforced on every
 # rendered string, but a rule_id is rendered too — in the API payload, the eval
@@ -33,8 +50,10 @@
 # language. The finding is unchanged: day count located, clause quoted, escalated.
 - id: PREMIUM-PAYMENT-WARRANTY-TIMING
   version: 2
-  title: Premium received outside the 60-day warranty period
-  threshold_days: 60
+  jurisdiction: SG
+  title: Premium received outside the {days}-day warranty period
+  pack_values:
+    days: MC-PREMIUM-PAYMENT-WARRANTY:days
   requires:
     - operand: inception
       from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
@@ -42,27 +61,28 @@
       from: {document_kind: SCHEDULE, taxonomy_code: DOC.SCHEDULE}
     - operand: ppw
       from: {document_kind: BASE_WORDING, taxonomy_code: COND.PREMIUM_PAYMENT_WARRANTY}
-  test: (received - inception).days > 60
+  test: (received - inception).days > days
   output_state: REQUIRES_AUTHORISED_REVIEW
   escalate: true
   headline: >
     Premium appears to have been received on day {n} of the policy period. cl 3.20
-    provides that cover is automatically terminated immediately after the 60-day
+    provides that cover is automatically terminated immediately after the {days}-day
     period, without prejudice to liability incurred within it.
   cite: [{clause: "3.20", document_kind: BASE_WORDING}]
   never: [assert_breach, assert_claim_outcome]
-
 - id: WORKPASS-MEDICAL-BELOW-MINIMUM
   version: 1
-  minimum_medical_sgd: 60000
+  jurisdiction: SG
   title: Work Permit holder medical insurance below the required minimum
+  pack_values:
+    minimum: COMP-WORKPASS-MEDICAL:minimum_annual_cover
   requires:
     - operand: holders
       from: {document_kind: WORK_PASS_LIST, taxonomy_code: WORKPASS.HOLDER_LIST}
-  test: any(holder.medical_insurance_sum_sgd < 60000)
+  test: any(holder.medical_insurance_sum_sgd < minimum)
   output_state: DOCUMENTED
   headline: >
-    At least one Work Permit holder carries medical insurance below the S$60,000
+    At least one Work Permit holder carries medical insurance below the {minimum.money}
     annual minimum required per migrant worker. Both figures are from the
     authority-authored work pass list, so this is a PROVEN discrepancy.
   cite:

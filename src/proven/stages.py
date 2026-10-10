@@ -44,11 +44,17 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Optional
 
+from . import jurisdiction
+
 # ── bases for an expectation ────────────────────────────────────────────────
 #
 # The distinction that keeps this module honest. STATUTORY is traceable to a named
 # instrument; MARKET_CONVENTION is traceable to nothing stronger than what comparable
 # businesses commonly carry, and must always be phrased as such.
+#
+# A STATUTORY expectation is also a statement about ONE country's law, so it is built only
+# from the jurisdiction pack the case is read under, and only from entries that pack
+# verifies for owner-facing use. Under GENERIC there is no STATUTORY expectation at all.
 STATUTORY = "STATUTORY"
 MARKET_CONVENTION = "MARKET_CONVENTION"
 
@@ -68,9 +74,9 @@ PROTECTIONS: dict[str, dict[str, str]] = {
     },
     "WORK_INJURY": {
         "label": "Work injury compensation",
-        "plain": "Covers employees injured at work. Compulsory in Singapore for all "
-                 "employees doing manual work at any salary, and non-manual "
-                 "employees earning $2,600 or less a month.",
+        # Whether it is compulsory, and for whom, is a fact about a country; the sentence
+        # that says so is added from the pack (see `_work_injury`), never stated here.
+        "plain": "Covers employees injured at work.",
     },
     "BUSINESS_INTERRUPTION": {
         "label": "Business interruption",
@@ -110,17 +116,25 @@ class Expectation:
     basis: str                  # STATUTORY | MARKET_CONVENTION
     because: str                # the observed reason, in the owner's words
     authority: Optional[str] = None   # named instrument, STATUTORY only
+    # The vocabulary's plain description, extended for this case's country where the
+    # pack verifies a statement about it. None means the vocabulary's own sentence.
+    plain: Optional[str] = None
+    # Quote, link and status of the pack entries a STATUTORY statement rests on.
+    sources: tuple = ()
 
     def as_dict(self) -> dict:
         meta = PROTECTIONS[self.protection]
-        return {
+        out = {
             "protection": self.protection,
             "label": meta["label"],
-            "plain": meta["plain"],
+            "plain": self.plain if self.plain is not None else meta["plain"],
             "basis": self.basis,
             "because": self.because,
             "authority": self.authority,
         }
+        if self.sources:
+            out["pack_sources"] = list(self.sources)
+        return out
 
 
 @dataclass(frozen=True)
@@ -316,16 +330,23 @@ def _stage_for(headcount: Optional[int], premises: Optional[int],
 
 def _expectations_upto(stage: Stage, *, headcount: Optional[int],
                        premises: Optional[int], online: bool,
-                       online_quote: Optional[str]) -> list[Expectation]:
-    """Every expectation at or below this rung, each with its observed reason."""
+                       online_quote: Optional[str],
+                       pack: "jurisdiction.Pack") -> tuple[list[Expectation], list[str]]:
+    """Every expectation at or below this rung, each with its observed reason, and the
+    protections that could not be stated because the pack does not support them."""
     out: list[Expectation] = []
+    not_stated: list[str] = []
     for rung in LADDER:
         if rung.ordinal > stage.ordinal:
             break
         for protection in _STAGE_EXPECTS.get(rung.key, ()):
-            out.append(_expectation(protection, headcount=headcount,
-                                    premises=premises, online=online,
-                                    online_quote=online_quote))
+            exp = _expectation(protection, headcount=headcount,
+                               premises=premises, online=online,
+                               online_quote=online_quote, pack=pack)
+            if exp is None:
+                not_stated.append(protection)
+            else:
+                out.append(exp)
     # Cyber is not a rung: it is triggered by handling customer data, which a
     # one-person online shop does as surely as a fifty-person one. Attaching it to a
     # size band would let the smallest businesses — the ones least likely to hold it —
@@ -339,22 +360,63 @@ def _expectations_upto(stage: Stage, *, headcount: Optional[int],
                        "carry cover for a data breach, because a standard property "
                        "and liability policy generally excludes it."),
         ))
-    return out
+    return out, not_stated
+
+
+#: Why a protection the ladder would name is not listed, for `unestablished`.
+_NOT_STATED_BECAUSE: dict[str, str] = {
+    "WORK_INJURY": ("Whether the law requires work injury cover for your employees — "
+                    "these documents are not read under a jurisdiction pack that states "
+                    "such a requirement, so it is not listed as one."),
+}
+
+
+def _work_injury(pack: "jurisdiction.Pack", headcount: Optional[int]
+                 ) -> Optional[Expectation]:
+    """The statutory work injury expectation, built from the pack — or None.
+
+    The sentence shape is the one the prior build used for Singapore (manual work at any
+    salary; non-manual up to a monthly threshold), so it is rendered only when the pack's
+    compulsory-cover entry has exactly that shape and both it and the statute it names are
+    verified for owner-facing use. Anything less, and nothing is said about the law.
+    """
+    cover = pack.statement("COMP-WORK-INJURY")
+    if cover is None or pack.currency is None:
+        return None
+    v = cover.values
+    threshold = v.get("non_manual_monthly_salary_threshold")
+    statute_id = v.get("statute")
+    if v.get("manual_work_any_salary") is not True or threshold is None or not statute_id:
+        return None
+    try:
+        statute = pack.entry(statute_id)
+    except jurisdiction.PackError:
+        return None
+    if not statute.owner_facing:
+        return None
+    n = headcount if headcount is not None else 0
+    limit = pack.currency.format(threshold, local=True)
+    return Expectation(
+        "WORK_INJURY", STATUTORY,
+        because=(f"Your documents evidence {n} people on the payroll. Work "
+                 f"injury cover is compulsory in {pack.name} for every employee "
+                 f"doing manual work at any salary, and for non-manual "
+                 f"employees earning {limit} or less a month."),
+        authority=f"{statute.title} ({pack.name})",
+        plain=(f"{PROTECTIONS['WORK_INJURY']['plain']} Compulsory in {pack.name} for "
+               f"all employees doing manual work at any salary, and non-manual "
+               f"employees earning {limit} or less a month."),
+        sources=(cover.provenance(), statute.provenance()))
 
 
 def _expectation(protection: str, *, headcount: Optional[int],
                  premises: Optional[int], online: bool,
-                 online_quote: Optional[str]) -> Expectation:
-    """The reason a protection is expected, phrased from what was observed."""
+                 online_quote: Optional[str],
+                 pack: "jurisdiction.Pack") -> Optional[Expectation]:
+    """The reason a protection is expected, phrased from what was observed. None when
+    the only honest basis would be a law the pack does not state."""
     if protection == "WORK_INJURY":
-        n = headcount if headcount is not None else 0
-        return Expectation(
-            protection, STATUTORY,
-            because=(f"Your documents evidence {n} people on the payroll. Work "
-                     f"injury cover is compulsory in Singapore for every employee "
-                     f"doing manual work at any salary, and for non-manual "
-                     f"employees earning $2,600 or less a month."),
-            authority="Work Injury Compensation Act 2019 (Singapore)")
+        return _work_injury(pack, headcount)
     if protection == "BUSINESS_INTERRUPTION":
         sites = f"{premises} sites" if (premises or 0) >= 2 else "your premises"
         return Expectation(
@@ -424,6 +486,7 @@ def assess(case: dict) -> dict:
     stage assigned from nothing.
     """
     facts = (case or {}).get("facts")
+    pack = jurisdiction.pack_of(case)
     assessment = StageAssessment()
 
     headcount, headcount_src = _headcount(facts)
@@ -435,9 +498,11 @@ def assess(case: dict) -> dict:
             "signal": "People on the payroll", "value": headcount,
             "source": headcount_src, "established": True})
     else:
+        # Which records establish a headcount is a property of the country.
         assessment.unestablished.append(
             "How many people you employ — no CPF contribution record or work injury "
-            "schedule was read.")
+            "schedule was read." if pack.lists("CPF_RECORD", "WIC_SCHEDULE") else
+            "How many people you employ — no document that establishes it was read.")
     if premises is not None:
         assessment.evidence.append({
             "signal": "Places you occupy", "value": premises,
@@ -449,20 +514,26 @@ def assess(case: dict) -> dict:
     assessment.evidence.append({
         "signal": "Online sales channel",
         "value": "Yes" if online else "Not recorded",
-        "source": online_src or "ACRA business profile", "established": online,
+        "source": online_src or ("ACRA business profile" if pack.lists("ACRA_PROFILE")
+                                 else "a company register extract"),
+        "established": online,
         "quote": online_quote})
 
     stage = _stage_for(headcount, premises, online)
     if stage is None:
         assessment.assert_invariant()
-        return _result(assessment, available=False)
+        return _result(assessment, available=False, pack=pack)
 
     assessment.stage = stage
     assessment.next_stage = next(
         (s for s in LADDER if s.ordinal == stage.ordinal + 1), None)
-    assessment.expectations = _expectations_upto(
+    assessment.expectations, not_stated = _expectations_upto(
         stage, headcount=headcount, premises=premises, online=online,
-        online_quote=online_quote)
+        online_quote=online_quote, pack=pack)
+    for protection in not_stated:
+        assessment.unestablished.append(_NOT_STATED_BECAUSE.get(
+            protection, f"{PROTECTIONS[protection]['label']} — not stated for this "
+                        f"jurisdiction."))
 
     sections = _established(facts, "operative_sections") or []
     section_set = {str(s).upper() for s in sections} if isinstance(
@@ -482,16 +553,31 @@ def assess(case: dict) -> dict:
             assessment.absent.append(exp.protection)
 
     assessment.assert_invariant()
-    return _result(assessment, available=True)
+    return _result(assessment, available=True, pack=pack)
 
 
-def _result(a: StageAssessment, *, available: bool) -> dict:
+def _basis_notice(pack: "jurisdiction.Pack") -> str:
+    convention = ("MARKET_CONVENTION items are what comparable businesses commonly hold "
+                  "and are not obligations — they are questions worth answering, not "
+                  "failures.")
+    if pack.is_generic:
+        return ("No jurisdiction pack applies to these documents, so no item here is "
+                "presented as a legal requirement. " + convention)
+    return (f"STATUTORY items are traceable to a named {pack.name} instrument. "
+            + convention)
+
+
+def _result(a: StageAssessment, *, available: bool,
+            pack: "jurisdiction.Pack") -> dict:
     if not available:
+        add = ("Add a CPF contribution record or a tenancy agreement"
+               if pack.lists("CPF_RECORD") else
+               "Add a document that shows how many people you employ, or a tenancy "
+               "agreement,")
         return {
             "available": False,
             "reason": ("We could not place your business on the growth ladder from "
-                       "the documents read. Add a CPF contribution record or a "
-                       "tenancy agreement and this fills in."),
+                       f"the documents read. {add} and this fills in."),
             "evidence": a.evidence,
             "unestablished": a.unestablished,
             "ladder": [s.as_dict() for s in LADDER],
@@ -527,11 +613,7 @@ def _result(a: StageAssessment, *, available: bool) -> dict:
         "absent_convention": [e for e in convention
                               if e["protection"] in absent_set],
         "method": "DETERMINISTIC",
-        "basis_notice": (
-            "STATUTORY items are traceable to a named Singapore instrument. "
-            "MARKET_CONVENTION items are what comparable businesses commonly hold "
-            "and are not obligations — they are questions worth answering, not "
-            "failures."),
+        "basis_notice": _basis_notice(pack),
         "notice": (
             "Your stage is read from documents, not from anything you told us. "
             "Whether a protection is present is read from the operative sections on "
@@ -557,9 +639,12 @@ def catalogue() -> dict:
             for s in LADDER
         ],
         "protections": [{"protection": k, **v} for k, v in PROTECTIONS.items()],
+        # Case-free, so no country applies here: which instruments make a protection
+        # statutory is read from the jurisdiction pack a case is read under.
         "bases": [
             {"basis": STATUTORY,
-             "means": "Traceable to a named Singapore instrument."},
+             "means": "Traceable to a named instrument in the jurisdiction pack that "
+                      "applies to the documents."},
             {"basis": MARKET_CONVENTION,
              "means": "Commonly held by comparable businesses. Not an obligation."},
         ],

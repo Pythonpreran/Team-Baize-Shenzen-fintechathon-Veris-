@@ -221,6 +221,109 @@ tryRun("drawerPagePane routes an EXCERPT payload to the paragraph view", () => {
     throw new Error("a page image or full-screen control was drawn");
 });
 
+// ── which country's law applies ────────────────────────────────────────────
+// Shapes taken from the server's `brief.jurisdiction` record (jurisdiction.as_dict).
+const SG_RECORD = {
+  pack: "SG", pack_name: "Singapore", pack_available: true, detected: "SG",
+  detected_name: "Singapore", leading: "SG", confidence: "HIGH",
+  summary: 'Read as Singapore (high confidence): governing-law clause "determined in accordance with the law of Singapore" (01-policy-wording.pdf, page 6).',
+  notice: null,
+  reasons: [
+    { direction: "for", country: "SG", country_name: "Singapore", signal: "governing_law",
+      signal_label: "governing-law clause", weight: 10,
+      matched: "determined in accordance with the law of Singapore",
+      document: "01-policy-wording.pdf", page: 6 },
+    { direction: "for", country: "SG", country_name: "Singapore", signal: "phone_numbers",
+      signal_label: "phone number", weight: 1, matched: "+65 …",
+      document: "02-policy-schedule.pdf", page: 1 }],
+  rules_not_applied: [], sentences_dropped: [],
+};
+const MY_RECORD = {
+  pack: "GENERIC", pack_name: "No jurisdiction pack", pack_available: false,
+  detected: "MY", detected_name: "Malaysia", leading: "MY", confidence: "HIGH",
+  summary: "These documents read as Malaysia. VERIS has no Malaysia jurisdiction pack yet.",
+  notice: "These documents read as Malaysia. VERIS has no Malaysia jurisdiction pack yet, so it reads and quotes your documents but makes no statement about the law of <b>Malaysia</b>.",
+  reasons: [
+    { direction: "for", country: "MY", country_name: "Malaysia", signal: "governing_law",
+      signal_label: "governing-law clause", weight: 10, matched: "governed by Malaysian Law",
+      document: "wording.pdf", page: 7 },
+    { direction: "against", country: "SG", country_name: "Singapore", signal: "currency",
+      signal_label: "currency", weight: 3, matched: "<img src=x onerror=alert(1)>",
+      document: "wording.pdf", page: 2 }],
+  rules_not_applied: [{ rule_id: "WICA-HEADCOUNT-UNDERDECLARED",
+    title: "Work injury declaration understated against the CPF record",
+    jurisdiction: "SG", jurisdiction_name: "Singapore",
+    reason: "A Singapore rule. These documents are not established as Singapore documents, so Singapore law is not applied to them." }],
+  sentences_dropped: [],
+};
+tryRun("jurisdictionPanel renders nothing without a record", () => {
+  if (g.jurisdictionPanel(null) !== "" || g.jurisdictionPanel({}) !== "")
+    throw new Error("a panel was drawn with no jurisdiction record");
+});
+tryRun("jurisdictionPanel shows the pack, the confidence and the reasons", () => {
+  const html = g.jurisdictionPanel(SG_RECORD);
+  if (!html.includes("Singapore pack")) throw new Error("the pack is not named");
+  if (!html.includes("high confidence")) throw new Error("the confidence is not shown");
+  if (!html.includes("determined in accordance with the law of Singapore"))
+    throw new Error("the governing-law reason is not shown");
+  if (!html.includes("page 6")) throw new Error("the reason has no page");
+  if (!html.includes("<details") || !html.includes("<summary>"))
+    throw new Error("the reasons are not in a keyboard-operable disclosure");
+  if (!html.includes('role="region"') || !html.includes("aria-label="))
+    throw new Error("the panel is not a labelled region");
+  if (html.includes("Not applied")) throw new Error("an empty not-applied list was drawn");
+});
+tryRun("jurisdictionPanel leads with the no-pack notice and lists what was not applied", () => {
+  const html = g.jurisdictionPanel(MY_RECORD);
+  if (!html.includes("No jurisdiction pack")) throw new Error("the missing pack is not badged");
+  if (!html.includes("no Malaysia jurisdiction pack yet")) throw new Error("the notice is missing");
+  if (!html.includes("Not applied to these documents")) throw new Error("not-applied rules are hidden");
+  if (!html.includes("Work injury declaration understated")) throw new Error("the rule is not named");
+  if (!html.includes("Pointing elsewhere")) throw new Error("the reasons against are not shown");
+});
+tryRun("jurisdictionPanel escapes every server-derived value", () => {
+  const html = g.jurisdictionPanel(MY_RECORD);
+  if (html.includes("<img") || html.includes("<b>Malaysia</b>"))
+    throw new Error("server text reached the DOM unescaped");
+  if (!html.includes("&lt;img") || !html.includes("&lt;b&gt;Malaysia"))
+    throw new Error("not escaped through esc()");
+});
+
+// ── where a statement about the law comes from (PLAN rule 17) ──────────────
+const SOURCES = [
+  { entry_id: "SG-COMP-WORK-INJURY", title: "Work injury compensation insurance",
+    status: "HUMAN_VERIFIED", owner_facing: true,
+    source_url: "https://regulator.example/wic", retrieved_on: "2026-10-10",
+    quote: "You need to get <b>work injury</b> insurance.", verified_by: "VERIS team" },
+  { entry_id: "SG-STAT-PDPA-PENALTY", title: "Maximum penalty", status: "SOURCE_QUOTED",
+    owner_facing: true, source_url: "javascript:alert(1)", retrieved_on: "2026-10-10",
+    quote: "in any other case — $1 million", verified_by: null },
+  { entry_id: "SG-REG-INSURANCE", title: "Regulator", status: "CANDIDATE",
+    owner_facing: false, source_url: "https://regulator.example/", retrieved_on: null,
+    quote: null, verified_by: null, statement: "THIS MUST NOT RENDER" },
+];
+tryRun("packSources renders nothing for no sources", () => {
+  if (g.packSources(undefined) !== "" || g.packSources([]) !== "")
+    throw new Error("an empty source block was drawn");
+});
+tryRun("packSources shows each quote, status and an https link", () => {
+  const html = g.packSources(SOURCES);
+  if (!html.includes("HUMAN_VERIFIED") || !html.includes("SOURCE_QUOTED"))
+    throw new Error("a status badge is missing");
+  if (!html.includes("in any other case — $1 million")) throw new Error("a quote is missing");
+  if (!html.includes('href="https://regulator.example/wic"')) throw new Error("no source link");
+  if (!html.includes('rel="noopener noreferrer"')) throw new Error("the link keeps an opener");
+  if (!html.includes("Retrieved")) throw new Error("the retrieval date is not shown");
+});
+tryRun("packSources never draws a CANDIDATE, an unsafe link or unescaped text", () => {
+  const html = g.packSources(SOURCES);
+  if (html.includes("THIS MUST NOT RENDER") || html.includes(">Regulator<"))
+    throw new Error("a CANDIDATE entry was drawn as a source");
+  if (html.includes("javascript:")) throw new Error("a script URL reached an href");
+  if (html.includes("<b>work injury</b>")) throw new Error("a quote reached the DOM unescaped");
+  if (!html.includes("&lt;b&gt;work injury")) throw new Error("not escaped through esc()");
+});
+
 // ── the guided tour ────────────────────────────────────────────────────────
 tryRun("every role has tour steps", () => {
   for (const role of ["SME", "ADVISER", "CARRIER"]) {

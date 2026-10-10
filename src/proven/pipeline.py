@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import (account, actions, brief, corpus, detect, events, extract, ingest,
-               resolve, rules)
+               jurisdiction, resolve, rules)
 from .db import connect, init_db, new_id
 from .errors import BundleError, ConsentRequired, IngestError
 from .ingest import DocStore, LoadedDoc
@@ -104,9 +104,9 @@ def _validate_upload(files: list[UploadedFile]) -> None:
 def ingest_bundle(
     conn: sqlite3.Connection, business_id: str, files: list[UploadedFile],
     on_progress: Optional[Callable[[dict], None]] = None,
-) -> tuple[DocStore, Optional[str], str, list[dict]]:
+) -> tuple[DocStore, Optional[str], str, list[dict], "jurisdiction.AppliedJurisdiction"]:
     """Ingest an uploaded bundle. Returns (store, base_doc_id, carrier, per-file
-    report).
+    report, the jurisdiction the bundle is read under).
 
     Failures are per-file and non-fatal: one corrupt PDF in a bundle of six is
     reported against that file and the other five are still reviewed. A bundle in
@@ -167,12 +167,21 @@ def ingest_bundle(
             "reason. Native PDFs only — a photograph or a scan has no text layer.",
             detail=json.dumps(report))
 
+    # Which country's documents these are — decided from every readable document, and
+    # BEFORE any row is written, because the pack that applies is what says who authors
+    # each kind of document, and author_class is a document-level column just as carrier
+    # is. Nothing is guessed: a bundle that does not establish a country it has a pack
+    # for is read under GENERIC.
+    applied = jurisdiction.assess(
+        [(ingest.safe_filename(f.filename), pages) for f, pages, _k in pending])
+    pack = applied.pack
+
     # Carrier is decided by the insurer-authored documents only, and a tie or a
     # blank is UNKNOWN rather than a guess.
     carrier_votes: dict[str, int] = {}
     carrier_evidence: Optional[detect.Detection] = None
     for _f, pages, kind_det in pending:
-        if detect.author_class_for(kind_det.value) != "INSURER":
+        if detect.author_class_for(kind_det.value, pack) != "INSURER":
             continue
         det = detect.detect_carrier(pages)
         if det.value != detect.UNKNOWN_CARRIER:
@@ -189,7 +198,7 @@ def ingest_bundle(
     base_doc_id: Optional[str] = None
     for f, pages, kind_det in pending:
         kind = kind_det.value
-        author_class = detect.author_class_for(kind)
+        author_class = detect.author_class_for(kind, pack)
         name = ingest.safe_filename(f.filename)
         doc_carrier = carrier if author_class == "INSURER" else None
         doc_id, _ = ingest.ingest_pdf_bytes(
@@ -226,7 +235,7 @@ def ingest_bundle(
             "The carrier could not be identified from the wording, so no verified "
             "clause map applies. Provisions are still detected and quoted, but no "
             "finding is built on this wording's clause references.")
-    return store, base_doc_id, carrier, report
+    return store, base_doc_id, carrier, report, applied
 
 
 def run_bundle(
@@ -248,7 +257,7 @@ def run_bundle(
     conn = conn or connect(db_path)
     init_db(conn)
     case_id = open_case(conn, business_id)
-    store, base_doc_id, carrier, report = ingest_bundle(
+    store, base_doc_id, carrier, report, applied = ingest_bundle(
         conn, business_id, files, on_progress=on_progress)
     if on_progress is not None:
         on_progress({"event": "analysing", "documents": len(store.documents()),
@@ -258,11 +267,15 @@ def run_bundle(
         business_name=business_name, carrier=carrier, store=store,
         base_doc_id=base_doc_id, synthetic=False,
         searched=_searched_from_store(store, base_doc_id),
-        not_searched=_not_searched_from_store(store, base_doc_id, carrier))
+        not_searched=_not_searched_from_store(store, base_doc_id, carrier, applied),
+        applied=applied)
     result["brief"]["intake"] = {
         "files": report,
         "warnings": store.warnings,
         "carrier_detected": carrier,
+        # The same record the Brief carries: the country detected, how sure, the reasons
+        # both ways, the pack applied and what it did not apply.
+        "jurisdiction": result["brief"]["jurisdiction"],
         "accepted_count": sum(1 for r in report if r.get("accepted")),
         "rejected_count": sum(1 for r in report if not r.get("accepted")),
     }
@@ -284,6 +297,7 @@ def _searched_from_store(store: DocStore, base_doc_id: Optional[str]) -> list[st
 
 def _not_searched_from_store(
     store: DocStore, base_doc_id: Optional[str], carrier: str,
+    applied: "jurisdiction.AppliedJurisdiction",
 ) -> list[str]:
     """The falsifiable coverage claim for an uploaded bundle: state precisely what was
     absent, so a reader can tell silence from absence."""
@@ -296,15 +310,14 @@ def _not_searched_from_store(
         out.append(
             "No policy schedule was provided, so sums insured, deductibles and "
             "elected extensions were not read.")
-    for kind, what in (
-        ("CPF_RECORD", "CPF contribution record — actual headcount not verified"),
-        ("WIC_SCHEDULE", "Work injury schedule — declared headcount not verified"),
-        ("TENANCY", "Tenancy agreement — premises and permitted use not verified"),
-        ("ACCOUNTS", "Accounts — value at risk for stock not verified"),
-        ("ACRA_PROFILE", "ACRA profile — registered activities not verified"),
-    ):
-        if kind not in store.kinds():
-            out.append(what)
+    # Which supporting documents are worth naming is a property of the country: a CPF
+    # record means something in Singapore and nothing under GENERIC. The pack lists them,
+    # in the order it wants them asked for.
+    out.extend(applied.pack.absent_notes(store.kinds()))
+    if not applied.pack_available:
+        out.append(
+            "Country-specific rules were not run: no jurisdiction pack applies to these "
+            "documents (see the jurisdiction notice).")
     if carrier == detect.UNKNOWN_CARRIER and base_doc_id is not None:
         out.append(
             "This carrier's clause references have not been read by a human, so no "
@@ -360,6 +373,7 @@ def _analyse(
     conn: sqlite3.Connection, case_id: str, business_id: str, business_name: str,
     carrier: str, store: DocStore, base_doc_id: Optional[str], synthetic: bool,
     searched: list[str], not_searched: list[str],
+    applied: "jurisdiction.AppliedJurisdiction",
 ) -> dict:
     """The shared analysis path. Demo and upload differ only in how the store was
     filled."""
@@ -380,13 +394,17 @@ def _analyse(
     resolution = resolve.resolve(
         provisions, has_construction_clause=acc.has_construction_clause)
 
-    facts = extract.extract_facts(store)
+    facts = extract.extract_facts(store, pack=applied.pack)
 
+    # Only the rules the pack that applies supports, with their figures filled in from it.
+    # Another country's rule is not run, and is named in the jurisdiction record instead.
+    bound, not_applied, dropped = rules.bind(rules.load_rules(), applied.pack)
     ctx = rules.Context(
         conn=conn, case_id=case_id, store=store, base_doc_id=base_doc_id,
-        carrier=carrier, taxonomy=Taxonomy.load(), rules=rules.load_rules(),
+        carrier=carrier, taxonomy=Taxonomy.load(), rules=bound,
         facts=facts, loss_scenario=store.loss_scenario,
-        unresolved_codes=set(resolution.unresolved), verified_codes=verified)
+        unresolved_codes=set(resolution.unresolved), verified_codes=verified,
+        pack=applied.pack)
     findings = rules.evaluate_all(ctx)
     for f in findings:
         _persist_finding(conn, case_id, f)
@@ -407,6 +425,12 @@ def _analyse(
     the_brief["case_id"] = case_id
     the_brief["business_id"] = business_id
     the_brief["events"] = recorded_events(conn, case_id)
+    # Which country's law the case was read under, why, and what that left out. The
+    # derived screens read the pack from this same record (`jurisdiction.pack_of`), so the
+    # Brief and every screen built over it cannot disagree about the country.
+    jurisdiction_view = applied.as_dict(rules_not_applied=not_applied,
+                                        sentences_dropped=dropped)
+    the_brief["jurisdiction"] = jurisdiction_view
 
     # ── the action loop ──────────────────────────────────────────────────────
     # Prepare (never send) a correction for every finding that maps to one. This is what
@@ -434,7 +458,8 @@ def _analyse(
     return {"brief": the_brief, "conn": conn, "case_id": case_id,
             "business_id": business_id, "findings": findings,
             "resolution": resolution, "facts": facts, "store": store,
-            "base_doc_id": base_doc_id, "carrier": carrier}
+            "base_doc_id": base_doc_id, "carrier": carrier,
+            "jurisdiction": jurisdiction_view}
 
 
 def run_case(
@@ -474,11 +499,14 @@ def run_case(
                         carrier=carrier, pages=wording_pages,
                         filename=CHUBB_PDF.name))
 
+    # Detected, not declared, even for the worked example: the wording's own
+    # governing-law clause is what makes this a Singapore case.
     return _analyse(
         conn=conn, case_id=case_id, business_id=business_id,
         business_name=business_name, carrier=carrier, store=store,
         base_doc_id=base_doc_id, synthetic=True,
-        searched=DEMO_SEARCHED, not_searched=DEMO_NOT_SEARCHED)
+        searched=DEMO_SEARCHED, not_searched=DEMO_NOT_SEARCHED,
+        applied=jurisdiction.assess(store.documents()))
 
 
 def _page_count(conn: sqlite3.Connection, document_id: str) -> int:

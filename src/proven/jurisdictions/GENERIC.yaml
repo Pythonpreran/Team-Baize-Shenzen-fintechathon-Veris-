@@ -1,0 +1,73 @@
+# VERIS jurisdiction pack — GENERIC.
+#
+# What applies when no country pack does: the documents named a country we hold no pack for,
+# or named no country at all, or named two too evenly to choose between. VERIS still reads the
+# documents, quotes them, and runs every check written against the POLICY ITSELF. It runs no
+# check written against a country's law, and it makes no statement about any country's law.
+#
+# This file therefore holds no regulator, statute, compulsory cover, timeline or complaint
+# route, on purpose. Its document kinds are the ones every country shares, and every country
+# pack must agree with their authorship: a pack may add kinds, never raise one of these.
+
+code: GENERIC
+name: No jurisdiction pack
+version: 1
+summary: >
+  Applied when the documents do not establish a country VERIS holds a pack for. Reads and
+  quotes the policy; makes no country-specific legal statement.
+locales: [en]
+timezone: UTC
+holiday_calendar: null
+currency: null
+
+regulators: []
+statutes: []
+compulsory_covers: []
+regulatory_timelines: []
+complaint_ladder: []
+market_conventions: []
+
+document_kinds:
+  - kind: BASE_WORDING
+    author_class: INSURER
+    verification: &team_grading
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, evidence-class design (src/proven/grading.py)
+      note: null
+  - kind: SCHEDULE
+    author_class: INSURER
+    verification: *team_grading
+  - kind: ENDORSEMENT
+    author_class: INSURER
+    verification: *team_grading
+  - kind: TENANCY
+    author_class: THIRD_PARTY
+    absent_note: Tenancy agreement — premises and permitted use not verified
+    verification: *team_grading
+  - kind: ACCOUNTS
+    author_class: SELF
+    absent_note: Accounts — value at risk for stock not verified
+    verification: *team_grading
+  - kind: SUPPLIER_INVOICE
+    author_class: THIRD_PARTY
+    verification: *team_grading
+  - kind: PROPOSAL
+    author_class: SELF
+    verification: *team_grading
+  - kind: UNKNOWN
+    author_class: SELF
+    verification: *team_grading
+
+data_protection: null
+
+advice_boundary:
+  product_boundary: >
+    VERIS states what your documents say and where they say it. It does not recommend a
+    product, an insurer or a premium, and it never suggests that you buy, cancel, switch or
+    surrender cover. For advice, speak to a licensed adviser or to your insurer.
+  regulatory_basis: null
+
+detection: null

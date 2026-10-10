@@ -2174,6 +2174,7 @@ async function smeHome(el) {
     ${exampleWordingNotice()}
     ${pageTitle(`Hello, ${S.user.name || ""}`,
       `${brief.business || "Your business"}${isExample ? " · example data" : ""}`)}
+    ${jurisdictionPanel(brief.jurisdiction)}
 
     ${renderWhatsNewStrip(notes)}
 
@@ -2414,7 +2415,8 @@ async function smeUpload(el) {
         <div class="insight-label">Done</div>
         <div class="insight-text">We read ${accepted} document${accepted === 1 ? "" : "s"} and found ${found} thing${found === 1 ? "" : "s"} worth telling you about.</div>
         <div class="insight-action"><button class="btn btn-sm btn-primary" data-act="nav" data-arg="sme-home">See what we found →</button></div></div>
-        ${rejected.length ? `<div class="insight warn mt-8"><div class="insight-label">Couldn't read ${rejected.length}</div><div class="insight-text">${rejected.map(f => esc(f.filename || "") + (f.message ? " — " + esc(f.message) : "")).join("<br>")}</div></div>` : ""}`;
+        ${rejected.length ? `<div class="insight warn mt-8"><div class="insight-label">Couldn't read ${rejected.length}</div><div class="insight-text">${rejected.map(f => esc(f.filename || "") + (f.message ? " — " + esc(f.message) : "")).join("<br>")}</div></div>` : ""}
+        <div class="mt-16">${jurisdictionPanel(done.intake?.jurisdiction || done.brief?.jurisdiction)}</div>`;
       // The rows keep their ticks. Clearing the list here would delete the only record
       // the user has of which documents were accepted and which were not.
       files.forEach(r => { if (r.status === "reading") r.status = "queued"; });
@@ -2485,6 +2487,73 @@ function exampleWordingNotice() {
   if (!notice) return "";
   return `<div class="honest mb-16"><b>This example is running without its published base wording.</b>
     ${esc(notice)}</div>`;
+}
+
+/* Where a statement about the law comes from: each jurisdiction-pack entry it rests on,
+ * with the entry's verbatim quote, a link to the primary source and its verification
+ * status (PLAN rule 17 — an owner-facing statement shows all three). The server only ever
+ * sends owner-facing entries here; anything else is dropped again on this side so a
+ * CANDIDATE can never be drawn as a source. Server-derived throughout, so escaped, and a
+ * link is drawn only for an https address. */
+function packSources(sources) {
+  const list = (sources || []).filter(s => s && s.owner_facing);
+  if (!list.length) return "";
+  return `<div class="mt-12"><div class="text-xs text-muted mb-8">Where this comes from</div>
+    ${list.map(s => {
+      const url = typeof s.source_url === "string" && /^https:\/\//i.test(s.source_url)
+        ? s.source_url : "";
+      const how = s.status === "SOURCE_QUOTED" ? "Quoted from the primary source"
+        : `Verified by ${s.verified_by || "a named reviewer"}`;
+      return `<div class="verbatim mb-8">
+        <div class="verbatim__tag"><i></i>${esc(how)}</div>
+        ${s.quote ? `<div class="verbatim__q">${esc(s.quote)}</div>` : ""}
+        <div class="verbatim__src">
+          <span><b>${esc(s.title || s.entry_id || "")}</b></span>
+          <span class="tag">${esc(s.status || "")}</span>
+          ${s.retrieved_on ? `<span><b>Retrieved</b> ${esc(s.retrieved_on)}</span>` : ""}
+          ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open the source</a>` : ""}
+        </div></div>`;
+    }).join("")}</div>`;
+}
+
+/* Which country's law the documents were read under, how sure we are, and why — both
+ * ways. Rendered on the Overview and in the upload result from the same server record
+ * (`brief.jurisdiction`, also on `intake.jurisdiction`), so the two cannot disagree.
+ *
+ * When no pack applies, the server's notice is the headline: "these read as Malaysia and
+ * there is no Malaysia pack yet" is the honest answer, and it must not be smaller than a
+ * Singapore answer would have been. The reasons sit in a native <details>, which is
+ * keyboard-operable and announced as expandable without any script. Every value is
+ * server-derived and escaped. */
+function jurisdictionPanel(j) {
+  if (!j || !j.pack) return "";
+  const forCountry = (j.reasons || []).filter(r => r.direction === "for" && r.signal);
+  const against = (j.reasons || []).filter(r => r.direction !== "for");
+  const reasonItem = r => r.signal
+    ? `<li><b>${esc(r.signal_label || r.signal)}</b> “${esc(r.matched || "")}”
+        <span class="text-muted">— ${esc(r.document || "")}, page ${esc(r.page)}${
+          r.country_name ? ` · points to ${esc(r.country_name)}` : ""}</span></li>`
+    : `<li>${esc(r.statement || "")}</li>`;
+  const notApplied = j.rules_not_applied || [];
+  const confidence = String(j.confidence || "").toLowerCase();
+  return `<div class="card mb-16" role="region" aria-label="Which country's law applies">
+    <div class="card-head"><h3>Which country's law applies</h3>
+      <span class="tag ${j.pack_available ? "tag-info" : "tag-REVIEW"}">${j.pack_available
+        ? `${esc(j.pack_name)} pack` : "No jurisdiction pack"}</span>
+      ${confidence ? `<span class="tag">${esc(confidence)} confidence</span>` : ""}</div>
+    ${j.notice
+      ? `<div class="insight warn"><div class="insight-text">${esc(j.notice)}</div></div>`
+      : `<p class="text-sm">${esc(j.summary || "")}</p>`}
+    <details class="v-details"><summary>Why we read it this way</summary>
+      ${forCountry.length ? `<p class="text-xs text-muted mt-8">Pointing to ${esc(j.detected_name || j.leading || "the country")}:</p>
+        <ul class="text-sm">${forCountry.map(reasonItem).join("")}</ul>` : ""}
+      ${against.length ? `<p class="text-xs text-muted mt-8">Pointing elsewhere, or missing:</p>
+        <ul class="text-sm">${against.map(reasonItem).join("")}</ul>` : ""}
+      ${notApplied.length ? `<p class="text-xs text-muted mt-8">Not applied to these documents:</p>
+        <ul class="text-sm">${notApplied.map(r => `<li>${esc(r.title || r.rule_id)}
+          <span class="text-muted">— ${esc(r.reason || "")}</span></li>`).join("")}</ul>` : ""}
+    </details>
+  </div>`;
 }
 
 window.loadExample = async function () {
@@ -3190,6 +3259,7 @@ async function smeWillItPay(el) {
           <p class="text-sm"><strong>Why it's there:</strong> ${esc(e.why_it_matters || "")}</p>
           ${e.clause_quote ? `<div class="v-evidence mt-12"><div class="v-evidence__quote">"${esc(e.clause_quote)}"</div><div class="v-evidence__src">Your policy, page ${e.clause_page} — we searched for "${esc(e.matched_phrase || "")}"</div></div>` : ""}
           ${renderEvidenceStack(e.evidence)}
+          ${packSources(e.pack_sources)}
           ${e.state === "UNVERIFIED" ? `<div class="insight warn mt-12"><div class="insight-label">How to clear this</div><div class="insight-text">Send us ${(e.verified_by || []).map(v => esc(v.replace(/_/g, " ").toLowerCase())).join(" or ")}.</div></div>` : ""}
         </div></div>`).join("")}</div>`
     + `<div class="card mb-16"><div class="card-head"><h3>What we checked and decided against</h3><span class="tag">${setAside.length}</span></div>
@@ -3679,6 +3749,7 @@ async function smeCyber(el) {
         <p>${esc(st.not_a_prediction || "")}</p>
         <p>${esc(st.which_branch_applies || "")}</p></div>
       <p class="quote-src mt-12">${esc(st.authority || "")}</p>
+      ${packSources(st.pack_sources)}
     </div>
     <div class="honest">${esc(d.notice || "")}</div>`;
 }
@@ -3831,6 +3902,7 @@ async function smeRoadmap(el) {
         <div class="pro__p">${esc(e.plain)}</div>
         <div class="pro__b">${held ? "<b>On your schedule.</b> " : absent ? "<b>Not on your schedule.</b> " : "<b>Your schedule cannot tell us either way.</b> "}${esc(e.because)}</div>
         ${e.authority ? `<div class="quote-src">${esc(e.authority)}</div>` : ""}
+        ${packSources(e.pack_sources)}
       </div>
       <span class="pro__basis ${e.basis === "STATUTORY" ? "law" : "conv"}">${e.basis === "STATUTORY" ? "Law" : "Common"}</span>
     </div>`;
@@ -4248,6 +4320,7 @@ function paintDrawer() {
           <span class="ev__tag ${f.state === "DOCUMENTED" ? "open" : "policy"}">${esc(f.state_label || f.state)}</span>
           ${evidenceBadge(f.class)}
         </div>
+        ${packSources((f.detail || {}).pack_sources)}
       </div>
       ${d.plain && d.plain.text ? `<div class="v-drawer__section">
         <h4>In plain words</h4>

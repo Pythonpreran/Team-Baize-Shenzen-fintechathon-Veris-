@@ -48,7 +48,9 @@ where = ["src"]
 # Non-Python assets the engine loads at runtime. Without these the taxonomy and the
 # rule files are missing from an installed package and every import fails at load.
 [tool.setuptools.package-data]
-proven = ["rules/*.yaml"]
+# The jurisdiction packs are data the engine cannot run without: with none installed, no
+# case can be read under any pack, not even GENERIC.
+proven = ["rules/*.yaml", "jurisdictions/*.yaml"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

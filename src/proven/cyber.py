@@ -47,22 +47,68 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Optional
 
-# ── PDPA, as it stands ──────────────────────────────────────────────────────
-#
-# Figures are statute, not estimates, and each carries its instrument so a reviewer
-# can check it. Sources: PDPC "Amendments to Enforcement under the Personal Data
-# Protection Act" (30 Sep 2022) and the Personal Data Protection (Amendment) Act 2020,
-# commenced 1 Oct 2022 by S 768/2022.
-PDPA_PENALTY_CEILING_SGD = Decimal("1000000")
-PDPA_TURNOVER_TRIGGER_SGD = Decimal("10000000")
-PDPA_TURNOVER_SHARE = "10% of annual turnover in Singapore"
-PDPA_PENALTY_EFFECTIVE_FROM = "2022-10-01"
+from . import jurisdiction
 
-# Mandatory notification. A breach is notifiable if it results in, or is likely to
-# result in, significant harm to affected individuals, OR is of significant scale.
-# The Regulations fix "significant scale" at 500 or more affected individuals.
-PDPA_NOTIFIABLE_SCALE = 500
-PDPA_NOTIFY_PDPC_DAYS = 3      # calendar days from assessment that it is notifiable
+# ── the data-protection regime, from the jurisdiction pack ──────────────────
+#
+# Figures are statute, not estimates, and each carries its instrument so a reviewer can
+# check it. They used to be constants here, which stated Singapore's law about a business
+# from anywhere. They now live in the pack the case is read under — for Singapore,
+# jurisdictions/SG.yaml, each figure quoted from the Act or the Regulations — and the
+# sentences below are filled from it. A pack with no data-protection regime, or one whose
+# figures are not all verified for owner-facing use, gets no statement of the law at all.
+
+
+@dataclass(frozen=True)
+class Regime:
+    """The figures the screen states, each from a verified pack entry."""
+
+    label: str              # Personal Data Protection Act 2012 (Singapore)
+    short_title: str        # PDPA
+    regulator: str          # PDPC
+    country: str            # Singapore
+    currency: "jurisdiction.Currency"
+    ceiling: Decimal
+    trigger: Decimal
+    turnover_share: str
+    effective_from: str     # ISO date, as the prior build displayed it
+    cited_as: str
+    scale: int
+    notify_days: int
+    # Quote, link and status of every entry above, shown beside the statement (rule 17).
+    sources: tuple = ()
+
+    def money(self, amount: Decimal) -> str:
+        return self.currency.format(amount)
+
+
+def regime(pack: "jurisdiction.Pack") -> Optional[Regime]:
+    """The data-protection regime the pack verifies, or None. All or nothing: a ceiling
+    stated without the notification duty beside it would be half a statement of the law."""
+    dp = pack.data_protection
+    if dp is None or not dp.owner_facing or pack.currency is None:
+        return None
+    v = dp.values
+    try:
+        penalty = pack.entry(v["penalty"])
+        notification = pack.entry(v["notification"])
+        scale = pack.entry(v["significant_scale"])
+        if not all(e.owner_facing for e in (penalty, notification, scale)):
+            return None
+        return Regime(
+            label=str(v["label"]), short_title=str(v["short_title"]),
+            regulator=str(v["regulator_short"]), country=pack.name,
+            currency=pack.currency,
+            ceiling=Decimal(str(penalty.values["penalty_ceiling"])),
+            trigger=Decimal(str(penalty.values["turnover_trigger"])),
+            turnover_share=str(penalty.values["turnover_share"]),
+            effective_from=str(penalty.values["effective_from"]),
+            cited_as=str(penalty.values["cited_as"]),
+            scale=int(scale.values["affected_individuals"]),
+            notify_days=int(notification.values["days"]),
+            sources=tuple(e.provenance() for e in (dp, penalty, notification, scale)))
+    except (KeyError, TypeError, ValueError, jurisdiction.PackError):
+        return None
 
 # ── cover states ────────────────────────────────────────────────────────────
 COVER_PRESENT = "PRESENT"            # a cyber section is on the schedule
@@ -222,10 +268,17 @@ _GRADES_AS: dict[str, str] = {
 }
 
 
-def _holdings(facts) -> tuple[list[DataHolding], list[str]]:
-    """Every evidenced reason the PDPA applies to this business."""
+def _holdings(facts, law: Optional[Regime] = None,
+              pack: Optional["jurisdiction.Pack"] = None
+              ) -> tuple[list[DataHolding], list[str]]:
+    """Every evidenced reason a data-protection law applies to this business."""
     out: list[DataHolding] = []
     gaps: list[str] = []
+    under = f" under the {law.short_title}" if law is not None else ""
+    # The records named as missing are the country's own; a pack that does not define
+    # them gets the same sentence without the name.
+    register_named = pack is not None and pack.lists("ACRA_PROFILE")
+    payroll_named = pack is not None and pack.lists("CPF_RECORD")
 
     secondary = _established(facts, "acra_secondary_activity")
     if isinstance(secondary, str) and any(
@@ -235,7 +288,7 @@ def _holdings(facts) -> tuple[list[DataHolding], list[str]]:
             subject="Customers",
             basis=("Your ACRA business profile records an online sales channel. "
                    "Selling online means collecting customer names, contact details "
-                   "and delivery addresses, which are personal data under the PDPA."),
+                   f"and delivery addresses, which are personal data{under}."),
             document_kind=kind or "ACRA_PROFILE",
             author_class=author or "AUTHORITY",
             evidence_class=_GRADES_AS.get(author or "AUTHORITY", "DECLARED"),
@@ -243,6 +296,8 @@ def _holdings(facts) -> tuple[list[DataHolding], list[str]]:
     else:
         gaps.append(
             "Whether you sell online or collect customer details — no ACRA profile "
+            "recording a retail or online activity was read." if register_named else
+            "Whether you sell online or collect customer details — no document "
             "recording a retail or online activity was read.")
 
     headcount = _established(facts, "contributor_count")
@@ -261,7 +316,9 @@ def _holdings(facts) -> tuple[list[DataHolding], list[str]]:
     else:
         gaps.append(
             "How many employees' records you hold — no CPF contribution record was "
-            "read.")
+            "read." if payroll_named else
+            "How many employees' records you hold — no payroll or contribution record "
+            "was read.")
 
     return out, gaps
 
@@ -337,7 +394,7 @@ def _cover_state(facts, store) -> tuple[str, Optional[str], Optional[int],
     return COVER_INDETERMINATE, None, None, None
 
 
-def _cost_heads(facts, cover_state: str) -> list[CostHead]:
+def _cost_heads(facts, cover_state: str, law: Regime) -> list[CostHead]:
     """The bills a data breach generates, and what in this policy meets each one.
 
     This is the heart of the screen. It is not a loss estimate: no figure appears.
@@ -380,7 +437,8 @@ def _cost_heads(facts, cover_state: str) -> list[CostHead]:
                  "no property or liability section reaches it.")
     heads.append(CostHead(
         "Telling the regulator and your customers",
-        f"The PDPA requires notifying the PDPC within {PDPA_NOTIFY_PDPC_DAYS} days "
+        f"The {law.short_title} requires notifying the {law.regulator} within "
+        f"{law.notify_days} days "
         f"of assessing a breach as notifiable, and notifying affected individuals "
         f"where significant harm is likely.",
         r, w))
@@ -399,7 +457,7 @@ def _cost_heads(facts, cover_state: str) -> list[CostHead]:
                  "conduct. Liability cover responds to what you owe someone else, "
                  "and penalties are commonly excluded or uninsurable in part.")
     heads.append(CostHead(
-        "A PDPC financial penalty",
+        f"A {law.regulator} financial penalty",
         "The Commission may impose a financial penalty where it finds the "
         "Protection Obligation was breached.",
         r, w))
@@ -443,9 +501,11 @@ def assess(case: dict) -> dict:
     """The cyber and data position, from documents only."""
     facts = (case or {}).get("facts")
     store = (case or {}).get("store")
+    pack = jurisdiction.pack_of(case)
+    law = regime(pack)
     a = CyberAssessment()
 
-    a.holdings, a.unestablished = _holdings(facts)
+    a.holdings, a.unestablished = _holdings(facts, law, pack)
     (a.cover_state, a.exclusion_quote, a.exclusion_page,
      a.exclusion_document_kind) = _cover_state(facts, store)
 
@@ -455,17 +515,42 @@ def assess(case: dict) -> dict:
     if not a.holdings:
         a.cost_heads = []
         a.assert_invariant(gap_reported=False)
+        # The documents worth adding are a property of the country: the two named here
+        # are Singapore's, so they are named only under a pack that lists both.
+        if pack.kind("ACRA_PROFILE") and pack.kind("CPF_RECORD"):
+            add = (" Add your ACRA business profile or a CPF contribution record and "
+                   "this screen fills in.")
+        else:
+            add = (" These documents are not read under a jurisdiction pack that "
+                   "names the records which would establish it, so none is asked for.")
         return {
             "available": False,
             "reason": ("We could not establish from your documents that you hold "
                        "personal data, so we are not going to tell you that you have "
-                       "a cyber gap. Add your ACRA business profile or a CPF "
-                       "contribution record and this screen fills in."),
+                       "a cyber gap." + add),
             "unestablished": a.unestablished,
             "method": "DETERMINISTIC",
         }
 
-    a.cost_heads = _cost_heads(facts, a.cover_state)
+    # Data is held, but whether a data-protection law applies — and what it requires —
+    # depends on the country. Without a verified regime there is nothing honest to say
+    # about the law, so the screen says that instead of borrowing one.
+    if law is None:
+        a.cost_heads = []
+        a.assert_invariant(gap_reported=False)
+        return {
+            "available": False,
+            "reason": ("Your documents show you hold personal data. Which data-protection "
+                       "law applies to it, and what that law requires, depends on the "
+                       "country — and these documents are not read under a jurisdiction "
+                       "pack that states a data-protection regime. So this screen makes "
+                       "no statement about the law, its penalties or its deadlines."),
+            "unestablished": a.unestablished,
+            "jurisdiction_pack": pack.code,
+            "method": "DETERMINISTIC",
+        }
+
+    a.cost_heads = _cost_heads(facts, a.cover_state, law)
     a.assert_invariant()
 
     uncovered = [c for c in a.cost_heads if c.responds == "NOTHING"]
@@ -495,31 +580,33 @@ def assess(case: dict) -> dict:
         "uncovered_count": len(uncovered),
         "review_count": len(needs_review),
         "statutory": {
-            "regime": "Personal Data Protection Act 2012 (Singapore)",
-            "penalty_ceiling_sgd": str(PDPA_PENALTY_CEILING_SGD),
+            "regime": law.label,
+            # The key keeps its old name because the screen reads it; the amount is in
+            # the pack's currency, which for this regime is SGD.
+            "penalty_ceiling_sgd": str(law.ceiling),
             "penalty_ceiling_basis": (
-                f"From {PDPA_PENALTY_EFFECTIVE_FROM} the maximum financial penalty "
-                f"is S${PDPA_PENALTY_CEILING_SGD:,.0f}, or "
-                f"{PDPA_TURNOVER_SHARE} where that turnover exceeds "
-                f"S${PDPA_TURNOVER_TRIGGER_SGD:,.0f}, whichever is higher."),
+                f"From {law.effective_from} the maximum financial penalty "
+                f"is {law.money(law.ceiling)}, or "
+                f"{law.turnover_share} where that turnover exceeds "
+                f"{law.money(law.trigger)}, whichever is higher."),
             "which_branch_applies": (
-                "We have not established your annual turnover in Singapore from your "
-                "documents, so we cannot tell you which branch applies. For a "
-                "business under the S$10 million threshold the ceiling is "
-                f"S${PDPA_PENALTY_CEILING_SGD:,.0f}."),
-            "notifiable_scale": PDPA_NOTIFIABLE_SCALE,
+                f"We have not established your annual turnover in {law.country} from "
+                f"your documents, so we cannot tell you which branch applies. For a "
+                f"business under the {law.currency.millions(law.trigger)} threshold "
+                f"the ceiling is {law.money(law.ceiling)}."),
+            "notifiable_scale": law.scale,
             "notification_duty": (
-                f"A breach must be notified to the PDPC if it is likely to cause "
-                f"significant harm to affected individuals, or affects at least "
-                f"{PDPA_NOTIFIABLE_SCALE} individuals. Notification to the PDPC is "
-                f"due within {PDPA_NOTIFY_PDPC_DAYS} calendar days of assessing it "
+                f"A breach must be notified to the {law.regulator} if it is likely to "
+                f"cause significant harm to affected individuals, or affects at least "
+                f"{law.scale} individuals. Notification to the {law.regulator} is "
+                f"due within {law.notify_days} calendar days of assessing it "
                 f"as notifiable."),
             "not_a_prediction": (
-                "This is the statutory ceiling, not an expected cost. The PDPC "
-                "assesses harm and culpability case by case. We do not predict "
-                "penalties and this figure must not be read as one."),
-            "authority": "PDPC, Advisory Guidelines on Enforcement of the Data "
-                         "Protection Provisions (30 September 2022)",
+                f"This is the statutory ceiling, not an expected cost. The "
+                f"{law.regulator} assesses harm and culpability case by case. We do not "
+                f"predict penalties and this figure must not be read as one."),
+            "authority": law.cited_as,
+            "pack_sources": list(law.sources),
         },
         "unestablished": a.unestablished,
         "method": "DETERMINISTIC",

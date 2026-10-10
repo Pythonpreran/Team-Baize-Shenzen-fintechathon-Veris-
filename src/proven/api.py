@@ -46,7 +46,8 @@ from pydantic import BaseModel, Field
 from . import (actions, advisernote, ai, align, assistant, auth, blindspots, book, carrier,
                compounding,
                config, connectors, corpus, cyber, detect, discovery, gapsummary,
-               bi, drift, events, ingest, mailer, marketmap, notifications, ocr,
+               bi, drift, events, ingest, jurisdiction, mailer, marketmap,
+               notifications, ocr,
                orchestrator, pagequality, persistence, pipeline, premium_at_risk,
                presenter, renewal,
                scenario, scheduler, score, sentinel, sourceview, stages, supplychain,
@@ -640,6 +641,18 @@ def _acra_prefill(state: dict) -> dict:
             "in May 2026 and needs a real onboarding agreement with GovTech."),
     }
 
+    # The register holds Singapore entities only. A business whose documents are not read
+    # as Singaporean is not looked up in it: the lookup would send that business's name to
+    # another country's register to find, at best, nothing — and at worst a namesake.
+    pack = jurisdiction.pack_of(state)
+    if not pack.lists("ACRA_PROFILE"):
+        out["status"] = (
+            "Company identity prefill reads the ACRA register, which holds Singapore "
+            "entities only. These documents are not read under the Singapore pack, so no "
+            "lookup was attempted.")
+        out["jurisdiction_pack"] = pack.code
+        return out
+
     business = (state.get("brief") or {}).get("business")
     uen = None
     facts = state.get("facts")
@@ -790,14 +803,80 @@ def bundle_kinds():
             {"kind": k, "label": k.replace("_", " ").title(),
              "author_class": detect.author_class_for(k),
              "grades_as": ("PROVEN" if detect.author_class_for(k) != "SELF"
-                           else "DECLARED")}
+                           else "DECLARED"),
+             # Who authors a kind is a fact about a country. Shown per pack so the list
+             # cannot imply that a CPF record grades as an authority document in a bundle
+             # that is not read as Singaporean.
+             "author_class_by_jurisdiction": {
+                 code: jurisdiction.pack(code).author_class_for(k)
+                 for code in jurisdiction.pack_codes()}}
             for k in detect.DECLARABLE_KINDS
         ],
         "notice": ("Leave the type blank to have it detected from the document's own "
                    "text. A document whose type cannot be identified is treated as "
                    "owner-authored, the weakest evidence class — never guessed "
-                   "upward."),
+                   "upward. Who authors a kind depends on the country the documents "
+                   "establish; under no jurisdiction pack, a kind the GENERIC pack does "
+                   "not list is owner-authored too."),
     }
+
+
+# ── jurisdiction packs ──────────────────────────────────────────────────────
+#
+# REFERENCE DATA, deliberately unauthenticated. These two routes serve the packs in
+# src/proven/jurisdictions/ and nothing else: no case, no session, nothing derived from
+# anybody's documents. That is the property that lets them be public, and it is the one
+# to protect — a field that ever carried case data would need the role boundary every
+# case route has.
+
+@app.get("/api/jurisdictions")
+def jurisdictions_index():
+    """The packs VERIS holds, the countries it can recognise without one, and how a
+    bundle's documents choose between them."""
+    return {
+        "packs": [jurisdiction.pack(code).summary_dict()
+                  for code in jurisdiction.pack_codes()],
+        "fallback": jurisdiction.GENERIC,
+        "recognised_without_pack": jurisdiction.recognised_without_pack(),
+        "detection": {
+            "signals": [{"signal": key, "weight": weight, "label": label}
+                        for key, weight, label in jurisdiction.SIGNAL_WEIGHTS],
+            "min_score": jurisdiction.MIN_SCORE,
+            "margin": jurisdiction.MARGIN,
+            "method": "DETERMINISTIC",
+            "rule": ("Each kind of signal counts once per country. A country is chosen "
+                     "only when it scores at least min_score and leads the next by at "
+                     "least margin; otherwise the GENERIC pack applies and the reasons "
+                     "both ways are reported."),
+        },
+        "verification_ladder": list(jurisdiction.STATUS_LADDER),
+        "owner_facing_statuses": sorted(jurisdiction.OWNER_FACING_STATUSES),
+        "notice": ("A CANDIDATE entry is shown here, in the evidence view, and never as a "
+                   "statement to an owner. An owner-facing statement needs a verbatim "
+                   "quote from the primary source (SOURCE_QUOTED) or a named person's "
+                   "confirmation (HUMAN_VERIFIED), and is shown with its quote, its "
+                   "source link and its status."),
+    }
+
+
+@app.get("/api/jurisdictions/{code}")
+def jurisdiction_detail(code: str):
+    """One pack in full: every entry with its verification block and whether it may be
+    shown to an owner. The code is matched against the loaded packs, never used as a
+    path, so a request cannot name a file."""
+    key = (code or "").strip().upper()
+    if not jurisdiction.has_pack(key):
+        known = {c["code"]: c["name"] for c in jurisdiction.recognised_without_pack()}
+        if key in known:
+            name = known[key]
+            raise HTTPException(
+                404, f"VERIS recognises {name} documents but holds no {name} "
+                     f"jurisdiction pack yet. Documents from {name} are read under the "
+                     f"GENERIC pack, which makes no statement about {name} law.")
+        raise HTTPException(
+            404, "No jurisdiction pack for that code. GET /api/jurisdictions lists the "
+                 "packs that exist.")
+    return jurisdiction.pack(key).public_dict()
 
 
 def _parse_declared_kinds(kinds: Optional[str]) -> list[Optional[str]]:

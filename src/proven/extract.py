@@ -32,6 +32,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
+from . import jurisdiction
 from .ingest import DocStore, LoadedDoc
 
 STRUCTURED = "STRUCTURED"
@@ -398,7 +399,15 @@ def _schedule_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
                         section_needle, page_no, source=PDF_TEXT))
 
 
-def _supporting_structured(facts: PolicyFacts, doc: LoadedDoc) -> None:
+def _workpass_not_compared(facts: PolicyFacts, doc: LoadedDoc) -> None:
+    facts.notes.append(
+        f"{doc.kind} ({doc.filename or 'document'}) was read, but the jurisdiction pack "
+        f"that applies states no medical insurance minimum for work pass holders, so no "
+        f"holder's cover was compared against one.")
+
+
+def _supporting_structured(facts: PolicyFacts, doc: LoadedDoc,
+                           workpass_minimum: Optional[int] = None) -> None:
     d, kind = doc.data, doc.kind
     if kind == "ACCOUNTS":
         inv = (d.get("current_assets") or {}).get("inventory_sgd")
@@ -417,9 +426,12 @@ def _supporting_structured(facts: PolicyFacts, doc: LoadedDoc) -> None:
                             f"declared_employee_count: {n}"))
     elif kind == "WORK_PASS_LIST":
         holders = d.get("holders") or []
+        if workpass_minimum is None:
+            _workpass_not_compared(facts, doc)
+            return
         below = [h for h in holders
                  if _to_int(h.get("medical_insurance_sum_sgd")) is not None
-                 and _to_int(h.get("medical_insurance_sum_sgd")) < WORKPASS_MIN_MEDICAL]
+                 and _to_int(h.get("medical_insurance_sum_sgd")) < workpass_minimum]
         if below:
             worst = min(below, key=lambda h: _to_int(h["medical_insurance_sum_sgd"]))
             amount = _to_int(worst["medical_insurance_sum_sgd"])
@@ -452,7 +464,8 @@ def _supporting_structured(facts: PolicyFacts, doc: LoadedDoc) -> None:
                             f"amount_sgd: {amount}", unit="SGD"))
 
 
-def _supporting_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
+def _supporting_text(facts: PolicyFacts, doc: LoadedDoc,
+                     workpass_minimum: Optional[int] = None) -> None:
     pages, kind = doc.pages, doc.kind
     if kind == "ACCOUNTS":
         hit = find_money(pages, ("inventory", "stock in trade", "stocks"))
@@ -530,6 +543,9 @@ def _supporting_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
         # keep the lowest that breaches the minimum. Reading only the first match
         # would miss the holder who is actually short — the list is not sorted, and
         # the compliant holders usually come first.
+        if workpass_minimum is None:
+            _workpass_not_compared(facts, doc)
+            return
         found: list[tuple[int, str, int]] = []
         for page_no, text in enumerate(pages, start=1):
             for m in re.finditer(
@@ -539,7 +555,7 @@ def _supporting_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
                 if amount is not None:
                     found.append((amount, " ".join(m.group(0).split()), page_no))
         if found:
-            below = [f for f in found if f[0] < WORKPASS_MIN_MEDICAL]
+            below = [f for f in found if f[0] < workpass_minimum]
             if below:
                 worst = min(below, key=lambda f: f[0])
                 facts.put(_fact("workpass_lowest_medical", worst[0], doc, worst[1],
@@ -557,7 +573,19 @@ def _supporting_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
                             unit="SGD", source=PDF_TEXT))
 
 
-WORKPASS_MIN_MEDICAL = 60000
+def workpass_minimum(pack: "jurisdiction.Pack") -> Optional[int]:
+    """The per-holder medical insurance minimum the pack verifies, or None.
+
+    This used to be a module constant, 60000, which applied Singapore's Work Permit rule
+    to a work pass list from anywhere. It now comes from the pack that applies — the same
+    entry the WORKPASS rule's headline quotes — and a pack that does not verify one gets
+    no comparison at all rather than a borrowed figure.
+    """
+    entry = pack.find("COMP-WORKPASS-MEDICAL")
+    if entry is None or not entry.owner_facing:
+        return None
+    value = entry.values.get("minimum_annual_cover")
+    return None if value is None else int(value)
 
 
 def _to_int(v: Any) -> Optional[int]:
@@ -569,13 +597,20 @@ def _to_int(v: Any) -> Optional[int]:
 
 # ── entry point ─────────────────────────────────────────────────────────────
 
-def extract_facts(store: DocStore) -> PolicyFacts:
+def extract_facts(store: DocStore,
+                  pack: Optional["jurisdiction.Pack"] = None) -> PolicyFacts:
     """Normalise every document in the store into named facts.
 
     Dispatch is on provenance, not on document identity: a structured document uses
     its parsed keys, an uploaded PDF uses its page text, and both land in the same
     `PolicyFacts`. Rules read only from here.
+
+    `pack` is the jurisdiction the case is read under; the pipeline always passes it.
+    Without one, it is detected from the store's own documents — never assumed.
     """
+    if pack is None:
+        pack = jurisdiction.assess(store.documents()).pack
+    minimum = workpass_minimum(pack)
     facts = PolicyFacts()
     for doc in store.documents():
         facts.kinds_present.add(doc.kind)
@@ -585,7 +620,7 @@ def extract_facts(store: DocStore) -> PolicyFacts:
                 (_schedule_structured if structured else _schedule_text)(facts, doc)
             else:
                 (_supporting_structured if structured else _supporting_text)(
-                    facts, doc)
+                    facts, doc, minimum)
         except Exception as exc:
             # Deliberately broad. The input is "whatever documents a small business
             # holds", so the set of ways one can be malformed is open-ended — a

@@ -17,8 +17,13 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from proven import pipeline, warranty
+from proven import jurisdiction, pipeline, warranty
 from proven.api import SESSIONS, app
+
+# The 60-day premium payment period is the Singapore pack's (it is the period the
+# measured Singapore wording states). These checker tests are about that period, so they
+# say which pack they run under; with no pack, no period is assumed (test_jurisdiction.py).
+SG = jurisdiction.pack("SG")
 
 
 @pytest.fixture
@@ -101,7 +106,8 @@ def test_premium_paid_late_is_a_breach_with_both_dates_cited():
     state, detail, evidence = warranty._check_premium_payment(
         _Facts({"inception": _Fact("2026-03-01", needle="inception: 2026-03-01"),
                 "premium_received": _Fact("2026-05-11",
-                                          needle="received_date: 2026-05-11")}), None)
+                                          needle="received_date: 2026-05-11")}), None,
+        SG)
     assert state == warranty.BREACHED
     assert "day 71" in detail
     assert len(evidence) == 2, "a breach must cite every date it rests on"
@@ -110,7 +116,7 @@ def test_premium_paid_late_is_a_breach_with_both_dates_cited():
 def test_premium_paid_inside_the_period_is_compliant():
     state, _, _ = warranty._check_premium_payment(
         _Facts({"inception": _Fact("2026-03-01"),
-                "premium_received": _Fact("2026-03-20")}), None)
+                "premium_received": _Fact("2026-03-20")}), None, SG)
     assert state == warranty.COMPLIANT
 
 
@@ -135,7 +141,7 @@ def test_exactly_on_the_threshold_is_not_a_breach():
     that does not exist."""
     state, _, _ = warranty._check_premium_payment(
         _Facts({"inception": _Fact("2026-03-01"),
-                "premium_received": _Fact("2026-04-30")}), None)
+                "premium_received": _Fact("2026-04-30")}), None, SG)
     assert state == warranty.COMPLIANT
 
 

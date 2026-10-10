@@ -634,6 +634,11 @@ COVERED: set[tuple[str, str]] = {
     ("POST", "/api/reset"),
     ("GET", "/api/bundle/kinds"),
     ("POST", "/api/bundle"),
+    # Jurisdiction packs — reference data, covered in test_jurisdiction.py, where the
+    # load-bearing tests are that an unknown code names no file and that a recognised
+    # country with no pack is told so rather than given another country's.
+    ("GET", "/api/jurisdictions"),
+    ("GET", "/api/jurisdictions/{code}"),
     # The streaming upload and the source-page viewer. Covered in test_upload_stream.py
     # and test_source_view.py respectively.
     ("POST", "/api/bundle/stream"),

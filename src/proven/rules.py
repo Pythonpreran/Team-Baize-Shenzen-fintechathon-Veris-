@@ -27,11 +27,14 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
+
+import copy
+import re
 
 import yaml
 
-from . import account, grading
+from . import account, grading, jurisdiction
 from .extract import Fact, PolicyFacts
 from .gates import gate
 from .ingest import DocStore, make_span, page_text
@@ -55,6 +58,213 @@ def load_rules(rules_dir: Path | str = RULES_DIR) -> dict[str, dict]:
         for rule in yaml.safe_load(path.read_text(encoding="utf-8")) or []:
             rules[rule["id"]] = rule
     return rules
+
+
+# ── binding the rules to the jurisdiction pack that applies ─────────────────
+#
+# A rule names the country whose law it is written against (`jurisdiction: SG`) and the
+# pack entries its sentences quote figures from (`pack_values`). Neither the country nor
+# the figures live in this file. `bind()` turns the loaded rules into the set that applies
+# to ONE case:
+#
+#   * a rule for another country is NOT RUN, and is reported by name — so a Malaysian
+#     wording is never read against Singapore law, and the reader is told what was not done;
+#   * a figure the finding itself states (in its title or headline) must come from an entry
+#     the pack verifies for owner-facing use, or the rule is not run either — a finding
+#     cannot be stated without its own threshold;
+#   * a figure only a SUPPORTING sentence states (a consequence note, a citation, a
+#     deadline) drops THAT sentence when its entry is not verified, and the finding stands.
+#     That is PLAN rule 18: an unverified source never gates an existing finding; the
+#     sentence goes instead.
+
+#: Fields that ARE the finding. A pack value they need must be verified or the rule is not run.
+_FINDING_FIELDS: tuple[str, ...] = ("title", "headline")
+
+#: `{name}`, `{name.money}` (the pack's currency, e.g. S$60,000), `{name.local}` (as the
+#: country's own authorities write it, e.g. $2,600), `{name.millions}` (S$1 million) and
+#: `{name.long_date}` (1 October 2022). Any other `{field}` belongs to the evaluator.
+_PLACEHOLDER = re.compile(r"\{(\w+)(?:\.(money|local|millions|long_date))?\}")
+
+
+def applies_under(rule: dict, pack: "jurisdiction.Pack") -> bool:
+    """True when the rule is written for this pack's country, or for no country at all."""
+    home = rule.get("jurisdiction")
+    return home is None or home == pack.code
+
+
+def _resolve_pack_values(rule: dict, pack: "jurisdiction.Pack"
+                         ) -> tuple[dict[str, Any], dict[str, str]]:
+    """(name -> value for every verified value, name -> why for every other one)."""
+    values: dict[str, Any] = {}
+    unverified: dict[str, str] = {}
+    for name, ref in (rule.get("pack_values") or {}).items():
+        local_id, _, key = str(ref).partition(":")
+        entry = pack.find(local_id)
+        if entry is None or not key or key not in entry.values:
+            unverified[name] = (f"the {pack.name} pack holds no {pack.code}-{local_id} "
+                                f"value {key!r}")
+        elif not entry.owner_facing:
+            unverified[name] = (f"{entry.id} is {entry.verification.status}, so no "
+                                f"sentence may be built from it")
+        else:
+            values[name] = entry.values[key]
+    return values, unverified
+
+
+def _provenance(rule: dict, pack: "jurisdiction.Pack", names: set[str]) -> list[dict]:
+    """The quote, source link and status of every pack entry a bound rule still states a
+    figure from — PLAN rule 17's display requirement, carried with the finding. An entry
+    whose only sentence was dropped is not listed: nothing shown rests on it any more."""
+    out: dict[str, dict] = {}
+    for name in sorted(names):
+        local_id = str((rule.get("pack_values") or {}).get(name, "")).partition(":")[0]
+        entry = pack.find(local_id)
+        if entry is not None and entry.owner_facing and entry.id not in out:
+            out[entry.id] = entry.provenance()
+    return list(out.values())
+
+
+def _render_value(value: Any, form: Optional[str],
+                  pack: "jurisdiction.Pack") -> Optional[str]:
+    if form is None:
+        return str(value)
+    if form == "long_date":
+        return jurisdiction.long_date(value)
+    if pack.currency is None:
+        return None
+    if form == "money":
+        return pack.currency.format(value)
+    if form == "local":
+        return pack.currency.format(value, local=True)
+    return pack.currency.millions(value)                 # form == "millions"
+
+
+def _fill(text: str, rule: dict, values: dict, unverified: dict,
+          pack: "jurisdiction.Pack", used: Optional[set[str]] = None
+          ) -> tuple[str, list[str]]:
+    """Substitute the pack placeholders in one sentence. Returns (text, what could not be
+    filled). Placeholders that are not pack values are left for the evaluator. When the
+    sentence fills completely, the pack values it used are added to `used`."""
+    declared = set(rule.get("pack_values") or {})
+    missing: list[str] = []
+    names: set[str] = set()
+
+    def sub(m: "re.Match[str]") -> str:
+        name, form = m.group(1), m.group(2)
+        if name not in declared:
+            return m.group(0)
+        if name in unverified:
+            missing.append(unverified[name])
+            return m.group(0)
+        rendered = _render_value(values[name], form, pack)
+        if rendered is None:
+            missing.append(f"the {pack.name} pack states no currency to write "
+                           f"{name} in")
+            return m.group(0)
+        names.add(name)
+        return rendered
+
+    filled = _PLACEHOLDER.sub(sub, text)
+    if used is not None and not missing:
+        used.update(names)
+    return filled, missing
+
+
+def _home_title(rule: dict) -> str:
+    """The rule's title as its own country's pack writes it, for the not-applied list."""
+    home = rule.get("jurisdiction")
+    title = str(rule.get("title") or rule.get("id"))
+    if not home or not jurisdiction.has_pack(home):
+        return _PLACEHOLDER.sub("…", title)
+    home_pack = jurisdiction.pack(home)
+    values, unverified = _resolve_pack_values(rule, home_pack)
+    text, missing = _fill(title, rule, values, unverified, home_pack)
+    return _PLACEHOLDER.sub("…", text) if missing else text
+
+
+def bind(all_rules: dict[str, dict], pack: "jurisdiction.Pack"
+         ) -> tuple[dict[str, dict], list[dict], list[dict]]:
+    """The rules that apply under `pack`, with their figures filled in from it.
+
+    Returns `(rules, not_applied, sentences_dropped)`. The loaded rules are not modified:
+    each applicable rule is a copy, so two cases read under two packs can never share a
+    filled-in sentence.
+    """
+    bound: dict[str, dict] = {}
+    not_applied: list[dict] = []
+    dropped: list[dict] = []
+    for rid, rule in all_rules.items():
+        home = rule.get("jurisdiction")
+        if not applies_under(rule, pack):
+            name = jurisdiction.country_name(home)
+            reason = (f"A {name} rule. These documents are not established as {name} "
+                      f"documents, so {name} law is not applied to them."
+                      if pack.is_generic else
+                      f"A {name} rule. These documents are read under the {pack.name} "
+                      f"pack, so {name} law is not applied to them.")
+            not_applied.append({"rule_id": rid, "title": _home_title(rule),
+                                "jurisdiction": home, "jurisdiction_name": name,
+                                "reason": reason})
+            continue
+
+        values, unverified = _resolve_pack_values(rule, pack)
+        out = copy.deepcopy({k: v for k, v in rule.items() if k != "pack_values"})
+        used: set[str] = set()
+        blocked: list[str] = []
+        for fld in _FINDING_FIELDS:
+            if isinstance(out.get(fld), str):
+                out[fld], missing = _fill(out[fld], rule, values, unverified, pack, used)
+                blocked.extend(missing)
+        if blocked:
+            not_applied.append({
+                "rule_id": rid, "title": _home_title(rule), "jurisdiction": home,
+                "jurisdiction_name": jurisdiction.country_name(home) if home else None,
+                "reason": ("The finding states a figure the pack does not verify for "
+                           "owner-facing use: " + "; ".join(sorted(set(blocked))) + ".")})
+            continue
+
+        if isinstance(out.get("consequence_note"), str):
+            note, missing = _fill(out["consequence_note"], rule, values, unverified, pack,
+                                  used)
+            if missing:
+                del out["consequence_note"]
+                dropped.append({"rule_id": rid, "sentence": "consequence_note",
+                                "reason": "; ".join(sorted(set(missing)))})
+            else:
+                out["consequence_note"] = note
+
+        kept_cites = []
+        for cite in out.get("cite") or []:
+            if isinstance(cite, dict) and isinstance(cite.get("proposition"), str):
+                text, missing = _fill(cite["proposition"], rule, values, unverified, pack,
+                                      used)
+                if missing:
+                    dropped.append({"rule_id": rid, "sentence": "cite",
+                                    "reason": "; ".join(sorted(set(missing)))})
+                    continue
+                cite = {**cite, "proposition": text}
+            kept_cites.append(cite)
+        if "cite" in out:
+            out["cite"] = kept_cites
+
+        deadline = out.get("deadline")
+        if isinstance(deadline, dict) and "days_before" in deadline:
+            name = deadline["days_before"]
+            if name in values:
+                out["deadline"] = {"basis": deadline.get("basis"),
+                                   "offset_days": -int(values[name])}
+                used.add(name)
+            else:
+                del out["deadline"]
+                dropped.append({"rule_id": rid, "sentence": "deadline",
+                                "reason": unverified.get(name, f"no value {name!r}")})
+
+        # The figures the evaluator compares against, already verified. Never read the
+        # pack again from inside an evaluator: one source per figure per case.
+        out["_values"] = values
+        out["_sources"] = _provenance(rule, pack, used)
+        bound[rid] = out
+    return bound, not_applied, dropped
 
 
 def required_base_codes(rule: dict) -> set[str]:
@@ -87,6 +297,9 @@ class Context:
     loss_scenario: dict = field(default_factory=dict)
     unresolved_codes: set = field(default_factory=set)
     verified_codes: set = field(default_factory=set)
+    # The pack the case is read under. GENERIC unless the pipeline says otherwise: a
+    # context built without one must not be read as any particular country.
+    pack: "jurisdiction.Pack" = field(default_factory=lambda: jurisdiction.generic())
 
     def clause_basis_available(self, rule_id: str) -> bool:
         """True when a human has verified every base-wording clause this rule cites,
@@ -188,6 +401,12 @@ def _within_provision(ctx: Context) -> Callable[[Finding], bool]:
 
 def _finalise(ctx: Context, finding: Finding) -> Finding:
     """Grade, attach spans, run all four abstention gates."""
+    # Every figure this finding states from a jurisdiction pack travels with its quote,
+    # source link and verification status (PLAN rule 17), so whatever renders the finding
+    # can show where the statement about the law comes from.
+    sources = (ctx.rules.get(finding.rule_id) or {}).get("_sources")
+    if sources:
+        finding.detail["pack_sources"] = sources
     finding.spans = _spans_of(finding.operands, ctx)
     finding.evidence_class = grading.grade_finding(
         finding.operands, finding.detail.get("computation_span"),
@@ -447,14 +666,19 @@ def _wica(ctx: Context) -> Optional[Finding]:
         return None
     ops = [_fact_operand(ctx, "declared", d_fact),
            _fact_operand(ctx, "actual", a_fact)]
+    detail = {"cite": rule["cite"]}
+    # Supporting sentences are present only when the pack verified every figure in
+    # them (see `bind`); a dropped one is simply absent, never rendered half-filled.
+    if rule.get("consequence_note"):
+        detail["consequence_note"] = _clean(rule["consequence_note"])
+    if "deadline" in rule:
+        detail["deadline"] = rule.get("deadline")
     return _finalise(ctx, Finding(
         rule_id=rule["id"], rule_version=rule["version"],
         output_state=rule["output_state"], evidence_class="",
         headline=_clean(rule["headline"]).format(declared=declared, actual=actual),
         operands=ops, required_operands=ops,
-        detail={"cite": rule["cite"],
-                "consequence_note": _clean(rule["consequence_note"]),
-                "deadline": rule.get("deadline")}))
+        detail=detail))
 
 
 def _premium(ctx: Context) -> Optional[Finding]:
@@ -469,7 +693,9 @@ def _premium(ctx: Context) -> Optional[Finding]:
     if not isinstance(inception, date) or not isinstance(received, date):
         return _not_established(ctx, rule_id, ["inception", "premium_received"])
     n = (received - inception).days
-    if n <= int(rule.get("threshold_days", 60)):
+    # The period comes from the pack (SG: the 60 days the measured wording states). The
+    # rule is only bound when the pack verifies it, so this is never a default.
+    if n <= int(rule["_values"]["days"]):
         return None
     ops = [_fact_operand(ctx, "inception", inc_fact),
            _fact_operand(ctx, "received", rec_fact),
@@ -617,15 +843,17 @@ def _workpass_medical(ctx: Context) -> Optional[Finding]:
     if not fact.established:
         return _not_established(ctx, rule_id, ["workpass_lowest_medical"])
     op = _fact_operand(ctx, "holder_medical", fact)
-    from .extract import WORKPASS_MIN_MEDICAL
+    detail = {"cite": rule["cite"]}
+    if rule.get("consequence_note"):
+        detail["consequence_note"] = _clean(rule["consequence_note"])
+    # The same verified pack figure the extractor compared each holder against.
+    detail["holders_below_minimum"] = below
+    detail["minimum_sgd"] = rule["_values"]["minimum"]
     return _finalise(ctx, Finding(
         rule_id=rule["id"], rule_version=rule["version"],
         output_state=rule["output_state"], evidence_class="",
         headline=_clean(rule["headline"]), operands=[op], required_operands=[op],
-        detail={"cite": rule["cite"],
-                "consequence_note": _clean(rule["consequence_note"]),
-                "holders_below_minimum": below,
-                "minimum_sgd": WORKPASS_MIN_MEDICAL}))
+        detail=detail))
 
 
 # Tokens that would show the ACRA secondary activity IS reflected in the policy's
@@ -710,8 +938,11 @@ def _sublimit_precedence_conflict(ctx: Context) -> Optional[Finding]:
                                       value=e.data.get("value_sgd"), doc=e,
                                       needle=e.data.get("text", ""), page_no=1,
                                       unit="SGD", source="STRUCTURED")))
+    # The amounts are SGD wherever the case is read, so the symbol comes from whichever
+    # pack writes SGD — not from the pack this case happens to be read under.
+    symbol = jurisdiction.symbol_for("SGD")
     values = ", ".join(
-        f"{e.data.get('endorsement_ref')} = S${e.data.get('value_sgd')}"
+        f"{e.data.get('endorsement_ref')} = {symbol}{e.data.get('value_sgd')}"
         for e in conflicting)
     return _finalise(ctx, Finding(
         rule_id=rule["id"], rule_version=rule["version"],
@@ -776,15 +1007,17 @@ def _cyber_cover_absent(ctx: Context) -> Optional[Finding]:
 
     ops = [_fact_operand(ctx, "activity", activity_fact),
            _fact_operand(ctx, "sections", sections_fact)]
+    detail = {"cite": rule["cite"]}
+    if rule.get("consequence_note"):
+        detail["consequence_note"] = _clean(rule["consequence_note"])
+    detail["searched_sections"] = sections
+    detail["activity"] = activity_fact.value
     return _finalise(ctx, Finding(
         rule_id=rule["id"], rule_version=rule["version"],
         output_state=rule["output_state"], evidence_class="",
         headline=_clean(rule["headline"]).format(sections=", ".join(sections)),
         operands=ops, required_operands=ops, never=rule.get("never", []),
-        detail={"cite": rule["cite"],
-                "consequence_note": _clean(rule["consequence_note"]),
-                "searched_sections": sections,
-                "activity": activity_fact.value}))
+        detail=detail))
 
 
 def _dependency_cover_not_possible(ctx: Context) -> Optional[Finding]:
@@ -842,14 +1075,41 @@ EVALUATORS: list[Callable[[Context], Optional[Finding]]] = [
     _cyber_cover_absent, _dependency_cover_not_possible,
 ]
 
+#: The YAML rule each evaluator implements. An evaluator whose rule is not in the case's
+#: bound rule set — because it is another country's rule, or the pack does not verify the
+#: figure it states — is not run at all, rather than run and allowed to fail into an
+#: "internal error" finding. `_endorsement_illegible` is absent on purpose: it is not a
+#: YAML rule, and refusing to guess an unreadable endorsement holds in every country.
+EVALUATOR_RULE: dict[Callable[[Context], Optional[Finding]], str] = {
+    _theft: "THEFT-FORCIBLE-ENTRY-NOT-WRITTEN-BACK",
+    _wica: "WICA-HEADCOUNT-UNDERDECLARED",
+    _workpass_medical: "WORKPASS-MEDICAL-BELOW-MINIMUM",
+    _average: "AVERAGE-ADEQUACY-BELOW-THRESHOLD",
+    _plant_adequacy: "PLANT-ADEQUACY-UNESTABLISHED",
+    _buildings: "BUILDINGS-VALUE-UNESTABLISHED",
+    _alteration: "ALTERATION-PREMISES-NOT-ON-SCHEDULE",
+    _activity_ssic: "ACTIVITY-SSIC-NOT-DECLARED",
+    _premium: "PREMIUM-PAYMENT-WARRANTY-TIMING",
+    _minimum_security: "MINIMUM-SECURITY",
+    _claim_time_limit: "CLAIM-TIME-LIMIT",
+    _unoccupancy: "UNOCCUPANCY-WATER-EXCLUSION",
+    _business_interruption_not_confirmed: "BUSINESS-INTERRUPTION-NOT-CONFIRMED",
+    _sublimit_precedence_conflict: "SUBLIMIT-CONFLICTING-ENDORSEMENTS",
+    _cyber_cover_absent: "CYBER-DATA-COVER-ABSENT",
+    _dependency_cover_not_possible: "DEPENDENCY-COVER-NOT-POSSIBLE",
+}
+
 
 def evaluate_all(ctx: Context) -> list[Finding]:
-    """Run every evaluator. One failing evaluator must not lose the other fourteen:
-    an unexpected exception is converted into an INFORMATION_MISSING finding naming
-    the rule, which is visible and safe, rather than a 500 that hides the whole
-    Brief."""
+    """Run every evaluator whose rule applies. One failing evaluator must not lose the
+    other fourteen: an unexpected exception is converted into an INFORMATION_MISSING
+    finding naming the rule, which is visible and safe, rather than a 500 that hides the
+    whole Brief."""
     findings: list[Finding] = []
     for ev in EVALUATORS:
+        rule_id = EVALUATOR_RULE.get(ev)
+        if rule_id is not None and rule_id not in ctx.rules:
+            continue                     # not bound for this pack; reported by bind()
         try:
             f = ev(ctx)
         except Exception as exc:                       # defensive, per rule

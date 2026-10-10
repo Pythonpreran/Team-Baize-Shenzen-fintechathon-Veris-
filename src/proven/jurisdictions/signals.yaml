@@ -1,0 +1,79 @@
+# How to RECOGNISE a country VERIS holds no pack for yet.
+#
+# Recognising a country and applying its law are different things, and this file only does
+# the first. A Malaysian wording has to be identified as Malaysian so that VERIS can say "this
+# reads as Malaysia and there is no Malaysia pack yet" — rather than either saying nothing about
+# where it comes from, or, far worse, reading it against Singapore law because Singapore is the
+# only country it knows. Nothing here is a legal statement: these are names, currency forms and
+# number shapes that appear on that country's documents.
+#
+# When a country gets a pack, its entry moves into the pack's own `detection` block and leaves
+# this file. The loader refuses a country that is defined in both places.
+
+version: 1
+countries:
+  - code: MY
+    name: Malaysia
+    signals:
+      governing_law:
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of Malaysia\b'
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bMalaysian [Ll]aw\b'
+      names:
+        - Bank Negara Malaysia
+        - Ombudsman for Financial Services
+        - Financial Services Act 2013
+        - Islamic Financial Services Act 2013
+        - Road Transport Act 1987
+        - Personal Data Protection Act 2010
+        - Companies Commission of Malaysia
+      currency_codes: [MYR]
+      currency_symbols: [RM]
+      registration_numbers:
+        # A company number in the older form printed on most wordings, e.g. "161086-D".
+        - '\b\d{5,7}-[A-Z]\b'
+      postcodes:
+        - '\b\d{5}\s+(?:Kuala Lumpur|Petaling Jaya|Shah Alam|Johor Bahru|George Town|Ipoh|Kota Kinabalu|Kuching|Selangor|Melaka|Putrajaya)\b'
+      phone_numbers:
+        - '\+60[\s-]?\d'
+
+  - code: IN
+    name: India
+    signals:
+      governing_law:
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|subject to)\b[^.;]{0,60}?\blaws? of India\b'
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|subject to)\b[^.;]{0,60}?\bIndian [Ll]aw\b'
+      names:
+        - Insurance Regulatory and Development Authority of India
+        - IRDAI
+        - Insurance Ombudsman
+        - Bima Bharosa
+        - Motor Vehicles Act, 1988
+        - Insurance Act, 1938
+      currency_codes: [INR]
+      currency_symbols: ["₹", "Rs."]
+      registration_numbers:
+        # Corporate Identity Number, e.g. "U66010MH2000PLC128403".
+        - '\b[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}\b'
+      postcodes:
+        - '\b(?:Mumbai|New Delhi|Delhi|Bengaluru|Bangalore|Chennai|Kolkata|Hyderabad|Pune|Ahmedabad|Gurugram|Noida)\s*[-,]?\s*\d{6}(?!\d)'
+        - '\bPIN(?: Code)?\s*[:\-]?\s*\d{6}(?!\d)'
+      phone_numbers:
+        - '\+91[\s-]?\d'
+
+  - code: HK
+    name: Hong Kong
+    signals:
+      governing_law:
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of (?:the )?Hong Kong\b'
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bHong Kong [Ll]aw\b'
+      names:
+        - Insurance Authority
+        - Insurance Complaints Bureau
+        - Employees' Compensation Ordinance
+        - Insurance Ordinance
+      currency_codes: [HKD]
+      currency_symbols: ["HK$"]
+      registration_numbers: []
+      postcodes: []
+      phone_numbers:
+        - '\+852[\s-]?\d'

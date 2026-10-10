@@ -22,8 +22,12 @@
   cite: [{clause: "3.1", document_kind: BASE_WORDING}]
   never: [assert_breach, assert_claim_outcome]
 
+# A SINGAPORE rule: the activity it compares is read from the ACRA register, Singapore's
+# company register, so it runs only under the SG pack (see compulsion.yaml's header). The
+# premises rule above reads the policy and a tenancy only, so it runs under every pack.
 - id: ACTIVITY-SSIC-NOT-DECLARED
   version: 1
+  jurisdiction: SG
   title: Business activity on the ACRA profile not reflected in the policy
   requires:
     - operand: acra_secondary
