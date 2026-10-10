@@ -141,9 +141,11 @@ def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
         -> Optional[tuple[Decimal, str, int, str]]:
     """Read a labelled amount only when a pack or an explicit document marker identifies
     its currency. A bare number under an unknown pack is not money evidence."""
-    # Kept local because this is the only layer that associates money with a field label.
-    from .lang.english import money_candidates
+    # The language layer selects candidates from the source document's script; this
+    # layer only associates an unambiguous candidate with its field label.
+    from .lang import money_candidates_for_document
 
+    document_text = "\n".join(pages)
     parser = money_parser_for(currency)
     for page_no, text in enumerate(pages, start=1):
         low = text.lower()
@@ -156,7 +158,7 @@ def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
                 # value is a separate field. Multiple values before a field delimiter are
                 # ambiguous, so extraction abstains rather than assigning the wrong one.
                 field = re.split(r"[;\n|]", segment[len(label):], maxsplit=1)[0]
-                candidates = money_candidates(field)
+                candidates = money_candidates_for_document(document_text, field)
                 if len(candidates) == 1:
                     candidate = candidates[0]
                     unit = candidate.currency or (parser.currency if parser else None)

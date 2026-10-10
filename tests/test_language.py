@@ -115,6 +115,25 @@ def test_labelled_money_abstains_when_multiple_values_share_one_field():
     assert not facts.get("stock_sum_insured").established
 
 
+def test_money_extraction_dispatches_to_a_registered_document_language_provider(monkeypatch):
+    from proven import lang
+    from proven.lang import ParsedMoney
+
+    monkeypatch.setattr(lang, "_MONEY_CANDIDATE_PROVIDERS",
+                        dict(lang._MONEY_CANDIDATE_PROVIDERS))
+    fields: list[str] = []
+
+    def cjk_candidates(field: str) -> tuple[ParsedMoney, ...]:
+        fields.append(field)
+        return (ParsedMoney(Decimal("42"), "CNY", 2, 4),)
+
+    lang.register_money_candidate_provider(CJK, cjk_candidates)
+    hit = find_money_with_currency(["保额: 42"], ("保额",), currency=None)
+
+    assert hit == (Decimal("42"), "保额: 42", 1, "CNY")
+    assert fields == [": 42"]
+
+
 def test_english_date_parsers_refuse_an_ambiguous_numeric_date():
     parser = date_parser_for("INR")
     assert parser is not None
