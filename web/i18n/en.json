@@ -20,19 +20,13 @@
   },
   "nav": {
     "sme": {
-      "my_business": "My business",
-      "overview": "Overview",
-      "your_position": "Your position",
-      "whats_new": "What's new",
-      "where_i_stand": "Where I stand",
-      "protection": "Protection",
-      "timeline": "Timeline",
-      "what_to_do": "What to do",
-      "behind_the_scenes": "Behind the scenes",
-      "monitoring": "Monitoring",
+      "portfolio": "Portfolio",
+      "ask_veris": "Ask VERIS",
+      "claims": "Claims",
+      "tasks_alerts": "Tasks & alerts",
       "documents": "Documents",
-      "your_control": "Your control",
-      "share_with_adviser": "Share with adviser",
+      "sharing_mandates": "Sharing & mandates",
+      "business": "Business",
       "your_record": "Your record"
     },
     "adviser": {
@@ -72,5 +66,65 @@
     "points_elsewhere": "Pointing elsewhere, or missing:",
     "not_applied": "Not applied to these documents:",
     "page": "page {page}"
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "lead": "Your household, assets, policies and separate business records in one place.",
+    "synthetic_banner": "SYNTHETIC HOUSEHOLD — this demonstration data is not a real household or policy record.",
+    "loading": "Opening your portfolio",
+    "empty_title": "Start with your household",
+    "empty_body": "There are no durable household records yet. Load the labelled synthetic household to see the same upload and portfolio flow.",
+    "load_example": "Load the synthetic household",
+    "example_preparing": "Preparing the synthetic household documents",
+    "example_load_failed": "The synthetic household example could not be loaded.",
+    "members": "Members",
+    "assets": "Assets",
+    "businesses": "Businesses",
+    "policies": "Policies",
+    "no_members": "No household members are recorded yet.",
+    "no_assets": "No household assets are recorded yet.",
+    "no_businesses": "No separate businesses are recorded yet.",
+    "open_business": "Open business",
+    "generic_notice": "This policy is not yet mapped for {country}. VERIS shows the policy details and cited wording without making a country-specific statement.",
+    "header": {
+      "country": "Country",
+      "period": "Period",
+      "policy": "Policy"
+    },
+    "section": {
+      "covered": "Covered",
+      "limits": "Limits & sub-limits",
+      "waiting": "Waiting periods",
+      "share": "Your share",
+      "exclusions": "Exclusions & conditions",
+      "renewal": "Renewal & deadlines",
+      "evidence": "Evidence"
+    },
+    "document": {
+      "policy_schedule": "the policy schedule",
+      "policy_wording": "the policy wording"
+    },
+    "missing_value": "No value is shown. Add {document} to establish it.",
+    "show_wording": "Show the exact wording",
+    "evidence_loading": "Opening the cited wording",
+    "evidence_unavailable": "The cited wording is not available.",
+    "evidence_document": "From {document}",
+    "ask_title": "Ask VERIS",
+    "ask_body": "Use the evidence-bound helper to find a policy screen or explain where a document is used.",
+    "ask_launch": "Open Ask VERIS",
+    "claims_title": "Claims",
+    "claims_body": "Claim preparation appears here after policy terms are mapped. This screen does not make a claim outcome decision.",
+    "mechanism": {
+      "hospitalisation": "Hospitalisation",
+      "home_contents": "Home contents",
+      "motor_third_party": "Motor third-party",
+      "travel": "Travel",
+      "family_floater": "Family floater",
+      "sum_insured": "Sum insured",
+      "waiting_period": "Waiting period",
+      "co_payment": "Co-payment",
+      "third_party_expiry": "Third-party expiry",
+      "documented_item": "Documented policy item"
+    }
   }
 }

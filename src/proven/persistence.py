@@ -472,7 +472,18 @@ class PortfolioRepository:
         conn = sqlite3.connect(str(self.db_path), timeout=10)
         conn.row_factory = sqlite3.Row
         try:
-            conn.execute("PRAGMA journal_mode=WAL")
+            # SQLite can reject a concurrent connection's journal-mode switch before its
+            # normal busy timeout applies. First use intentionally races in the portfolio
+            # test and in a real multi-request startup, so retry that configuration step
+            # just as the erasure checkpoint retries its own transient lock.
+            for attempt in range(100):
+                try:
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    break
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc).lower() or attempt == 99:
+                        raise
+                    time.sleep(0.01)
             conn.execute("PRAGMA foreign_keys=ON")
             # Tenant-key deletion must overwrite its SQLite cell before the later WAL
             # checkpoint and VACUUM lifecycle validates that no wrapped key remains.

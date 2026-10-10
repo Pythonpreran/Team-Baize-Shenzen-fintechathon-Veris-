@@ -114,16 +114,36 @@ tryRun("pseudo locale renders the translated shell while money stays formatted",
   g.setUser({ role: "SME", name: "Demo", email: "demo@example.test", organisation_name: "Demo" });
   try {
     g.setLocale("pseudo");
-    const label = g.t("nav.sme.overview");
-    if (label === "nav.sme.overview") throw new Error("translation catalogue did not load");
-    g.shell("SME", [{ section: g.t("nav.sme.my_business") },
-      { id: "sme-home", label, icon: "◈" }]);
+    const label = g.t("nav.sme.portfolio");
+    if (label === "nav.sme.portfolio") throw new Error("translation catalogue did not load");
+    g.shell("SME", [{ id: "sme-portfolio", label, icon: "◈" }]);
     if (!doc._app.innerHTML.includes(label)) throw new Error("pseudo navigation did not render");
     if (!doc._app.innerHTML.includes('data-act="set-locale"')) throw new Error("language switcher missing");
     if (g.money("60000", "SG") !== "S$60,000") throw new Error("locale changed money display");
   } finally {
     g.setLocale("en");
   }
+});
+tryRun("planLayoutCard renders every section and preserves missing values", () => {
+  const html = g.planLayoutCard({
+    id: "policy-1", insurer: "Lotus General (Sandbox)", product: "Synthetic health plan",
+    country: "IN", masked_number: "****-1234", status: "ACTIVE",
+    period: { start: "2026-04-01", end: "2027-03-31" },
+    coverage_items: [
+      { id: "coverage-1", mechanism_code: "COVERED.FAMILY_FLOATER", value: null,
+        evidence_class: "PROVEN", source_document_id: "doc-1" },
+      { id: "coverage-2", mechanism_code: "LIMIT.SUM_INSURED", value: "500000",
+        unit: "INR", evidence_class: "PROVEN", source_document_id: "doc-1" },
+    ],
+  });
+  for (const heading of ["Covered", "Limits & sub-limits", "Waiting periods", "Your share",
+    "Exclusions & conditions", "Renewal & deadlines", "Evidence"]) {
+    if (!html.includes(heading.replace(/&/g, "&amp;"))) throw new Error(`missing ${heading}`);
+  }
+  if (!html.includes("₹5,00,000")) throw new Error("policy money was not formatted");
+  if (!html.includes("No value is shown")) throw new Error("missing-data state was not rendered");
+  if (!html.includes('data-act="portfolio-evidence"')) throw new Error("no wording control");
+  if (!html.includes('aria-label="Covered"')) throw new Error("section is not labelled");
 });
 
 // The new pure components, called with realistic shapes.

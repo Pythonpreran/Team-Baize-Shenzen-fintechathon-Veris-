@@ -25,6 +25,7 @@ SECURITY POSTURE — read this before deploying anything.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import queue
@@ -46,6 +47,7 @@ from pydantic import BaseModel, Field
 from . import (actions, advisernote, ai, align, assistant, auth, blindspots, book, carrier,
                compounding,
                config, connectors, corpus, cyber, detect, discovery, gapsummary,
+               household, household_loader,
                bi, drift, events, ingest, jurisdiction, mailer, marketmap,
                notifications, ocr,
                orchestrator, pagequality, persistence, pipeline, premium_at_risk,
@@ -76,6 +78,7 @@ app = FastAPI(
 # attached SERVER-SIDE (see `_corpus_wording_upload`). There is deliberately no
 # browser-facing route that serves it.
 EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "demo-documents"
+HOUSEHOLD_EXAMPLE_DIR = EXAMPLE_DIR / "household"
 
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 SESSION_COOKIE = "proven_sid"
@@ -212,11 +215,21 @@ def portfolio_overview(session: Session = Depends(_session)):
     """The authenticated tenant's durable household and business portfolio."""
     with session.lock:
         scope = _portfolio_scope(session)
-        state = {"brief": session.state.get("brief"), "case_id": session.state.get("case_id")}
+        case_id = session.state.get("case_id")
+        # The household example genuinely passes through the ordinary upload pipeline.
+        # That transient household bundle is not an SME business analysis, so do not let
+        # the T05 compatibility wrapper attach it as one.  The browser prepares and
+        # wraps the existing SME example before it uploads this household bundle.
+        household_case = session.state.get("_household_example_case_id")
+        state = None if case_id and case_id == household_case else {
+            "brief": session.state.get("brief"), "case_id": case_id,
+        }
     repo = _portfolio_repository()
-    # Existing SME analysis becomes a policy bundle only when it already exists in this
-    # session. This does not make a GET manufacture a demo case or retain its findings.
-    repo.wrap_sme_analysis(scope, state)
+    if state is not None:
+        # Existing SME analysis becomes a policy bundle only when it already exists in
+        # this session. This does not make a GET manufacture a demo case or retain its
+        # findings.
+        repo.wrap_sme_analysis(scope, state)
     return repo.portfolio(scope)
 
 
@@ -281,6 +294,84 @@ def portfolio_policy(policy_id: str, session: Session = Depends(_session)):
     with session.lock:
         scope = _portfolio_scope(session)
     return {"policy": _portfolio_repository().get_policy(scope, policy_id)}
+
+
+@app.get("/api/policies/{policy_id}/coverage/{coverage_id}/evidence")
+def portfolio_coverage_evidence(policy_id: str, coverage_id: str,
+                                 session: Session = Depends(_session)):
+    """The exact synthetic wording behind a T06 plan-layout value.
+
+    This is intentionally an excerpt endpoint, not a PDF download.  It only serves the
+    reviewed wording associated with the hash-checked synthetic household records, and
+    the normal source-viewer policy remains responsible for full user-uploaded pages.
+    """
+    with session.lock:
+        scope = _portfolio_scope(session)
+    policy = _portfolio_repository().get_policy(scope, policy_id)
+    item = next((coverage for coverage in policy["coverage_items"]
+                 if coverage["id"] == coverage_id), None)
+    if item is None or not item.get("source_document_id"):
+        raise HTTPException(404, "No cited portfolio evidence is available for that value.")
+    found = household.evidence_for(policy.get("masked_number", ""),
+                                   item.get("mechanism_code", ""))
+    if found is None:
+        raise HTTPException(404, "No cited portfolio evidence is available for that value.")
+    source_policy, evidence = found
+    return {
+        "available": True,
+        "quote": evidence.wording,
+        "document": source_policy.document_filename,
+        "evidence_class": item["evidence_class"],
+    }
+
+
+def _verified_household_example_uploads(state: dict) -> dict[str, bytes]:
+    """Return only the browser-uploaded PDFs that match the generated household set."""
+    source_bytes = state.get(_SOURCE_BYTES_KEY)
+    intake = state.get("intake")
+    if not isinstance(source_bytes, dict) or not isinstance(intake, list):
+        raise HTTPException(
+            409, "Upload the synthetic household documents through the processing panel first.")
+
+    received: dict[str, bytes] = {}
+    expected = {spec.filename for spec in household.DOCUMENTS}
+    for row in intake:
+        if not isinstance(row, dict) or not row.get("accepted"):
+            continue
+        filename = row.get("filename")
+        document_id = row.get("document_id")
+        if filename not in expected or not isinstance(document_id, str):
+            continue
+        data = source_bytes.get(document_id)
+        if isinstance(data, bytes):
+            received[filename] = data
+
+    if set(received) != expected:
+        raise HTTPException(
+            409, "The uploaded documents do not match the complete synthetic household example.")
+    for filename, data in received.items():
+        expected_path = HOUSEHOLD_EXAMPLE_DIR / filename
+        if not expected_path.is_file():
+            raise HTTPException(503, "The generated synthetic household documents are unavailable.")
+        if hashlib.sha256(data).digest() != hashlib.sha256(expected_path.read_bytes()).digest():
+            raise HTTPException(
+                409, "A synthetic household document changed after it was generated; reload the example.")
+    return received
+
+
+@app.post("/api/portfolio/example-household")
+def load_household_example(session: Session = Depends(_session)):
+    """Persist the exact household that was just uploaded through the normal pipeline."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+        state = session.state
+        sources = _verified_household_example_uploads(state)
+    portfolio = household_loader.load_example(_portfolio_repository(), scope, sources)
+    with session.lock:
+        # See portfolio_overview: this current case is a household document bundle, not
+        # a business analysis to be wrapped as a second business policy.
+        session.state["_household_example_case_id"] = state.get("case_id")
+    return {"ok": True, "portfolio": portfolio}
 
 
 def _state(session: Session) -> dict:
@@ -4776,6 +4867,36 @@ def example_manifest():
             "example runs on its synthetic documents alone and the findings that quote "
             "the wording will not appear. Fetch it with scripts/fetch_corpus.py."),
     }
+
+
+@app.get("/api/example/household/manifest")
+def household_example_manifest():
+    """List the generated household PDFs that the browser uploads as its own files."""
+    documents = [
+        {"name": spec.filename, "label": spec.label}
+        for spec in household.DOCUMENTS
+        if (HOUSEHOLD_EXAMPLE_DIR / spec.filename).is_file()
+    ]
+    return {
+        "documents": documents,
+        "count": len(documents),
+        "business_name": "Rao household (synthetic)",
+        "notice": (
+            "Synthetic household documents. The browser uploads every file through the "
+            "ordinary processing panel before the encrypted portfolio is populated."),
+    }
+
+
+@app.get("/api/example/household/file/{name}")
+def household_example_file(name: str):
+    """Serve one generated household PDF after a strict manifest-name check."""
+    allowed = {spec.filename for spec in household.DOCUMENTS}
+    if name not in allowed:
+        raise HTTPException(404, f"No household example document named {name!r}.")
+    path = HOUSEHOLD_EXAMPLE_DIR / name
+    if not path.is_file():
+        raise HTTPException(404, f"Household example document {name!r} is not on disk.")
+    return FileResponse(str(path), media_type="application/pdf", filename=name)
 
 
 @app.get("/api/example/file/{name}")

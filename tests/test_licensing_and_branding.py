@@ -36,6 +36,7 @@ from fastapi.testclient import TestClient
 
 import pdfbuild
 import pdfbuild_demo
+import pdfbuild_household
 import pdfbuild_renewal
 from proven import auth, connectors, detect
 from proven.api import app
@@ -637,6 +638,8 @@ def test_the_committed_synthetic_pdfs_are_exactly_what_their_generators_produce(
     nobody can reproduce, and the mark above would then be a claim about a file the
     generator no longer makes."""
     builders = dict(pdfbuild_demo.BUILDERS)
+    builders.update({f"household/{name}": builder
+                     for name, builder in pdfbuild_household.BUILDERS.items()})
     builders["renewal-prior-policy.pdf"] = pdfbuild_renewal.prior_policy_pdf
     builders["renewal-current-policy.pdf"] = pdfbuild_renewal.current_policy_pdf
     for name, build in builders.items():

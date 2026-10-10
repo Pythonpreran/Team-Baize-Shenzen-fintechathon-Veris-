@@ -644,6 +644,8 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/api/policies"),
     ("POST", "/api/policies"),
     ("GET", "/api/policies/{policy_id}"),
+    ("GET", "/api/policies/{policy_id}/coverage/{coverage_id}/evidence"),
+    ("POST", "/api/portfolio/example-household"),
     ("GET", "/api/bundle/kinds"),
     ("POST", "/api/bundle"),
     # Jurisdiction packs — reference data, covered in test_jurisdiction.py, where the
@@ -671,6 +673,8 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/api/drift"),
     ("GET", "/api/example/manifest"),
     ("GET", "/api/example/file/{name}"),
+    ("GET", "/api/example/household/manifest"),
+    ("GET", "/api/example/household/file/{name}"),
     ("GET", "/api/record"),
     ("GET", "/api/record/export"),
     ("POST", "/api/record/verify"),

@@ -30,6 +30,7 @@ const S = {
 // Set when the built-in example bundle is loaded, so the Overview can keep saying the
 // business is fictional even though the files were genuinely uploaded.
 const EXAMPLE_FLAG = "veris_example_loaded";
+const HOUSEHOLD_EXAMPLE_FLAG = "veris_household_example_loaded";
 /* Set when the example ran WITHOUT its published base wording, because the document
    corpus has not been fetched on this machine. The server says so in `wording_notice`;
    the alternative is showing fourteen findings where the example claims seventeen and
@@ -170,6 +171,8 @@ const ACTIONS = {
   "delete-case": () => deleteCase(),
   "export-record": () => exportRecord(),
   "load-example": () => loadExample(),
+  "load-household-example": () => loadHouseholdExample(),
+  "portfolio-evidence": arg => portfolioEvidence(arg),
   "pick-scenario": arg => pickScenario(Number(arg)),
   "remove-file": arg => removeFile(Number(arg)),
   "toggle-detail": (_arg, el) => el.querySelector(".finding-detail")?.classList.toggle("open"),
@@ -1868,7 +1871,7 @@ function paintUnreadBadge() {
 }
 
 function renderSME() {
-  if (!S.view || !S.view.startsWith("sme")) S.view = "sme-home";
+  if (!S.view || !S.view.startsWith("sme")) S.view = "sme-portfolio";
   // NINE destinations, down from 23.
   //
   // 23 items is not navigation, it is an index, and an owner cannot hold 23 places in
@@ -1885,23 +1888,20 @@ function renderSME() {
   // then the sequence that got you here, then what to do, then what we watch, then the
   // documents that would improve all of it.
   shell("SME", [
-    { section: t("nav.sme.my_business") },
-    { id: "sme-home", label: t("nav.sme.overview"), icon: "◈" },
-    { id: "sme-position", label: t("nav.sme.your_position"), icon: "◉" },
-    { id: "sme-alerts", label: t("nav.sme.whats_new"), icon: "◍", badge: S.unread || 0 },
-    { section: t("nav.sme.where_i_stand") },
-    { id: "sme-protect-hub", label: t("nav.sme.protection"), icon: "◆" },
-    { id: "sme-time-hub", label: t("nav.sme.timeline"), icon: "⧗" },
-    { id: "sme-act-hub", label: t("nav.sme.what_to_do"), icon: "→" },
-    { section: t("nav.sme.behind_the_scenes") },
-    { id: "sme-mon-hub", label: t("nav.sme.monitoring"), icon: "◎" },
+    { id: "sme-portfolio", label: t("nav.sme.portfolio"), icon: "◈" },
+    { id: "sme-ask", label: t("nav.sme.ask_veris"), icon: "◌" },
+    { id: "sme-claims", label: t("nav.sme.claims"), icon: "✦" },
+    { id: "sme-alerts", label: t("nav.sme.tasks_alerts"), icon: "◍", badge: S.unread || 0 },
     { id: "sme-docs-hub", label: t("nav.sme.documents"), icon: "▤" },
-    { section: t("nav.sme.your_control") },
-    { id: "sme-consent", label: t("nav.sme.share_with_adviser"), icon: "↦" },
+    { id: "sme-consent", label: t("nav.sme.sharing_mandates"), icon: "↦" },
+    { id: "sme-home", label: t("nav.sme.business"), icon: "◆" },
     { id: "sme-record", label: t("nav.sme.your_record"), icon: "▣" },
   ]);
   const m = $("#main");
   const views = {
+    "sme-portfolio": smePortfolio,
+    "sme-ask": smeAsk,
+    "sme-claims": smeClaims,
     // the ten destinations
     "sme-home": smeHome,
     "sme-position": smeGapSnapshot,
@@ -2393,10 +2393,230 @@ async function smeHome(el) {
     ${brief.synthetic_notice ? `<p class="text-xs text-muted">${esc(brief.synthetic_notice)}</p>` : ""}`;
 }
 
+/* ── Household portfolio and plan-layout cards ─────────────────────────── */
+
+function portfolioSyntheticBanner() {
+  return sessionStorage.getItem(HOUSEHOLD_EXAMPLE_FLAG) === "1"
+    ? `<div class="synthetic-banner">${esc(t("portfolio.synthetic_banner"))}</div>` : "";
+}
+
+const PLAN_LAYOUT_SECTIONS = [
+  { id: "covered", label: () => t("portfolio.section.covered") },
+  { id: "limits", label: () => t("portfolio.section.limits") },
+  { id: "waiting", label: () => t("portfolio.section.waiting") },
+  { id: "share", label: () => t("portfolio.section.share") },
+  { id: "exclusions", label: () => t("portfolio.section.exclusions") },
+  { id: "renewal", label: () => t("portfolio.section.renewal") },
+  { id: "evidence", label: () => t("portfolio.section.evidence") },
+];
+
+function portfolioSectionFor(mechanism) {
+  const code = String(mechanism || "").toUpperCase();
+  if (code.startsWith("COVERED.")) return "covered";
+  if (code.startsWith("LIMIT.")) return "limits";
+  if (code.startsWith("WAITING.")) return "waiting";
+  if (code.startsWith("SHARE.")) return "share";
+  if (code.startsWith("EXCLUSION.")) return "exclusions";
+  if (code.startsWith("RENEWAL.")) return "renewal";
+  return "evidence";
+}
+
+function portfolioMechanismLabel(mechanism) {
+  switch (String(mechanism || "").toUpperCase()) {
+    case "COVERED.HOSPITALISATION": return t("portfolio.mechanism.hospitalisation");
+    case "COVERED.HOME_CONTENTS": return t("portfolio.mechanism.home_contents");
+    case "COVERED.MOTOR_THIRD_PARTY": return t("portfolio.mechanism.motor_third_party");
+    case "COVERED.TRAVEL": return t("portfolio.mechanism.travel");
+    case "COVERED.FAMILY_FLOATER": return t("portfolio.mechanism.family_floater");
+    case "LIMIT.SUM_INSURED": return t("portfolio.mechanism.sum_insured");
+    case "WAITING.PED": return t("portfolio.mechanism.waiting_period");
+    case "SHARE.CO_PAYMENT": return t("portfolio.mechanism.co_payment");
+    case "RENEWAL.THIRD_PARTY": return t("portfolio.mechanism.third_party_expiry");
+    default: return t("portfolio.mechanism.documented_item");
+  }
+}
+
+function portfolioMissingDocument(section) {
+  return section === "covered" || section === "limits" || section === "renewal"
+    ? t("portfolio.document.policy_schedule") : t("portfolio.document.policy_wording");
+}
+
+function portfolioEvidencePanel(policy, item) {
+  const open = S.portfolioEvidence;
+  if (!open || open.policyId !== policy.id || open.coverageId !== item.id) return "";
+  if (open.loading) {
+    return `<p class="portfolio-evidence__status" role="status">${esc(t("portfolio.evidence_loading"))}</p>`;
+  }
+  if (open.error || !open.value?.available) {
+    return `<p class="portfolio-evidence__status">${esc(open.error || t("portfolio.evidence_unavailable"))}</p>`;
+  }
+  return `<blockquote class="portfolio-evidence__quote">${esc(open.value.quote || "")}</blockquote>
+    <p class="portfolio-evidence__meta">${esc(t("portfolio.evidence_document", {
+      document: open.value.document || "",
+    }))}</p>`;
+}
+
+function planEvidenceControl(policy, item) {
+  if (!item?.source_document_id) return "";
+  const arg = `${policy.id}|${item.id}`;
+  return `<button type="button" class="btn btn-ghost btn-sm portfolio-wording"
+      data-act="portfolio-evidence" data-arg="${esc(arg)}"
+      aria-controls="portfolio-evidence-${esc(item.id)}">
+      ${esc(t("portfolio.show_wording"))}</button>
+    <div id="portfolio-evidence-${esc(item.id)}">${portfolioEvidencePanel(policy, item)}</div>`;
+}
+
+function planLayoutCard(policy) {
+  const items = Array.isArray(policy.coverage_items) ? policy.coverage_items : [];
+  const period = policy.period || {};
+  const start = period.start ? formatPolicyDate(period.start, policy.country) : "";
+  const end = period.end ? formatPolicyDate(period.end, policy.country) : "";
+  const periodText = start && end ? `${start} — ${end}`
+    : t("portfolio.missing_value", { document: t("portfolio.document.policy_schedule") });
+  const generic = `<p class="portfolio-generic">${esc(t("portfolio.generic_notice", {
+    country: policy.country || "",
+  }))}</p>`;
+  const sections = PLAN_LAYOUT_SECTIONS.map(section => {
+    const sectionItems = section.id === "evidence" ? items
+      : items.filter(item => portfolioSectionFor(item.mechanism_code) === section.id);
+    const body = sectionItems.length ? sectionItems.map(item => {
+      const display = item.value == null || item.value === ""
+        ? portfolioMechanismLabel(item.mechanism_code)
+        : `${portfolioMechanismLabel(item.mechanism_code)}: ${money(item.value, item.unit || policy.country)}`;
+      return `<li class="portfolio-value">
+        <span>${esc(display)}</span>${evidenceBadge(item.evidence_class)}
+        ${planEvidenceControl(policy, item)}
+      </li>`;
+    }).join("") : `<li class="portfolio-missing">${evidenceBadge("UNESTABLISHED")}
+      <span>${esc(t("portfolio.missing_value", {
+        document: portfolioMissingDocument(section.id),
+      }))}</span></li>`;
+    return `<section class="plan-layout__section" aria-label="${esc(section.label())}">
+      <h4>${esc(section.label())}</h4><ul>${body}</ul></section>`;
+  }).join("");
+
+  const headingId = `policy-${String(policy.id || "").replace(/[^A-Za-z0-9_-]/g, "")}`;
+  const headerEvidence = items.find(item => item.source_document_id) || null;
+  const headerSource = headerEvidence ? `${evidenceBadge(headerEvidence.evidence_class)}
+    <button type="button" class="btn btn-ghost btn-sm portfolio-wording"
+      data-act="portfolio-evidence" data-arg="${esc(`${policy.id}|${headerEvidence.id}`)}"
+      aria-controls="portfolio-evidence-${esc(headerEvidence.id)}">
+      ${esc(t("portfolio.show_wording"))}</button>`
+    : `${evidenceBadge("UNESTABLISHED")}<span class="text-xs text-muted">${esc(t("portfolio.missing_value", {
+      document: t("portfolio.document.policy_schedule"),
+    }))}</span>`;
+  return `<article class="plan-layout card" aria-labelledby="${esc(headingId)}">
+    <header class="plan-layout__header"><div>
+      <h3 id="${esc(headingId)}">${esc(policy.insurer || "")}</h3>
+      <p>${esc(policy.product || "")}</p></div>
+      <div class="plan-layout__header-evidence"><span class="tag">${esc(policy.status || "")}</span>${headerSource}</div></header>
+    <dl class="plan-layout__facts">
+      <div><dt>${esc(t("portfolio.header.country"))}</dt><dd>${esc(policy.country || "")}</dd></div>
+      <div><dt>${esc(t("portfolio.header.period"))}</dt><dd>${esc(periodText)}</dd></div>
+      <div><dt>${esc(t("portfolio.header.policy"))}</dt><dd>${esc(policy.masked_number || "")}</dd></div>
+    </dl>
+    ${generic}
+    <div class="plan-layout__sections">${sections}</div>
+  </article>`;
+}
+
+function portfolioCollection(title, values, render, emptyText) {
+  const body = values.length ? values.map(render).join("")
+    : `<p class="text-sm text-muted">${esc(emptyText)}</p>`;
+  return `<section class="portfolio-collection card"><div class="card-head"><h3>${esc(title)}</h3>
+    <span class="tag">${esc(values.length)}</span></div>${body}</section>`;
+}
+
+async function smePortfolio(el) {
+  el.innerHTML = spinner(t("portfolio.loading"));
+  const portfolio = await api("/api/portfolio");
+  if (!portfolio) return;
+  const members = Array.isArray(portfolio.members) ? portfolio.members : [];
+  const assets = Array.isArray(portfolio.assets) ? portfolio.assets : [];
+  const businesses = Array.isArray(portfolio.businesses) ? portfolio.businesses : [];
+  const policies = Array.isArray(portfolio.policies) ? portfolio.policies : [];
+  if (!members.length && !assets.length && !businesses.length && !policies.length) {
+    el.innerHTML = pageTitle(t("portfolio.title"), t("portfolio.lead"))
+      + `<div class="portfolio-empty card"><h3>${esc(t("portfolio.empty_title"))}</h3>
+        <p>${esc(t("portfolio.empty_body"))}</p>
+        <button type="button" class="btn btn-primary mt-16" data-act="load-household-example">
+          ${esc(t("portfolio.load_example"))}</button></div>`;
+    return;
+  }
+  el.innerHTML = portfolioSyntheticBanner()
+    + pageTitle(t("portfolio.title"), t("portfolio.lead"))
+    + `<div class="portfolio-summary">
+      ${portfolioCollection(t("portfolio.members"), members, member => `<div class="portfolio-row">
+        <strong>${esc(member.name || "")}</strong><span>${esc(titleCase(member.relationship || ""))}</span></div>`, t("portfolio.no_members"))}
+      ${portfolioCollection(t("portfolio.assets"), assets, asset => `<div class="portfolio-row">
+        <strong>${esc(asset.name || "")}</strong><span>${esc(titleCase(asset.kind || ""))}</span></div>`, t("portfolio.no_assets"))}
+      ${portfolioCollection(t("portfolio.businesses"), businesses, business => `<div class="portfolio-row">
+        <strong>${esc(business.name || "")}</strong><span>${esc(business.country || "")}</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-act="nav" data-arg="sme-home">
+          ${esc(t("portfolio.open_business"))}</button></div>`, t("portfolio.no_businesses"))}
+    </div>
+    <section class="portfolio-policies" aria-label="${esc(t("portfolio.policies"))}">
+      <h2>${esc(t("portfolio.policies"))}</h2>${policies.map(planLayoutCard).join("")}</section>`;
+}
+
+function smeAsk(el) {
+  el.innerHTML = portfolioSyntheticBanner() + pageTitle(t("portfolio.ask_title"), t("portfolio.ask_body"))
+    + `<div class="card"><button type="button" class="btn btn-primary" data-act="ask-open">
+      ${esc(t("portfolio.ask_launch"))}</button></div>`;
+}
+
+function smeClaims(el) {
+  el.innerHTML = portfolioSyntheticBanner() + pageTitle(t("portfolio.claims_title"), t("portfolio.claims_body"));
+}
+
+async function portfolioEvidence(arg) {
+  const [policyId, coverageId] = String(arg || "").split("|");
+  if (!policyId || !coverageId) return;
+  S.portfolioEvidence = { policyId, coverageId, loading: true };
+  render();
+  try {
+    const value = await api(`/api/policies/${encodeURIComponent(policyId)}/coverage/${encodeURIComponent(coverageId)}/evidence`);
+    S.portfolioEvidence = { policyId, coverageId, value };
+  } catch (error) {
+    S.portfolioEvidence = { policyId, coverageId, error: error.message || String(error) };
+  }
+  render();
+}
+
+async function loadHouseholdExample() {
+  const el = $("#main");
+  if (el) el.innerHTML = spinner(t("portfolio.example_preparing"));
+  try {
+    // Wrap the existing SME analysis before the household upload replaces the transient
+    // case.  That keeps the business as a separate portfolio entity without inventing a
+    // household link.
+    await api("/api/reset", { method: "POST" });
+    await api("/api/portfolio");
+    const manifest = await api("/api/example/household/manifest");
+    const files = [];
+    for (const document of manifest.documents || []) {
+      const response = await fetch(`/api/example/household/file/${encodeURIComponent(document.name)}`);
+      if (!response.ok) throw new Error(t("portfolio.example_load_failed"));
+      files.push(new File([await response.blob()], document.name, { type: "application/pdf" }));
+    }
+    if (files.length !== Number(manifest.count || 0)) throw new Error(t("portfolio.example_load_failed"));
+    S.pendingHouseholdExample = {
+      files,
+      businessName: manifest.business_name || "",
+      kinds: [null, "SCHEDULE", "SCHEDULE", "SCHEDULE", "SCHEDULE", "SCHEDULE"],
+    };
+    nav8("sme-upload");
+  } catch (error) {
+    if (el) el.innerHTML = `<div class="insight critical"><div class="insight-text">${esc(error.message || t("portfolio.example_load_failed"))}</div></div>`;
+  }
+}
+
 /* ── Add documents ───────────────────────────────────────────────────────── */
 async function smeUpload(el) {
   const kinds = await api("/api/bundle/kinds");
-  el.innerHTML = pageTitle("Add your documents",
+  const householdExample = S.pendingHouseholdExample || null;
+  el.innerHTML = (householdExample ? `<div class="synthetic-banner">${esc(t("portfolio.synthetic_banner"))}</div>` : "")
+    + pageTitle("Add your documents",
       "Your policy, your accounts, anything else you have. PDFs only.")
     + `<div class="card">
       <div class="dropzone" id="dz" role="button" tabindex="0"
@@ -2499,17 +2719,19 @@ async function smeUpload(el) {
       || null;
   }
 
-  btn.onclick = async () => {
+  async function readFiles() {
     files.forEach(r => { r.status = "queued"; r.note = ""; });
     renderList();
     btn.disabled = true; btn.textContent = "Reading...";
     $("#uresult").innerHTML = "";
     const fd = new FormData();
     files.forEach(r => fd.append("files", r.file, r.file.name));
+    if (householdExample?.kinds) fd.append("kinds", JSON.stringify(householdExample.kinds));
     const nm = $("#bname")?.value?.trim();
     if (nm) fd.append("business_name", nm);
     try {
       sessionStorage.removeItem(EXAMPLE_FLAG);
+      sessionStorage.removeItem(HOUSEHOLD_EXAMPLE_FLAG);
       sessionStorage.removeItem(WORDING_NOTICE_KEY);
       const done = await streamBundle(fd, ev => {
         if (ev.event === "reading") {
@@ -2532,6 +2754,17 @@ async function smeUpload(el) {
       const rejected = (done.intake?.files || []).filter(f => !f.accepted);
       const accepted = (done.intake?.files || []).filter(f => f.accepted).length;
       const found = done.brief.findings?.length || 0;
+      if (householdExample) {
+        await api("/api/portfolio/example-household", { method: "POST" });
+        // Restore the existing SME case after persistence. The household source PDFs are
+        // encrypted in the portfolio now; the Business navigation stays backed by its
+        // own established engine rather than treating the household bundle as a company.
+        await api("/api/reset", { method: "POST" });
+        S.pendingHouseholdExample = null;
+        sessionStorage.setItem(HOUSEHOLD_EXAMPLE_FLAG, "1");
+        nav8("sme-portfolio");
+        return;
+      }
       $("#uresult").innerHTML = `<div class="insight mt-16">
         <div class="insight-label">Done</div>
         <div class="insight-text">We read ${accepted} document${accepted === 1 ? "" : "s"} and found ${found} thing${found === 1 ? "" : "s"} worth telling you about.</div>
@@ -2547,7 +2780,16 @@ async function smeUpload(el) {
     }
     renderList();
     btn.disabled = false;
-  };
+  }
+
+  btn.onclick = readFiles;
+  if (householdExample) {
+    files = householdExample.files.map(file => ({ file, status: "queued", note: "" }));
+    const name = $("#bname");
+    if (name) name.value = householdExample.businessName || "";
+    renderList();
+    readFiles();
+  }
 }
 
 /* Read the NDJSON progress stream from POST /api/bundle/stream.
