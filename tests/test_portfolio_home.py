@@ -323,3 +323,29 @@ def test_portfolio_screen_has_a_standard_card_and_only_real_routes():
         assert f"portfolio.section.{section}" in script
     assert '"/api/portfolio"' in script
     assert '"/api/portfolio/example-household"' in script
+
+
+@pytest.mark.requires_corpus(
+    "in-arogya-sanjeevani-policy-wording",
+    "sg-medishield-life-information-booklet",
+    "sg-singlife-shield-standard-plan-wording",
+)
+def test_household_health_cards_are_mapped_from_their_cited_wordings(client):
+    _load_household(client)
+    portfolio_response = client.get("/api/portfolio")
+    assert portfolio_response.status_code == 200, portfolio_response.text
+    portfolio = portfolio_response.json()
+    india = next(policy for policy in portfolio["policies"]
+                 if policy["masked_number"] == "****-HEALTH6")
+    assert india["health_mapping"]["mapped"] is True
+    terms = {item["mechanism_code"]: item for item in india["health_items"]}
+    assert terms["WAITING.PED"]["value"] == "2029-04-01"
+    assert terms["LIMIT.ROOM_RENT"]["value"] == "5000"
+    assert terms["SHARE.CO_PAYMENT"]["value"] == "5"
+    assert all(item["citation"]["page"] >= 1 for item in terms.values())
+
+    singlife = next(policy for policy in portfolio["policies"]
+                    if policy["masked_number"] == "****-ISP2")
+    singlife_codes = {item["mechanism_code"] for item in singlife["health_items"]}
+    assert {"LIMIT.ROOM_BOARD", "SHARE.DEDUCTIBLE", "SHARE.CO_INSURANCE",
+            "CONDITION.PRO_RATION"} <= singlife_codes

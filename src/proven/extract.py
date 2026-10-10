@@ -28,11 +28,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from . import jurisdiction
+from . import detect, jurisdiction
 from .ingest import DocStore, LoadedDoc
 from .lang import date_parser_for, money_parser_for
 
@@ -381,6 +381,55 @@ def _schedule_text(facts: PolicyFacts, doc: LoadedDoc, *,
                         if section_needle in t), 1)
         facts.put(_fact("operative_sections", sorted(set(sections)), doc,
                         section_needle, page_no, source=PDF_TEXT))
+
+    _health_schedule_facts(facts, doc, currency=currency)
+
+
+def _health_schedule_facts(facts: PolicyFacts, doc: LoadedDoc, *,
+                           currency: Optional[str]) -> None:
+    """Extract health schedule operands without importing policy wording assumptions.
+
+    The schedule can establish who is named, whether a pool is shared, a declared
+    condition and the policy start. It cannot establish a waiting-period duration,
+    co-payment or room-rent term; those remain absent until the policy wording says so.
+    """
+    detected = detect.detect_health_schedule(doc.pages)
+    if not detected.is_health:
+        return
+
+    for name, value in (("health_family_floater", detected.family_floater),
+                        ("health_insured_members", list(detected.members)),
+                        ("health_declared_ped", detected.declared_ped),
+                        ("health_continuous_coverage", detected.continuous_coverage)):
+        if value in (None, [], False):
+            continue
+        evidence_keys = {
+            "health_family_floater": "family_floater",
+            "health_insured_members": "members",
+            "health_declared_ped": "declared_ped",
+            "health_continuous_coverage": "continuous_coverage",
+        }
+        needle_page = detected.evidence.get(evidence_keys[name])
+        if needle_page is not None:
+            facts.put(_fact(name, value, doc, needle_page[0], needle_page[1],
+                            source=PDF_TEXT))
+
+    if detected.policy_start:
+        try:
+            start = datetime.strptime(detected.policy_start, "%d %B %Y").date()
+        except ValueError:
+            start = None
+        needle_page = detected.evidence.get("policy_start")
+        if start is not None and needle_page is not None:
+            facts.put(_fact("health_policy_start", start, doc, needle_page[0],
+                            needle_page[1], source=PDF_TEXT))
+
+    hit = find_money_with_currency(
+        doc.pages, ("family-floater sum insured", "family floater sum insured",
+                    "health sum insured", "sum insured"), currency=currency)
+    if hit is not None:
+        facts.put(_fact("health_sum_insured", hit[0], doc, hit[1], hit[2], unit=hit[3],
+                        source=PDF_TEXT))
 
 
 def _workpass_not_compared(facts: PolicyFacts, doc: LoadedDoc) -> None:

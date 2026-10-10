@@ -1,0 +1,75 @@
+# Deterministic health-policy term profiles.
+#
+# Values are CAPTURED from the linked document at runtime. Nothing in this file supplies
+# a benefit amount, waiting duration or claims timeline by default: a failed structural
+# match yields no item. The profiles select the synthetic household's named public plan
+# reference only; they are not a carrier-agnostic shortcut for a user-uploaded policy.
+version: 1
+profiles:
+  - id: IN-AROGYA-SANJEEVANI
+    country: IN
+    product_contains: Arogya Sanjeevani
+    corpus_id: in-arogya-sanjeevani-policy-wording
+    terms:
+      - mechanism_code: WAITING.PED
+        label_key: health.item.ped_waiting
+        display: PED_END_DATE
+        requires_declared_ped: true
+        pattern: '(?is)pre\s*-\s*existing\s+disease.*?excluded\s+until\s+the\s+expiry\s+of\s+(?P<months>\d+)\s*months.*?date\s+of\s+inception'
+      - mechanism_code: LIMIT.ROOM_RENT
+        label_key: health.item.room_rent_cap
+        display: MONEY_PER_DAY
+        pattern: '(?is)room\s+rent.*?up\s+to\s+(?P<percent>\d+)\s*%\s+of\s+the\s+sum\s+insured\s+subject\s+to\s+maximum\s+of\s+(?:rs\.?\s*)?(?P<amount>[\d,]+).*?per\s+day'
+      - mechanism_code: SHARE.CO_PAYMENT
+        label_key: health.item.co_payment
+        display: PERCENT_CONDITION
+        pattern: '(?is)each\s+and\s+every\s+claim.*?co\s*-\s*payment\s+of\s+(?P<percent>\d+)\s*%\s+applicable\s+to\s+claim\s+amount'
+      - mechanism_code: CONDITION.MORATORIUM
+        label_key: health.item.moratorium
+        display: MONTHS_CONDITION
+        pattern: '(?is)(?P<months>sixty|\d+)\s+continuous\s+months\s+is\s+called\s+as\s+moratorium'
+      - mechanism_code: CONDITION.CASHLESS_NETWORK
+        label_key: health.item.cashless_network
+        display: CONDITION
+        pattern: '(?is)treatment\s+may\s+be\s+taken\s+in\s+a\s+network\s+provider.*?preauthorization'
+
+  - id: SG-MEDISHIELD-LIFE
+    country: SG
+    product_contains: MediShield Life
+    corpus_id: sg-medishield-life-information-booklet
+    terms:
+      - mechanism_code: SHARE.DEDUCTIBLE
+        label_key: health.item.deductible
+        display: CONDITION
+        pattern: '(?is)deductible\s+is\s+the\s+fixed\s+amount.*?before\s+MediShield\s+Life\s+starts\s+to\s+pay\s+out'
+      - mechanism_code: SHARE.CO_INSURANCE
+        label_key: health.item.co_insurance
+        display: CONDITION
+        pattern: '(?is)co\s*-\s*insurance.*?claimable\s+amount'
+      - mechanism_code: LIMIT.WARD_DAILY
+        label_key: health.item.medishield_ward_limit
+        display: MONEY_PER_DAY
+        state: NOT_CONFIRMED
+        pattern: '(?is)normal\s+ward.*?\$(?P<amount>[\d,]+)\s+per\s+day'
+
+  - id: SG-SINGLIFE-SHIELD-STANDARD
+    country: SG
+    product_contains: Singlife Shield Standard Plan
+    corpus_id: sg-singlife-shield-standard-plan-wording
+    terms:
+      - mechanism_code: LIMIT.ROOM_BOARD
+        label_key: health.item.room_board_limit
+        display: MONEY_PER_DAY
+        pattern: '(?is)daily\s+room,\s+board.*?S\$(?P<amount>[\d,]+)\s+per\s+day'
+      - mechanism_code: SHARE.DEDUCTIBLE
+        label_key: health.item.b1_deductible
+        display: MONEY
+        pattern: '(?is)class\s+B1\s+ward\s+S\$(?P<amount>[\d,]+)'
+      - mechanism_code: SHARE.CO_INSURANCE
+        label_key: health.item.co_insurance
+        display: CONDITION
+        pattern: '(?is)apply\s+the:.*?co\s*-\s*insurance.*?all\s+inpatient\s+hospital\s*treatment'
+      - mechanism_code: CONDITION.PRO_RATION
+        label_key: health.item.pro_ration
+        display: CONDITION
+        pattern: '(?is)pro\s*-\s*ration\s+factor\s*is\s+applied.*?claims\s+computation'

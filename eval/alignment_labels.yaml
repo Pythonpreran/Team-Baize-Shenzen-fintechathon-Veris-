@@ -189,3 +189,32 @@ documents:
         cite: average condition present in this wording
       - mechanism: COND.DECLARATION_CLAUSE_GENERAL
         cite: conditions precedent language present
+
+  # ── Health public wordings, structurally mapped for T08. ─────────────────
+  - carrier: GO_DIGIT
+    corpus_id: in-arogya-sanjeevani-policy-wording
+    jurisdiction: IN
+    read_depth: TARGETED_HEALTH_TERMS
+    expect:
+      - mechanism: HEALTH.WAITING.PED
+        cite: pre-existing disease waiting-period clause
+      - mechanism: HEALTH.LIMIT.ROOM_RENT
+        cite: room-rent daily-cap clause
+        values:
+          cap_amount: '5000'
+      - mechanism: HEALTH.SHARE.CO_PAYMENT
+        cite: co-payment condition
+        values:
+          percentage: '5'
+      - mechanism: HEALTH.CLAIM.MORATORIUM
+        cite: moratorium definition
+      - mechanism: HEALTH.CLAIM.CASHLESS
+        cite: network-provider pre-authorisation procedure
+
+  - carrier: SINGLIFE
+    corpus_id: sg-singlife-shield-standard-plan-wording
+    jurisdiction: SG
+    read_depth: TARGETED_HEALTH_TERMS
+    expect:
+      - mechanism: HEALTH.SG.PRO_RATION
+        cite: higher-ward pro-ration clause

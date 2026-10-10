@@ -257,3 +257,78 @@ mechanisms:
           - 'arbitration award shall be first obtained'
     engine_behaviour: LOCATE_QUOTE_ESCALATE
     never: ADJUDICATE
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Health mechanisms use the same propose -> verify -> bind discipline. A familiar
+  # heading alone is never enough: each term must contain its operative structure.
+  HEALTH.WAITING.PED:
+    label: Pre-existing disease waiting period
+    taxonomy_code: HEALTH.WAITING.PED
+    known_names: [Pre-Existing Disease, PED]
+    mandatory_slots:
+      pre_existing_condition:
+        any_of: ['pre\s*-\s*existing\s+disease']
+      time_until_expiry:
+        any_of: ['expiry of\s*\d+\s*months?']
+      continuous_cover_basis:
+        any_of: ['continuous\s+coverage']
+
+  HEALTH.LIMIT.ROOM_RENT:
+    label: Room-rent daily cap
+    taxonomy_code: HEALTH.LIMIT.ROOM_RENT
+    known_names: [Room Rent]
+    mandatory_slots:
+      room_charge:
+        any_of: ['room\s+rent']
+      sum_insured_percentage:
+        any_of: ['\d+\s*%\s+of\s+the\s+sum\s+insured']
+      daily_cap:
+        any_of: ['per\s+day']
+    optional_slots:
+      cap_amount:
+        capture: '(?:Rs\.?|INR)\s*([\d,]+)'
+
+  HEALTH.SHARE.CO_PAYMENT:
+    label: Co-payment condition
+    taxonomy_code: HEALTH.SHARE.CO_PAYMENT
+    known_names: [Co-payment, Co-payment]
+    mandatory_slots:
+      all_claims_scope:
+        any_of: ['each\s+and\s+every\s+claim']
+      percentage_share:
+        any_of: ['co\s*-\s*payment\s+of\s+\d+\s*%']
+    optional_slots:
+      percentage:
+        capture: 'co\s*-\s*payment\s+of\s+(\d+)\s*%'
+
+  HEALTH.CLAIM.MORATORIUM:
+    label: Moratorium period
+    taxonomy_code: HEALTH.CLAIM.MORATORIUM
+    known_names: [Moratorium]
+    mandatory_slots:
+      continuous_months:
+        any_of: ['(?:sixty|\d+)\s+continuous\s+months']
+      moratorium_label:
+        any_of: ['moratorium\s+period']
+
+  HEALTH.CLAIM.CASHLESS:
+    label: Cashless network and pre-authorisation condition
+    taxonomy_code: HEALTH.CLAIM.CASHLESS
+    known_names: [Cashless claims]
+    mandatory_slots:
+      network_provider:
+        any_of: ['treatment\s+may\s+be\s+taken\s+in\s+a\s+network\s+provider']
+      pre_authorisation:
+        any_of: ['preauthorization|pre-authorisation']
+
+  HEALTH.SG.PRO_RATION:
+    label: Higher-ward pro-ration condition
+    taxonomy_code: HEALTH.SG.PRO_RATION
+    known_names: [Pro-ration factor]
+    mandatory_slots:
+      pro_ration_factor:
+        any_of: ['pro\s*-\s*ration\s+factor']
+      higher_ward_context:
+        any_of: ['higher\s+class\s+wards?|private\s+hospital']
+      computation_context:
+        any_of: ['claims?\s+computation']

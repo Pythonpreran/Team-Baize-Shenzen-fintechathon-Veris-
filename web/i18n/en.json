@@ -132,5 +132,35 @@
       "third_party_expiry": "Third-party expiry",
       "documented_item": "Documented policy item"
     }
+  },
+  "health": {
+    "per_day": "per day",
+    "of_sum_insured": "({percent}% of the sum insured)",
+    "each_admissible_claim": "of each admissible claim",
+    "months": "month | months",
+    "show_source": "Show the cited source",
+    "open_source": "Open the publisher source",
+    "source_meta": "From {document}, page {page}",
+    "document": {
+      "policy_schedule": "the policy schedule",
+      "policy_wording": "the published policy wording"
+    },
+    "notice": {
+      "wording_missing": "The published wording needed to map this synthetic health plan is not present in the local corpus. No policy term is inferred.",
+      "wording_not_matched": "The linked policy wording did not establish a mapped health term for this card. No policy term is inferred."
+    },
+    "item": {
+      "ped_waiting": "Declared-condition waiting period ends",
+      "room_rent_cap": "Room-rent cap",
+      "co_payment": "Co-payment condition",
+      "moratorium": "Moratorium period",
+      "cashless_network": "Cashless network and pre-authorisation condition",
+      "deductible": "Deductible condition",
+      "co_insurance": "Co-insurance condition",
+      "medishield_ward_limit": "Published normal-ward claim limit",
+      "room_board_limit": "Daily room-and-board limit",
+      "b1_deductible": "Annual B1-ward deductible",
+      "pro_ration": "Higher-ward pro-ration condition"
+    }
   }
 }

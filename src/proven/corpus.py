@@ -127,7 +127,7 @@ class Document(BaseModel):
     source_url: Optional[str]
     source_url_status: Literal["RECORDED", "UNRECORDED"]
     country: Literal["SG", "MY", "IN", "HK", "CN", "GENERIC"]
-    line_of_business: Literal["SME_PACKAGE", "HOME", "MARINE", "NOT_APPLICABLE"]
+    line_of_business: Literal["SME_PACKAGE", "HEALTH", "HOME", "MARINE", "NOT_APPLICABLE"]
     document_class: Literal[
         "POLICY_WORDING", "BENEFITS_SCHEDULE", "PROPOSAL_FORM", "FACTSHEET",
         "BROCHURE", "WEBPAGE", "STATUTE", "JUDGMENT", "PRACTICE_GUIDE"]

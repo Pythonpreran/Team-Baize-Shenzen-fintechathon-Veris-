@@ -232,7 +232,8 @@ def portfolio_overview(session: Session = Depends(_session)):
         # this session. This does not make a GET manufacture a demo case or retain its
         # findings.
         repo.wrap_sme_analysis(scope, state)
-    return repo.portfolio(scope)
+    from . import health
+    return health.enrich_portfolio(repo.portfolio(scope))
 
 
 @app.get("/api/household/members")

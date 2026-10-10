@@ -52,7 +52,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 # The jurisdiction packs are data the engine cannot run without: with none installed, no
 # case can be read under any pack, not even GENERIC.
-proven = ["rules/*.yaml", "jurisdictions/*.yaml"]
+proven = ["rules/*.yaml", "jurisdictions/*.yaml", "lob/*.yaml"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

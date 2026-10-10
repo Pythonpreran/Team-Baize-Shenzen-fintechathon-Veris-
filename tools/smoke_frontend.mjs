@@ -546,6 +546,42 @@ await (async () => {
   }
 })();
 
+tryRun("planLayoutCard renders cited health terms without a generic health notice", () => {
+  const html = g.planLayoutCard({
+    id: "health-policy", insurer: "Go Digit General Insurance Limited",
+    product: "Arogya Sanjeevani Policy (synthetic schedule)", country: "IN",
+    masked_number: "****-HEALTH6", status: "ACTIVE",
+    period: { start: "2026-04-01", end: "2027-03-31" },
+    coverage_items: [{ id: "schedule", mechanism_code: "COVERED.FAMILY_FLOATER",
+      value: null, evidence_class: "PROVEN", source_document_id: "schedule-doc" }],
+    health_mapping: { mapped: true },
+    health_items: [
+      { mechanism_code: "WAITING.PED", label_key: "health.item.ped_waiting",
+        display: "PED_END_DATE", value: "2029-04-01", state: "DOCUMENTED",
+        evidence_class: "PROVEN", citation: { document: "Policy wording", page: 8,
+          quote: "waiting clause", source_url: "https://publisher.example/wording" } },
+      { mechanism_code: "LIMIT.ROOM_RENT", label_key: "health.item.room_rent_cap",
+        display: "MONEY_PER_DAY", value: "5000", unit: "INR", params: { percent: "2" },
+        state: "DOCUMENTED", evidence_class: "PROVEN", citation: { document: "Policy wording",
+          page: 6, quote: "room clause", source_url: "https://publisher.example/wording" } },
+      { mechanism_code: "SHARE.CO_PAYMENT", label_key: "health.item.co_payment",
+        display: "PERCENT_CONDITION", value: "5", unit: "%", state: "DOCUMENTED",
+        evidence_class: "PROVEN", citation: { document: "Policy wording", page: 18,
+          quote: "co-payment clause", source_url: "https://publisher.example/wording" } },
+    ],
+  });
+  if (!html.includes("Declared-condition waiting period ends: 1 April 2029"))
+    throw new Error("waiting-period end was not rendered");
+  if (!html.includes("Room-rent cap: ₹5,000 per day (2% of the sum insured)"))
+    throw new Error("room-rent cap was not rendered with its source operands");
+  if (!html.includes("Co-payment condition: 5% of each admissible claim"))
+    throw new Error("co-payment condition was not rendered");
+  if (!html.includes("Show the cited source") || !html.includes("publisher.example/wording"))
+    throw new Error("the cited source control was not rendered");
+  if (html.includes("This policy is not yet mapped"))
+    throw new Error("a mapped health card still renders the generic notice");
+});
+
 let bad = 0;
 for (const [tag, label] of results) { if (tag === "FAIL") bad++; console.log(tag, label); }
 console.log(`\n${results.length - bad}/${results.length} passed`);

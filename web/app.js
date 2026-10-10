@@ -2482,8 +2482,8 @@ function portfolioSectionFor(mechanism) {
   if (code.startsWith("LIMIT.")) return "limits";
   if (code.startsWith("WAITING.")) return "waiting";
   if (code.startsWith("SHARE.")) return "share";
-  if (code.startsWith("EXCLUSION.")) return "exclusions";
-  if (code.startsWith("RENEWAL.")) return "renewal";
+  if (code.startsWith("EXCLUSION.") || code.startsWith("CONDITION.")) return "exclusions";
+  if (code.startsWith("RENEWAL.") || code.startsWith("DEADLINE.")) return "renewal";
   return "evidence";
 }
 
@@ -2500,6 +2500,62 @@ function portfolioMechanismLabel(mechanism) {
     case "RENEWAL.THIRD_PARTY": return t("portfolio.mechanism.third_party_expiry");
     default: return t("portfolio.mechanism.documented_item");
   }
+}
+
+const HEALTH_TEXT = Object.freeze({
+  "health.document.policy_schedule": () => t("health.document.policy_schedule"),
+  "health.document.policy_wording": () => t("health.document.policy_wording"),
+  "health.item.b1_deductible": () => t("health.item.b1_deductible"),
+  "health.item.cashless_network": () => t("health.item.cashless_network"),
+  "health.item.co_insurance": () => t("health.item.co_insurance"),
+  "health.item.co_payment": () => t("health.item.co_payment"),
+  "health.item.deductible": () => t("health.item.deductible"),
+  "health.item.medishield_ward_limit": () => t("health.item.medishield_ward_limit"),
+  "health.item.moratorium": () => t("health.item.moratorium"),
+  "health.item.ped_waiting": () => t("health.item.ped_waiting"),
+  "health.item.pro_ration": () => t("health.item.pro_ration"),
+  "health.item.room_board_limit": () => t("health.item.room_board_limit"),
+  "health.item.room_rent_cap": () => t("health.item.room_rent_cap"),
+  "health.notice.wording_missing": () => t("health.notice.wording_missing"),
+  "health.notice.wording_not_matched": () => t("health.notice.wording_not_matched"),
+});
+
+function healthText(key) {
+  const render = HEALTH_TEXT[String(key || "")];
+  return render ? render() : "";
+}
+
+function portfolioItemLabel(item) {
+  return item?.label_key ? healthText(item.label_key) : portfolioMechanismLabel(item?.mechanism_code);
+}
+
+function portfolioItemDisplay(policy, item) {
+  const label = portfolioItemLabel(item);
+  if (item?.value == null || item.value === "") {
+    if (item?.state === "INFORMATION_MISSING" && item?.missing_document_key) {
+      return t("portfolio.missing_value", { document: healthText(item.missing_document_key) });
+    }
+    return label;
+  }
+  if (item.display === "PED_END_DATE") {
+    return `${label}: ${formatPolicyDate(item.value, policy.country)}`;
+  }
+  if (item.display === "MONEY_PER_DAY") {
+    const percentage = item.params?.percent
+      ? ` ${t("health.of_sum_insured", { percent: item.params.percent })}` : "";
+    return `${label}: ${money(item.value, item.unit || policy.country)} ${t("health.per_day")}${percentage}`;
+  }
+  if (item.display === "MONEY") {
+    return `${label}: ${money(item.value, item.unit || policy.country)}`;
+  }
+  if (item.display === "PERCENT_CONDITION") {
+    return `${label}: ${item.value}% ${t("health.each_admissible_claim")}`;
+  }
+  if (item.display === "MONTHS_CONDITION") {
+    return `${label}: ${item.value} ${t("health.months", { count: item.value })}`;
+  }
+  if (item.unit === "%") return `${label}: ${item.value}%`;
+  return `${label}: ${money(item.value, item.unit || policy.country)}`;
 }
 
 function portfolioMissingDocument(section) {
@@ -2522,7 +2578,22 @@ function portfolioEvidencePanel(policy, item) {
     }))}</p>`;
 }
 
+function healthCitation(item) {
+  const citation = item?.citation;
+  if (!citation || !citation.quote) return "";
+  const url = typeof citation.source_url === "string" && /^https:\/\//i.test(citation.source_url)
+    ? citation.source_url : "";
+  return `<details class="portfolio-evidence__health">
+    <summary>${esc(t("health.show_source"))}</summary>
+    <blockquote class="portfolio-evidence__quote">${esc(citation.quote)}</blockquote>
+    <p class="portfolio-evidence__meta">${esc(t("health.source_meta", {
+      document: citation.document || "", page: citation.page || "",
+    }))}${url ? ` · <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("health.open_source"))}</a>` : ""}</p>
+  </details>`;
+}
+
 function planEvidenceControl(policy, item) {
+  if (item?.citation) return healthCitation(item);
   if (!item?.source_document_id) return "";
   const arg = `${policy.id}|${item.id}`;
   return `<button type="button" class="btn btn-ghost btn-sm portfolio-wording"
@@ -2533,27 +2604,28 @@ function planEvidenceControl(policy, item) {
 }
 
 function planLayoutCard(policy) {
-  const items = Array.isArray(policy.coverage_items) ? policy.coverage_items : [];
+  const coverageItems = Array.isArray(policy.coverage_items) ? policy.coverage_items : [];
+  const healthItems = Array.isArray(policy.health_items) ? policy.health_items : [];
+  const items = [...coverageItems, ...healthItems];
+  const mapping = policy.health_mapping || {};
   const period = policy.period || {};
   const start = period.start ? formatPolicyDate(period.start, policy.country) : "";
   const end = period.end ? formatPolicyDate(period.end, policy.country) : "";
   const periodText = start && end ? `${start} — ${end}`
     : t("portfolio.missing_value", { document: t("portfolio.document.policy_schedule") });
-  const generic = `<p class="portfolio-generic">${esc(t("portfolio.generic_notice", {
+  const generic = mapping.mapped === true ? "" : `<p class="portfolio-generic">${esc(t("portfolio.generic_notice", {
     country: policy.country || "",
   }))}</p>`;
+  const healthNotice = mapping.notice_key
+    ? `<p class="portfolio-health-notice">${esc(healthText(mapping.notice_key))}</p>` : "";
   const sections = PLAN_LAYOUT_SECTIONS.map(section => {
     const sectionItems = section.id === "evidence" ? items
       : items.filter(item => portfolioSectionFor(item.mechanism_code) === section.id);
-    const body = sectionItems.length ? sectionItems.map(item => {
-      const display = item.value == null || item.value === ""
-        ? portfolioMechanismLabel(item.mechanism_code)
-        : `${portfolioMechanismLabel(item.mechanism_code)}: ${money(item.value, item.unit || policy.country)}`;
-      return `<li class="portfolio-value">
-        <span>${esc(display)}</span>${evidenceBadge(item.evidence_class)}
+    const body = sectionItems.length ? sectionItems.map(item => `<li class="portfolio-value">
+        <span>${esc(portfolioItemDisplay(policy, item))}</span>${evidenceBadge(item.evidence_class)}
+        ${item.state ? `<span class="tag">${esc(humanState(item.state))}</span>` : ""}
         ${planEvidenceControl(policy, item)}
-      </li>`;
-    }).join("") : `<li class="portfolio-missing">${evidenceBadge("UNESTABLISHED")}
+      </li>`).join("") : `<li class="portfolio-missing">${evidenceBadge("UNESTABLISHED")}
       <span>${esc(t("portfolio.missing_value", {
         document: portfolioMissingDocument(section.id),
       }))}</span></li>`;
@@ -2562,7 +2634,7 @@ function planLayoutCard(policy) {
   }).join("");
 
   const headingId = `policy-${String(policy.id || "").replace(/[^A-Za-z0-9_-]/g, "")}`;
-  const headerEvidence = items.find(item => item.source_document_id) || null;
+  const headerEvidence = coverageItems.find(item => item.source_document_id) || null;
   const headerSource = headerEvidence ? `${evidenceBadge(headerEvidence.evidence_class)}
     <button type="button" class="btn btn-ghost btn-sm portfolio-wording"
       data-act="portfolio-evidence" data-arg="${esc(`${policy.id}|${headerEvidence.id}`)}"
@@ -2581,7 +2653,7 @@ function planLayoutCard(policy) {
       <div><dt>${esc(t("portfolio.header.period"))}</dt><dd>${esc(periodText)}</dd></div>
       <div><dt>${esc(t("portfolio.header.policy"))}</dt><dd>${esc(policy.masked_number || "")}</dd></div>
     </dl>
-    ${generic}
+    ${generic}${healthNotice}
     <div class="plan-layout__sections">${sections}</div>
   </article>`;
 }

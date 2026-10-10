@@ -480,3 +480,58 @@ documents:
     pages: 34
     redistribute: false
     usage_note: "Never hand-mapped. Generalisation test only. Not a Singapore position."
+
+  # ── Health wordings. Public sources; originals remain outside git. ────────
+  - id: in-arogya-sanjeevani-policy-wording
+    title: "Arogya Sanjeevani Policy, Go Digit — policy wording"
+    publisher: "Go Digit General Insurance Limited"
+    source_url: "https://www.godigit.com/content/dam/godigit/directportal/en/downloads/health/policy-wordings-arogya-sanjeevani-policy-go-digit.pdf"
+    source_url_status: RECORDED
+    country: IN
+    line_of_business: HEALTH
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/in-arogya-sanjeevani-policy-wording.pdf"
+    sha256: "70ec4e51cf03a49c06cd7b06fd2dae16ac4ab3a204591fb1e8568a50858ea75b"
+    bytes: 576824
+    pages: 25
+    redistribute: false
+    usage_note: >
+      Standard health-policy wording used only to map its own waiting-period, room-rent,
+      co-payment, moratorium and cashless clauses for the labelled synthetic example.
+
+  - id: sg-medishield-life-information-booklet
+    title: "MediShield Life information booklet for the newly insured"
+    publisher: "Central Provident Fund Board"
+    source_url: "https://www.cpf.gov.sg/content/dam/web/member/healthcare/documents/InformationBookletForTheNewlyInsured.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: HEALTH
+    document_class: BENEFITS_SCHEDULE
+    media_type: application/pdf
+    seed_path: "policy-wordings/sg-medishield-life-information-booklet.pdf"
+    sha256: "83e154d438f536b44271b802c14147ff5f39bbf03057d0c3fc8e35f72f84e99b"
+    bytes: 830421
+    pages: 34
+    redistribute: false
+    usage_note: >
+      Official benefits material used to locate MediShield Life deductible, co-insurance
+      and published ward-limit language. A schedule still establishes the member-specific terms.
+
+  - id: sg-singlife-shield-standard-plan-wording
+    title: "Singlife Shield Standard Plan — terms and conditions"
+    publisher: "Singlife"
+    source_url: "https://isomer-user-content.by.gov.sg/3/828650f0-f757-455b-90e2-568c360c0768/singlife%20shield%20standard%20plan_2026.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: HEALTH
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/sg-singlife-shield-standard-plan-wording.pdf"
+    sha256: "cf58fc957e05bcd2ce9240f5e9a3892534bb10e143820e6259b31a2b11cab19f"
+    bytes: 396270
+    pages: 31
+    redistribute: false
+    usage_note: >
+      Public Integrated Shield Plan wording used only for the matching labelled synthetic
+      schedule, including daily room-and-board, deductible, co-insurance and pro-ration terms.

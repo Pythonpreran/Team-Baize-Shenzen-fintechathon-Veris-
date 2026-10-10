@@ -30,7 +30,7 @@ def singapore_health_schedule_pdf() -> bytes:
         "",
         "Insured members: Arjun Rao and Meera Rao",
         "MediShield Life schedule reference: ****-ML01",
-        "Integrated Shield Plan schedule reference: ****-ISP2",
+        "Singlife Shield Standard Plan schedule reference: ****-ISP2",
         "Period: 1 January 2026 to 31 December 2026",
         "Synthetic schedule sum insured: SGD 1,500,000",
         "Hospitalisation benefits are listed for both insured members.",
@@ -70,6 +70,7 @@ def india_health_schedule_pdf() -> bytes:
     return build_pdf([[
         "SYNTHETIC INDIA FAMILY FLOATER HEALTH SCHEDULE",
         "",
+        "Product: Arogya Sanjeevani Policy",
         "Insured members: Raghavan and Lakshmi",
         "Policy reference: ****-HEALTH6",
         "Period: 1 April 2026 to 31 March 2027",

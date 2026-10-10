@@ -227,6 +227,86 @@ def detect_kind(pages: list[str], filename: str = "") -> Detection:
     return Detection(best[3], confidence, best[1], best[2], scores)
 
 
+@dataclass(frozen=True)
+class HealthScheduleDetection:
+    """Health-specific facts named by a schedule's own text.
+
+    This is an identification helper only. It does not decide what a policy provides:
+    `extract.py` keeps the values evidence-bound, and `health.py` reads the applicable
+    policy wording before it maps a term.
+    """
+
+    is_health: bool
+    family_floater: bool
+    members: tuple[str, ...]
+    declared_ped: Optional[str]
+    policy_start: Optional[str]
+    continuous_coverage: Optional[str]
+    evidence: dict[str, tuple[str, int]]
+
+
+def _health_hit(pages: list[str], pattern: str) -> tuple[Optional[re.Match[str]], int]:
+    rx = re.compile(pattern, re.IGNORECASE)
+    for page_no, text in enumerate(pages, start=1):
+        match = rx.search(text)
+        if match is not None:
+            return match, page_no
+    return None, 1
+
+
+def detect_health_schedule(pages: list[str]) -> HealthScheduleDetection:
+    """Locate schedule facts needed by the health layout without guessing.
+
+    A generic schedule remains a generic schedule unless its own text names health or
+    hospitalisation. Every returned value retains the exact line and page that establishes
+    it, so extraction can build a real evidence span rather than a caller-selected field.
+    """
+    evidence: dict[str, tuple[str, int]] = {}
+    health_match, _health_page = _health_hit(
+        pages, r"\b(?:health\s+policy|health\s+schedule|hospitali[sz]ation)\b")
+    floater_match, floater_page = _health_hit(pages, r"\bfamily\s*[- ]\s*floater\b")
+    if floater_match is not None:
+        evidence["family_floater"] = (floater_match.group(0).strip(), floater_page)
+
+    members_match, members_page = _health_hit(
+        pages, r"\binsured\s+members\s*:\s*([^\n]+)")
+    members: tuple[str, ...] = ()
+    if members_match is not None:
+        raw_members = members_match.group(1).strip().rstrip(".")
+        members = tuple(part.strip() for part in re.split(r"\s+(?:and|&)\s+|,", raw_members)
+                        if part.strip())
+        evidence["members"] = (members_match.group(0).strip(), members_page)
+
+    ped_match, ped_page = _health_hit(
+        pages, r"\b([A-Za-z][A-Za-z ]{1,80})\s+has\s+declared\s+([A-Za-z][A-Za-z -]{1,120})\.")
+    declared_ped = None
+    if ped_match is not None:
+        declared_ped = f"{ped_match.group(1).strip()}: {ped_match.group(2).strip()}"
+        evidence["declared_ped"] = (ped_match.group(0).strip(), ped_page)
+
+    start_match, start_page = _health_hit(
+        pages, r"\b(?:policy\s+)?period\s*:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})\s+to\b")
+    policy_start = start_match.group(1) if start_match is not None else None
+    if start_match is not None:
+        evidence["policy_start"] = (start_match.group(0).strip(), start_page)
+
+    continuity_match, continuity_page = _health_hit(
+        pages, r"\bcontinuous\s+coverage\s*:\s*([^\n]+)")
+    continuous_coverage = continuity_match.group(1).strip() if continuity_match else None
+    if continuity_match is not None:
+        evidence["continuous_coverage"] = (continuity_match.group(0).strip(), continuity_page)
+
+    return HealthScheduleDetection(
+        is_health=health_match is not None,
+        family_floater=floater_match is not None,
+        members=members,
+        declared_ped=declared_ped,
+        policy_start=policy_start,
+        continuous_coverage=continuous_coverage,
+        evidence=evidence,
+    )
+
+
 def author_class_for(kind: str,
                      pack: Optional["jurisdiction.Pack"] = None) -> str:
     """The evidence-authorship class for a detected kind. Unknown -> SELF, the

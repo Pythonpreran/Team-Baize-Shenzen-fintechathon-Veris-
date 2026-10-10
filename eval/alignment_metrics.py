@@ -195,17 +195,26 @@ def main() -> int:
 
     sg = [s for s in scores if s.jurisdiction == "SG"]
     my = [s for s in scores if s.jurisdiction == "MY"]
-    sg_hits = sum(len(s.hits) for s in sg)
-    sg_miss = sum(len(s.missed) + len(s.value_mismatches) for s in sg)
-    my_hits = sum(len(s.hits) for s in my)
-    my_miss = sum(len(s.missed) + len(s.value_mismatches) for s in my)
+    india = [s for s in scores if s.jurisdiction == "IN"]
+
+    def jurisdiction_recall(rows: list[DocScore]) -> tuple[float, int, int]:
+        hits = sum(len(s.hits) for s in rows)
+        missed = sum(len(s.missed) + len(s.value_mismatches) for s in rows)
+        return ratio(hits, hits + missed), hits, missed
+
+    sg_recall, sg_hits, sg_miss = jurisdiction_recall(sg)
+    my_recall, my_hits, my_miss = jurisdiction_recall(my)
+    in_recall, in_hits, in_miss = jurisdiction_recall(india)
     print("GENERALISATION — the claim that matters")
-    print(f"  Singapore, read by hand      recall {ratio(sg_hits, sg_hits + sg_miss)}"
+    print(f"  Singapore, read by hand      recall {sg_recall}"
           f"  ({sg_hits}/{sg_hits + sg_miss})")
-    print(f"  Malaysia, NEVER hand-mapped  recall {ratio(my_hits, my_hits + my_miss)}"
+    print(f"  Malaysia, NEVER hand-mapped  recall {my_recall}"
           f"  ({my_hits}/{my_hits + my_miss})")
     print("  The Malaysian row is the point: no clause map exists for these carriers,")
     print("  so anything found there was found from structure alone.")
+    if india:
+        print(f"  India, targeted health terms recall {in_recall}"
+              f"  ({in_hits}/{in_hits + in_miss})")
     print("-" * 74)
 
     print("CLAIM LANGUAGE THE EVIDENCE SUPPORTS:")
@@ -218,7 +227,9 @@ def main() -> int:
     print("-" * 74)
 
     for s in scores:
-        tag = "" if s.jurisdiction == "SG" else "  [MY - generalisation test]"
+        tag = ("" if s.jurisdiction == "SG" else
+               "  [MY - generalisation test]" if s.jurisdiction == "MY" else
+               f"  [{s.jurisdiction} - targeted health terms]")
         print(f"\n{s.carrier}{tag}")
         print(f"   proposals {s.proposals}  bound {s.verified}  "
               f"rejected {s.rejected}")

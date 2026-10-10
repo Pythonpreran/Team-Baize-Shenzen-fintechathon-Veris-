@@ -101,14 +101,14 @@ POLICIES: tuple[PolicySpec, ...] = (
         ),
     ),
     PolicySpec(
-        country="SG", line_of_business="HEALTH", insurer="Lotus General (Sandbox)",
-        product="Integrated Shield Plan (synthetic schedule)", masked_number="****-ISP2",
+        country="SG", line_of_business="HEALTH", insurer="Singlife",
+        product="Singlife Shield Standard Plan (synthetic schedule)", masked_number="****-ISP2",
         period_start="2026-01-01", period_end="2026-12-31", status="ACTIVE",
         renewal_date="2026-12-31", member_keys=("arjun", "meera"), asset_keys=(),
         document_filename="rao-singapore-health-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.HOSPITALISATION", None, None,
-                         "This synthetic schedule identifies an Integrated Shield Plan for Arjun Rao and Meera Rao."),
+                         "This synthetic schedule identifies Singlife Shield Standard Plan for Arjun Rao and Meera Rao."),
         ),
     ),
     PolicySpec(
@@ -147,8 +147,8 @@ POLICIES: tuple[PolicySpec, ...] = (
         ),
     ),
     PolicySpec(
-        country="IN", line_of_business="HEALTH", insurer="Lotus General (Sandbox)",
-        product="Family floater health plan (synthetic schedule)", masked_number="****-HEALTH6",
+        country="IN", line_of_business="HEALTH", insurer="Go Digit General Insurance Limited",
+        product="Arogya Sanjeevani Policy (synthetic schedule)", masked_number="****-HEALTH6",
         period_start="2026-04-01", period_end="2027-03-31", status="ACTIVE",
         renewal_date="2027-03-31", member_keys=("raghavan", "lakshmi"), asset_keys=(),
         document_filename="rao-india-health-schedule.pdf",
