@@ -647,13 +647,26 @@ def _name_pattern(name: str) -> re.Pattern[str]:
 # clause is contrary evidence: the safe response is GENERIC, never a local pack selected
 # by an incidental regulator name or currency. Generic boilerplate such as "subject to
 # applicable law" names no jurisdiction, so it is not contrary evidence.
+#
+# Country references are deliberately case-insensitive: a policy may write `thai law` in
+# running text. The generic-reference prefix is equally deliberate. It excludes phrases
+# such as `laws of the jurisdiction in which it is issued` without making uppercase the
+# proxy for a concrete country name.
+_GENERIC_GOVERNING_LAW_REFERENCE = (
+    r"(?:(?:the|any|all|this|such)\s+)?"
+    r"(?:applicable|governing|relevant|local|prevailing|"
+    r"jurisdiction|country|state|place|territory|land|law|laws)\b"
+)
+_CONCRETE_JURISDICTION_REFERENCE = (
+    rf"(?!{_GENERIC_GOVERNING_LAW_REFERENCE})"
+    r"(?:the\s+)?[A-Za-z][A-Za-z'\-]*"
+    r"(?:\s+(?:[A-Za-z][A-Za-z'\-]*|of|the)){0,5}"
+)
 _ANY_GOVERNING_LAW = re.compile(
-    r"\b(?:governed by|construed in accordance with|interpreted in accordance with|"
-    r"determined in accordance with|subject to)\b[^.;]{0,80}?\b(?:"
-    r"(?:the\s+)?laws? of\s+(?:the\s+)?[A-Za-z][A-Za-z '\-]{0,60}|"
-    r"(?!(?:(?:the|any|all)\s+)?(?:applicable|governing|relevant|local|prevailing|"
-    r"this|such)\s+[Ll]aw\b)(?-i:(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}|"
-    r"[A-Z]{2,}(?:\s+[A-Z]{2,}){0,3}))\s+[Ll]aw)\b",
+    rf"\b(?:governed by|construed in accordance with|interpreted in accordance with|"
+    rf"determined in accordance with|subject to)\b[^.;]{{0,80}}?\b(?:"
+    rf"(?:the\s+)?laws?\s+of\s+{_CONCRETE_JURISDICTION_REFERENCE}|"
+    rf"{_CONCRETE_JURISDICTION_REFERENCE}\s+[Ll]aw)\b",
     re.IGNORECASE,
 )
 

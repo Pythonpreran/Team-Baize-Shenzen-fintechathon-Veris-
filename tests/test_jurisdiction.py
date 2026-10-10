@@ -373,6 +373,23 @@ def test_generic_applicable_law_boilerplate_does_not_override_a_recognised_claus
     assert not any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
 
 
+def test_a_lowercase_unprofiled_country_law_forces_generic_beside_a_supported_clause():
+    d = jurisdiction.detect_jurisdiction(_pages(
+        "This policy is governed by the laws of Singapore.",
+        "Section B is subject to thai law."))
+    assert (d.code, d.confidence, d.leading) == ("GENERIC", "LOW", "SG")
+    assert "does not recognise" in d.why
+    assert any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
+
+
+def test_generic_laws_of_jurisdiction_boilerplate_does_not_override_a_supported_clause():
+    d = jurisdiction.detect_jurisdiction(_pages(
+        "This policy is governed by the laws of Singapore.",
+        "This policy is governed by the laws of the jurisdiction in which it is issued."))
+    assert (d.code, d.confidence) == ("SG", "HIGH")
+    assert not any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
+
+
 def test_conflicting_governing_law_clauses_force_generic_even_with_other_signals():
     name = next(n for n in jurisdiction.pack("SG").detection.names
                 if not (n.isupper() and len(n) <= 6))
