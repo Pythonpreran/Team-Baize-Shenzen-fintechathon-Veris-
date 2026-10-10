@@ -3,6 +3,10 @@
     "english": "English",
     "pseudo": "Pseudo-locale"
   },
+  "currency": {
+    "lakh": "lakh",
+    "crore": "crore"
+  },
   "shell": {
     "role": {
       "SME": "Business Owner",

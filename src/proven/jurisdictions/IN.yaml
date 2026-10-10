@@ -1,0 +1,256 @@
+# VERIS jurisdiction pack — India.
+#
+# Every statement about law or regulation is either backed by a verbatim primary-source
+# quote or retained as CANDIDATE evidence.  A CANDIDATE entry is intentionally absent from
+# owner-facing output: it records exactly what still needs a primary source, rather than
+# turning an incomplete research note into a legal statement.
+
+code: IN
+name: India
+version: 1
+summary: >
+  India. Indian-number money formatting, Indian public holidays and document authorship;
+  a quoted motor third-party insurance requirement; and a complaint-route evidence record
+  that remains explicit about the timelines still awaiting primary-source verification.
+locales: [en-IN]
+timezone: Asia/Kolkata
+holiday_calendar:
+  provider: holidays
+  country: IN
+  wired: true
+  note: The holidays provider is used for working-day arithmetic from this pack.
+
+currency:
+  code: INR
+  symbol: "₹"
+  local_symbol: "₹"
+  minor_units: 2
+  group_separator: ","
+  decimal_separator: "."
+  grouping: INDIAN
+
+regulators:
+  - id: IN-REG-IRDAI
+    title: Insurance Regulatory and Development Authority of India
+    statement: The regulator's insurance-role statement needs a primary-source quote before VERIS can show it to an owner.
+    values: {short_name: IRDAI}
+    verification:
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: Record a regulator-authored role statement before upgrading this entry.
+
+statutes:
+  - id: IN-STAT-MVA-146
+    title: Motor Vehicles Act, 1988, section 146
+    statement: Section 146 requires the policy of insurance it describes before a motor vehicle is used in a public place.
+    values: {section: "146", protection: MOTOR_THIRD_PARTY}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://www.indiacode.nic.in/bitstream/123456789/9460/1/a1988-59.pdf"
+      retrieved_on: 2026-10-11
+      quote: a policy of insurance complying with the requirements of this Chapter
+      verified_by: null
+      note: The quoted India Code copy was fetched and checked on 2026-10-11.
+  - id: IN-STAT-MVA-196
+    title: Motor Vehicles Act, 1988, section 196
+    statement: The current text of the section 196 penalty needs confirmation from a consolidated primary source before VERIS can state it to an owner.
+    values: {section: "196"}
+    verification:
+      status: CANDIDATE
+      source_url: "https://www.indiacode.nic.in/bitstream/123456789/9460/1/a1988-59.pdf"
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: The fetched Act PDF is not relied on for the current penalty because the consolidated amended text was not verified.
+
+compulsory_covers:
+  - id: IN-COMP-MOTOR-THIRD-PARTY
+    title: Motor third-party insurance
+    statement: The Motor Vehicles Act section 146 entry is the sourced basis for the motor third-party insurance requirement.
+    values: {protection: MOTOR_THIRD_PARTY, statute: IN-STAT-MVA-146}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://www.indiacode.nic.in/bitstream/123456789/9460/1/a1988-59.pdf"
+      retrieved_on: 2026-10-11
+      quote: a policy of insurance complying with the requirements of this Chapter
+      verified_by: null
+      note: The section 196 penalty remains a separate CANDIDATE until its current text is verified.
+
+regulatory_timelines:
+  - id: IN-TL-CASHLESS-AUTHORISATION
+    title: Cashless authorisation window
+    statement: A primary IRDAI source is required before VERIS states a cashless authorisation window.
+    values: {}
+    verification: &candidate
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: Awaiting an IRDAI primary source and verbatim quote.
+  - id: IN-TL-DISCHARGE-DECISION
+    title: Cashless discharge decision window
+    statement: A primary IRDAI source is required before VERIS states a cashless discharge decision window.
+    values: {}
+    verification: *candidate
+  - id: IN-TL-CLAIM-SETTLEMENT
+    title: Claim settlement turnaround
+    statement: A primary IRDAI source is required before VERIS states a claim settlement turnaround.
+    values: {}
+    verification: *candidate
+  - id: IN-TL-FREE-LOOK
+    title: Free-look period
+    statement: A primary IRDAI source is required before VERIS states a free-look period.
+    values: {}
+    verification: *candidate
+  - id: IN-TL-GRACE
+    title: Grace period
+    statement: A primary IRDAI source is required before VERIS states a grace period.
+    values: {}
+    verification: *candidate
+  - id: IN-TL-MORATORIUM
+    title: Moratorium period
+    statement: A primary IRDAI source is required before VERIS states a moratorium period.
+    values: {}
+    verification: *candidate
+  - id: IN-TL-PED-WAITING
+    title: Pre-existing disease waiting-period cap
+    statement: A primary IRDAI source is required before VERIS states a pre-existing disease waiting-period cap.
+    values: {}
+    verification: *candidate
+  - id: IN-TL-DEATH-CLAIM
+    title: Death-claim settlement window
+    statement: A primary IRDAI source is required before VERIS states a death-claim settlement window.
+    values: {}
+    verification: *candidate
+
+complaint_ladder:
+  - id: IN-CL-INSURER-GRIEVANCE
+    title: Insurer grievance officer
+    statement: A primary source is required before VERIS states the insurer grievance-officer step to an owner.
+    values: {order: 1, time_limit_days: null}
+    verification: *candidate
+  - id: IN-CL-BIMA-BHAROSA
+    title: Bima Bharosa
+    statement: The IRDAI policy-holder manual includes a Register Complaint flow for Bima Bharosa.
+    values: {order: 2, time_limit_days: null}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://bimabharosa.irdai.gov.in/Home/UserManualDocumentDownload"
+      retrieved_on: 2026-10-11
+      quote: Register Complaint
+      verified_by: null
+      note: The user manual documents the portal flow; it does not establish a time limit.
+  - id: IN-CL-INSURANCE-OMBUDSMAN
+    title: Insurance Ombudsman
+    statement: A primary source is required before VERIS states the Insurance Ombudsman step to an owner.
+    values: {order: 3, time_limit_days: null}
+    verification: *candidate
+  - id: IN-CL-CONSUMER-COMMISSION
+    title: Consumer commission
+    statement: A primary source is required before VERIS states the consumer commission step to an owner.
+    values: {order: 4, time_limit_days: null}
+    verification: *candidate
+
+market_conventions: []
+
+document_kinds:
+  - kind: BASE_WORDING
+    author_class: INSURER
+    verification: &team_grading
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, evidence-class design (src/proven/grading.py)
+      note: The author class is an evidence model decision, not a regulatory statement.
+  - kind: SCHEDULE
+    author_class: INSURER
+    verification: *team_grading
+  - kind: ENDORSEMENT
+    author_class: INSURER
+    verification: *team_grading
+  - kind: TENANCY
+    author_class: THIRD_PARTY
+    absent_note: Tenancy agreement — premises and permitted use not verified
+    verification: *team_grading
+  - kind: ACCOUNTS
+    author_class: SELF
+    absent_note: Accounts — value at risk for stock not verified
+    verification: *team_grading
+  - kind: SUPPLIER_INVOICE
+    author_class: THIRD_PARTY
+    verification: *team_grading
+  - kind: PROPOSAL
+    author_class: SELF
+    verification: *team_grading
+  - kind: FIR
+    author_class: AUTHORITY
+    author: Police authority
+    verification: *team_grading
+  - kind: RC
+    author_class: AUTHORITY
+    author: Vehicle registration authority
+    verification: *team_grading
+  - kind: HOSPITAL_DISCHARGE_SUMMARY
+    author_class: THIRD_PARTY
+    author: Hospital
+    verification: *team_grading
+  - kind: HOSPITAL_BILL
+    author_class: THIRD_PARTY
+    author: Hospital
+    verification: *team_grading
+  - kind: SELF_DECLARATION
+    author_class: SELF
+    verification: *team_grading
+  - kind: UNKNOWN
+    author_class: SELF
+    verification: *team_grading
+
+data_protection:
+  id: IN-DP-DPDP
+  title: Digital Personal Data Protection Act, 2023
+  statement: A primary source is required before VERIS states India-specific data-protection obligations to an owner.
+  values: {}
+  verification: *candidate
+
+advice_boundary:
+  product_boundary: >
+    VERIS states what your documents say and where they say it. It does not recommend a
+    product, an insurer or a premium, and it never suggests that you buy, cancel, switch or
+    surrender cover. For advice, speak to a licensed intermediary or to your insurer.
+  regulatory_basis:
+    id: IN-AB-INSURANCE-ADVICE
+    title: Insurance advice boundary
+    statement: A primary source is required before VERIS makes an India-specific statement about insurance advice regulation.
+    values: {}
+    verification: *candidate
+
+detection:
+  governing_law:
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|subject to)\b[^.;]{0,60}?\blaws? of India\b'
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|subject to)\b[^.;]{0,60}?\bIndian [Ll]aw\b'
+  names:
+    - Insurance Regulatory and Development Authority of India
+    - IRDAI
+    - Insurance Ombudsman
+    - Bima Bharosa
+    - Motor Vehicles Act, 1988
+    - Insurance Act, 1938
+  currency_codes: [INR]
+  currency_symbols: ["₹", "Rs."]
+  registration_numbers:
+    # Product UINs start with the regulator marker and retain slash-delimited product parts.
+    - '\bIRDAI/[A-Z]{2,5}/[A-Z0-9][A-Z0-9._-]*(?:/[A-Z0-9][A-Z0-9._-]*){2,}\b'
+    # Corporate Identity Number, e.g. U66010MH2000PLC128403.
+    - '\b[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}\b'
+    # PAN, e.g. ABCDE1234F.
+    - '\b[A-Z]{5}\d{4}[A-Z]\b'
+  postcodes:
+    - '\b(?:Mumbai|New Delhi|Delhi|Bengaluru|Bangalore|Chennai|Kolkata|Hyderabad|Pune|Ahmedabad|Gurugram|Noida)\s*[-,]?\s*\d{6}(?!\d)'
+    - '\bPIN(?: Code)?\s*[:\-]?\s*\d{6}(?!\d)'
+  phone_numbers:
+    - '\+91[\s-]?\d'

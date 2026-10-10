@@ -31,8 +31,8 @@ timezone: Asia/Singapore
 holiday_calendar:
   provider: holidays
   country: SG
-  wired: false
-  note: Not yet wired. Working-day arithmetic arrives with the deadline engine.
+  wired: true
+  note: The holidays provider is used for working-day arithmetic from this pack.
 
 # How Singapore amounts are written. `symbol` is the international form used across the
 # product; `local_symbol` is how Singapore's own authorities write the same currency, which is

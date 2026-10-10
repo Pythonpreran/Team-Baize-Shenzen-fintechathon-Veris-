@@ -126,13 +126,23 @@ function policyFormat(country) {
   return POLICY_FORMATS[policyCountry(country)] || null;
 }
 
+function indianMoneyUnit(amount, format) {
+  if (format?.currency !== "INR" || Math.abs(amount) < 100000) return "";
+  const crore = Math.abs(amount) >= 10000000;
+  const divisor = crore ? 10000000 : 100000;
+  const unit = crore ? t("currency.crore") : t("currency.lakh");
+  const value = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 })
+    .format(amount / divisor);
+  return ` (${value} ${unit})`;
+}
+
 function money(value, country) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return value ?? "";
   const format = policyFormat(country);
   const locale = format?.locale || "en-US";
   const body = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(amount);
-  return format ? format.symbol + body : body;
+  return format ? format.symbol + body + indianMoneyUnit(amount, format) : body;
 }
 
 function formatPolicyDate(value, country) {

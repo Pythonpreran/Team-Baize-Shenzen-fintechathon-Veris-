@@ -44,6 +44,7 @@ Shipped by any deployment built from this repository: the pinned runtime require
 | distro | 1.9.0 | Apache Software License | https://github.com/python-distro/distro |
 | fastapi | 0.136.3 | MIT | https://github.com/fastapi/fastapi |
 | h11 | 0.16.0 | MIT License | https://github.com/python-hyper/h11 |
+| holidays | 0.106 | MIT | https://github.com/vacanza/holidays/ |
 | httpcore | 1.0.9 | BSD-3-Clause | https://www.encode.io/httpcore/ |
 | httpx | 0.28.1 | BSD License | https://github.com/encode/httpx |
 | idna | 3.20 | BSD-3-Clause | https://github.com/kjd/idna |
@@ -58,8 +59,10 @@ Shipped by any deployment built from this repository: the pinned runtime require
 | pypdf | 6.10.2 | BSD-3-Clause | https://github.com/py-pdf/pypdf |
 | pypdfium2 | 5.14.0 | BSD-3-Clause, Apache-2.0, dependency licenses | https://github.com/pypdfium2-team/pypdfium2 |
 | pytesseract | 0.3.13 | Apache Software License | https://github.com/madmaze/pytesseract |
+| python-dateutil | 2.9.0.post0 | Apache Software License; BSD License | https://github.com/dateutil/dateutil |
 | python-multipart | 0.0.22 | Apache-2.0 | https://github.com/Kludex/python-multipart |
 | PyYAML | 6.0.3 | MIT License | https://pyyaml.org/ |
+| six | 1.17.0 | MIT License | https://github.com/benjaminp/six |
 | sniffio | 1.3.1 | Apache Software License; MIT License | https://github.com/python-trio/sniffio |
 | starlette | 1.7.0 | BSD-3-Clause | https://github.com/Kludex/starlette |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT | https://tqdm.github.io |
@@ -805,6 +808,268 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### holidays 0.106
+
+Licence: MIT
+
+From `CONTRIBUTORS`:
+
+```text
+Aadesh Shrivastava
+Aaqil Yousuf
+Aaron Picht
+Aart Goossens
+Abdelkhalek Boukli Hacene
+Abheelash Mishra
+Akos Furton
+Akshita Dhiman
+Alejandro Antunes
+Aleksandrs Drozdovs
+Aleksei Zhuchkov
+Alexander Schulze
+Alexandre Carvalho
+Alexei Mikhailov
+Aman Srivastava
+Anders Wenhaug
+Andrei Klimenko
+Andres Marrugo
+Andrew Li
+Aneesh Angane
+Ankush Kapoor
+Anon Kangpanich
+Anthony Rose
+Anton Daitche
+Arbaz Khan
+Arjun Anandkumar
+Arkadii Yakovets
+Artem Tserekh
+Ary Hauffe Neto
+Avi Alkalay
+Aziza Mohammed
+Bailey Thompson
+Ben Collerson
+Ben Letham
+Benjamin Lucas Wacha
+Bernhard M. Wiedemann
+Blend Halilaj
+Carlos Rocha
+Chanran Kim
+Chengxi Meng
+Chris McKeague
+Chris Turra
+Christian Alexander
+Colin Watson
+Dan Gentry
+Daniel Musketa
+Daniël Niemeijer
+Darkhan Azhibek
+David Hedlund
+David Hotham
+Devaraj K
+Devika Shukla
+Dhruv Sahu
+Diego Rosaperez
+Diogo Rosa
+Dorian Monnier
+Douglas Franklin
+Eden Juscelino
+Edison Robles
+Edward Betts
+Eesh Saxena
+Eldar Mustafayev
+Emmanuel Arias
+Eugenio Panadero Maciá
+Fabian Affolter
+Federico Brunner
+Felix Lee
+Filip Bednárik
+Firas Kafri
+Gabriel L Martinez
+Gabriel Trabanco
+Gerhard Schmidt
+Giedrius Mauza
+Gordon Heydon
+Gordon Inggs
+Greg Rafferty
+Győző Papp
+Harsh Baghel
+Harshil Gupta
+Heikki Orsila
+Henrik Sozzi
+Hernán Alarcón
+Hiroki Kawahara
+Hugh McNamara
+Hugo van Kemenade
+Isabelle COWAN-BERGMAN
+Jacky Han
+Jacob Punter
+Jaemin Kim
+Jahir Fiquitiva
+Jakob M. Kjær
+Jakub Krasuski
+Jan Pipek
+Jason Jensen
+Jeremy Chrimes
+Jerry Agbesi
+John Laswell
+Joost van Driel
+Jorge Cadena Argote
+Jose Riha
+Joshua Adelman
+Joël van Amerongen
+Juan Sebastián Ruiz Akle
+Julian Broudou
+Jung Dong Ho
+Justin Asfour
+Kamil Leduchowski
+Kate Golovanova
+Kelsey Karin Hawley
+Koert van der Veer
+Koki Nomura
+Kriti Birda
+Laurent Comparet
+Lucca Augusto
+Maina Kamau
+Malthe Borch
+Manish Tiwari
+Marek Šuppa
+Martin Becker
+Martin Thurau
+Matheus Oliveira
+Maurizio Montel
+Max Härtwig
+Michael Thessel
+Miguel Farah
+Mike Borsetti
+Mike Polyakovsky
+Miroslav Šedivý
+Monde Sinxi
+Moustafa Mohamed Elsayed
+Muhannad Ebraheem
+Mustapha Nkhili
+Nalin Gupta
+Nataliia Dmytriievska
+Nate Harris
+Nathan Ell
+Neha Gaikwad
+Nellai Abiram
+Nicholas Spagnoletti
+Nico Albers
+Olivier Iffrig
+Ondřej Nový
+Oriol Romaní Picas
+Osama Alnajar
+Osayd Abdu
+Oscar Romero
+Pablo Merino
+Panpakorn Siripanich
+Paresh Joshi
+Patrick Nicholson
+Paulo Orrock
+Pavel Sofroniev
+Pedro Baptista
+Peter Pin-guang Chen
+Peter Zsak
+Phil Gresham
+Pieter van der Westhuizen
+Piotr Staniów
+Piyush Bhakuni
+Platon Supranovich
+Prateekshit Jaiswal
+Priya Kumari
+Priyen Brahmbhatt
+Raphael Borg Ellul Vincenti
+Raychel Mattheeuw
+Reinaldo Ramos
+Ritik Karn
+Robert Frazier
+Robert Schmidtke
+Robert Tran
+Roberto Panai
+Robin Emeršič
+Roshan Pradhan
+Ryan Duguid
+Ryan Lee
+Ryan McCrory
+Saahi Dubey
+Saheel Sapovadia
+Sam Tregar
+Samman Sarkar
+Samson Endale
+Santiago Feliu
+Sebastian Felgueras
+Seong hun Cho
+Sergi Almacellas Abellana
+Sergio Mayoral Martinez
+Serhii Murza
+Shalom Donga
+Shaon Ahamed
+Shaurya Uppal
+Shehroz Sultani
+Sho Hirose
+Shreyansh Pande
+Shreyas Smarth
+Simon Green
+Simon Gurcke
+Sindhura Kumbakonam Subramanian
+Sourav Singh
+Sugato Ray
+Syed Ahmer Shah
+Sylvain Pasche
+Sylvia van Os
+Søren Klintrup
+Takeshi Osoekawa
+Tania Khatun
+Tasnim Nishat Islam
+Tewodros Meshesha
+Tharupahan Jayawardana
+Thomas Bøvith
+Tommy Sparber
+Tudor Văran
+Vaishnavi Bardapure
+Vanshika Pundir
+Victor Luna
+Victor Miti
+Vikash Kumar
+Viktor Rosvall
+Ville Skyttä
+Vilmos Prokaj
+Vu Nhat Chuong
+Walter Downing
+Wasif Shahzad
+Yazid Yusuf
+Youhei Sakurai
+Yuvarrunjitha R S
+```
+
+From `LICENSE`:
+
+```text
+Copyright (c) Vacanza Team and individual contributors (see CONTRIBUTORS file)
+Copyright (c) dr-prodigy <dr.prodigy.github@gmail.com>, 2017-2023
+Copyright (c) ryanss <ryanssdev@icloud.com>, 2014-2017
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ### httpcore 1.0.9
@@ -7954,6 +8219,67 @@ Apache License
    limitations under the License.
 ```
 
+### python-dateutil 2.9.0.post0
+
+Licence: Apache Software License; BSD License
+
+```text
+Copyright 2017- Paul Ganssle <paul@ganssle.io>
+Copyright 2017- dateutil contributors (see AUTHORS file)
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+The above license applies to all contributions after 2017-12-01, as well as
+all contributions that have been re-licensed (see AUTHORS file for the list of
+contributors who have re-licensed their code).
+--------------------------------------------------------------------------------
+dateutil - Extensions to the standard Python datetime module.
+
+Copyright (c) 2003-2011 - Gustavo Niemeyer <gustavo@niemeyer.net>
+Copyright (c) 2012-2014 - Tomi Pieviläinen <tomi.pievilainen@iki.fi>
+Copyright (c) 2014-2016 - Yaron de Leeuw <me@jarondl.net>
+Copyright (c) 2015-     - Paul Ganssle <paul@ganssle.io>
+Copyright (c) 2015-     - dateutil contributors (see AUTHORS file)
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name of the copyright holder nor the names of its
+      contributors may be used to endorse or promote products derived from
+      this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The above BSD License Applies to all code, even that also covered by Apache 2.0.
+```
+
 ### python-multipart 0.0.22
 
 Licence: Apache-2.0
@@ -7999,6 +8325,31 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+### six 1.17.0
+
+Licence: MIT License
+
+```text
+Copyright (c) 2010-2024 Benjamin Peterson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### sniffio 1.3.1

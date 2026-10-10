@@ -27,6 +27,7 @@ dependencies = [
   "python-multipart==0.0.22",  # required by FastAPI for multipart upload
   "pypdfium2==5.14.0",         # page rendering; see src/proven/pdfrender.py
   "cryptography==50.0.2",      # AES-GCM tenant portfolio encryption
+  "holidays==0.106",           # jurisdiction-pack working-day calendars
 ]
 
 [project.optional-dependencies]

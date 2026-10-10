@@ -106,7 +106,8 @@ tryRun("renderLanding()", () => g.renderLanding());
 tryRun("renderLogin()", () => g.renderLogin());
 tryRun("policy money formatting keeps SGD stable and formats INR locally", () => {
   if (g.money("60000", "SG") !== "S$60,000") throw new Error("SGD display changed");
-  if (g.money("500000", "IN") !== "₹5,00,000") throw new Error("INR display is not local");
+  if (g.money("500000", "IN") !== "₹5,00,000 (5 lakh)")
+    throw new Error("INR display is not local with its lakh unit");
   if (g.formatPolicyDate("2026-10-19", "IN") !== "19 October 2026")
     throw new Error("policy date was not formatted");
 });
@@ -140,7 +141,7 @@ tryRun("planLayoutCard renders every section and preserves missing values", () =
     "Exclusions & conditions", "Renewal & deadlines", "Evidence"]) {
     if (!html.includes(heading.replace(/&/g, "&amp;"))) throw new Error(`missing ${heading}`);
   }
-  if (!html.includes("₹5,00,000")) throw new Error("policy money was not formatted");
+  if (!html.includes("₹5,00,000 (5 lakh)")) throw new Error("policy money was not formatted with its lakh unit");
   if (!html.includes("No value is shown")) throw new Error("missing-data state was not rendered");
   if (!html.includes('data-act="portfolio-evidence"')) throw new Error("no wording control");
   if (!html.includes('aria-label="Covered"')) throw new Error("section is not labelled");

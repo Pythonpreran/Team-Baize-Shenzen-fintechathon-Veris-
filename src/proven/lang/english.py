@@ -296,7 +296,7 @@ _MONTHS = {month: number for number, month in enumerate(
     start=1)}
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _NUMERIC_DATE = re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b")
-_WORD_DATE = re.compile(r"\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\b")
+_WORD_DATE = re.compile(r"\b(\d{1,2})(?:\s+|-)([A-Za-z]{3,9})(?:\s+|-)(\d{4})\b")
 
 
 class EnglishDateParser:

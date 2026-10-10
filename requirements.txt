@@ -35,6 +35,10 @@ pypdfium2==5.14.0
 # wrapped by VERIS_MASTER_KEY; the cffi and pycparser closure is pinned in constraints.
 cryptography==50.0.2
 
+# Country public-holiday calendars for deterministic working-day arithmetic in jurisdiction
+# packs. Its python-dateutil and six closure is pinned in constraints.txt.
+holidays==0.106
+
 # ── the AI layer (OPTIONAL) ────────────────────────────────────────────────
 # Both are optional at runtime and the product is tested without them. `config.py`
 # returns None from `openai_client()` when the package or the key is absent, and

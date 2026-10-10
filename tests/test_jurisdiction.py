@@ -130,14 +130,14 @@ SG_EXAMPLE = ["02-policy-schedule.pdf", "03-management-accounts.pdf",
 # ── 1. the packs validate, and the validator bites ──────────────────────────
 
 def test_the_packs_on_disk_validate_and_generic_is_always_there():
-    assert jurisdiction.pack_codes() == ("GENERIC", "SG")
+    assert jurisdiction.pack_codes() == ("GENERIC", "IN", "SG")
     assert jurisdiction.generic().is_generic
     sg = jurisdiction.pack("SG")
     assert sg.currency.code == "SGD"
     assert sg.timezone == "Asia/Singapore"
     assert sg.entries(), "the Singapore pack states nothing"
     # Recognisable without a pack, so a document from there gets an honest notice.
-    assert {c["code"] for c in jurisdiction.recognised_without_pack()} == {"MY", "IN", "HK"}
+    assert {c["code"] for c in jurisdiction.recognised_without_pack()} == {"MY", "HK"}
 
 
 def test_an_entry_without_a_verification_block_is_rejected():
@@ -868,8 +868,8 @@ def test_the_regulators_name_appears_in_no_pack_but_singapores():
 
 def test_the_index_lists_packs_recognised_countries_and_the_detection_rule(client):
     body = client.get("/api/jurisdictions").json()
-    assert {p["code"] for p in body["packs"]} == {"GENERIC", "SG"}
-    assert {c["code"] for c in body["recognised_without_pack"]} == {"MY", "IN", "HK"}
+    assert {p["code"] for p in body["packs"]} == {"GENERIC", "IN", "SG"}
+    assert {c["code"] for c in body["recognised_without_pack"]} == {"MY", "HK"}
     assert body["fallback"] == "GENERIC"
     weights = [s["weight"] for s in body["detection"]["signals"]]
     assert weights == sorted(weights, reverse=True)
@@ -909,9 +909,9 @@ def test_the_bundle_kinds_say_who_authors_each_kind_in_each_pack(client):
     assert kinds["CPF_RECORD"]["author_class"] == "SELF"
     assert "No jurisdiction is selected" in kinds["CPF_RECORD"]["author_class_context"]
     assert kinds["CPF_RECORD"]["author_class_by_jurisdiction"] == \
-        {"GENERIC": "SELF", "SG": "AUTHORITY"}
+        {"GENERIC": "SELF", "IN": "SELF", "SG": "AUTHORITY"}
     assert kinds["TENANCY"]["author_class_by_jurisdiction"] == \
-        {"GENERIC": "THIRD_PARTY", "SG": "THIRD_PARTY"}
+        {"GENERIC": "THIRD_PARTY", "IN": "THIRD_PARTY", "SG": "THIRD_PARTY"}
 
 
 # ── the source checker ──────────────────────────────────────────────────────

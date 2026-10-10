@@ -182,19 +182,63 @@ class Currency(BaseModel):
     minor_units: int = Field(ge=0, le=4)
     group_separator: str
     decimal_separator: str
-    # Three-digit grouping only, for now. Indian lakh/crore grouping arrives with the India
-    # pack and its own tests; a pack asking for it before then is refused, not approximated.
-    grouping: Literal["THREE"]
+    # Indian grouping is an explicit pack property rather than an en-IN locale assumption:
+    # a number can be shown under a different UI locale, but the policy's own country still
+    # determines how a statutory amount is rendered.
+    grouping: Literal["THREE", "INDIAN"]
 
-    def format(self, amount: Any, *, places: int = 0, local: bool = False) -> str:
-        """`S$60,000`. Decimal throughout — an amount is never passed through a float."""
-        value = amount if isinstance(amount, Decimal) else Decimal(str(amount))
-        body = format(value, f",.{int(places)}f")
+    @staticmethod
+    def _indian_groups(body: str) -> str:
+        """Group a fixed-point number as 1,23,45,678 without converting Decimal to float."""
+        sign = ""
+        if body[:1] in {"-", "+"}:
+            sign, body = body[:1], body[1:]
+        whole, dot, fraction = body.partition(".")
+        if len(whole) <= 3:
+            return sign + body
+        tail, head = whole[-3:], whole[:-3]
+        groups: list[str] = []
+        while head:
+            groups.append(head[-2:])
+            head = head[:-2]
+        grouped = ",".join([*reversed(groups), tail])
+        return sign + grouped + (dot + fraction if dot else "")
+
+    def _number_body(self, value: Decimal, places: int) -> str:
+        if self.grouping == "THREE":
+            body = format(value, f",.{int(places)}f")
+        else:
+            body = self._indian_groups(format(value, f".{int(places)}f"))
         if (self.group_separator, self.decimal_separator) != (",", "."):
             body = body.translate(str.maketrans(
                 {",": self.group_separator, ".": self.decimal_separator}))
+        return body
+
+    def format(self, amount: Any, *, places: int = 0, local: bool = False) -> str:
+        """Render money with this pack's grouping while retaining Decimal arithmetic."""
+        value = amount if isinstance(amount, Decimal) else Decimal(str(amount))
         symbol = (self.local_symbol or self.symbol) if local else self.symbol
-        return f"{symbol}{body}"
+        return f"{symbol}{self._number_body(value, int(places))}"
+
+    def local_units(self, amount: Any) -> Optional[str]:
+        """The Indian lakh/crore suffix for a value large enough to have one."""
+        if self.grouping != "INDIAN":
+            return None
+        value = amount if isinstance(amount, Decimal) else Decimal(str(amount))
+        if abs(value) >= Decimal("10000000"):
+            scaled, label = value / Decimal("10000000"), "crore"
+        elif abs(value) >= Decimal("100000"):
+            scaled, label = value / Decimal("100000"), "lakh"
+        else:
+            return None
+        return f"{format(scaled.normalize(), 'f')} {label}"
+
+    def format_with_units(self, amount: Any, *, places: int = 0,
+                          local: bool = False) -> str:
+        """`₹5,00,000 (5 lakh)` where the pack uses Indian grouping."""
+        rendered = self.format(amount, places=places, local=local)
+        unit = self.local_units(amount)
+        return f"{rendered} ({unit})" if unit is not None else rendered
 
     def millions(self, amount: Any) -> str:
         """`S$1 million`, `S$10 million`, `S$1.5 million` — the way a statute's ceiling is
@@ -618,12 +662,75 @@ def symbol_for(code: str) -> str:
     return c.symbol if c is not None else f"{code} "
 
 
-def format_money(amount: Any, code: str, *, places: int = 0, local: bool = False) -> str:
+def format_money(amount: Any, code: str, *, places: int = 0, local: bool = False,
+                 with_local_units: bool = False) -> str:
     c = currency(code)
     if c is None:
         value = amount if isinstance(amount, Decimal) else Decimal(str(amount))
         return f"{code} {format(value, f',.{int(places)}f')}"
+    if with_local_units:
+        return c.format_with_units(amount, places=places, local=local)
     return c.format(amount, places=places, local=local)
+
+
+@lru_cache(maxsize=64)
+def _holiday_dates(country: str, year: int):
+    """The configured country calendar for one year, cached without sharing a database.
+
+    The provider is only selected after the jurisdiction pack is selected. This makes an
+    Indian deadline stay Indian even when the server or browser runs in another locale.
+    """
+    try:
+        import holidays
+    except ImportError as exc:  # pragma: no cover - requirements make this a deployment fault
+        raise PackError("working-day arithmetic needs the pinned holidays dependency") from exc
+    try:
+        return holidays.country_holidays(country, years=[year])
+    except (KeyError, NotImplementedError) as exc:
+        raise PackError(f"no holidays calendar is available for {country!r}") from exc
+
+
+def _working_pack(selection: Pack | str) -> Pack:
+    if isinstance(selection, Pack):
+        return selection
+    return pack(str(selection).upper())
+
+
+def _working_calendar(selection: Pack | str) -> Pack:
+    selected = _working_pack(selection)
+    calendar = selected.holiday_calendar
+    if calendar is None or not calendar.wired:
+        raise PackError(f"{selected.code} has no wired working-day calendar")
+    return selected
+
+
+def is_working_day(value: date, selection: Pack | str) -> bool:
+    """Whether a calendar date is a working day under the selected jurisdiction pack."""
+    selected = _working_calendar(selection)
+    if value.weekday() >= 5:
+        return False
+    calendar = selected.holiday_calendar
+    assert calendar is not None  # _working_calendar establishes this invariant.
+    return value not in _holiday_dates(calendar.country, value.year)
+
+
+def add_working_days(start: date, days: int, selection: Pack | str) -> date:
+    """Move forward by a non-negative count of pack-specific working days.
+
+    This has no inferred timeline: callers supply their own sourced number of days. The
+    helper only handles the calendar arithmetic required to apply that number correctly.
+    """
+    if isinstance(days, bool) or not isinstance(days, int) or days < 0:
+        raise PackError("working-day offset must be a non-negative integer")
+    selected = _working_calendar(selection)
+    from datetime import timedelta
+
+    current, remaining = start, days
+    while remaining:
+        current += timedelta(days=1)
+        if is_working_day(current, selected):
+            remaining -= 1
+    return current
 
 
 # ── detection ───────────────────────────────────────────────────────────────

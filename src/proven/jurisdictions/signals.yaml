@@ -36,29 +36,6 @@ countries:
       phone_numbers:
         - '\+60[\s-]?\d'
 
-  - code: IN
-    name: India
-    signals:
-      governing_law:
-        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|subject to)\b[^.;]{0,60}?\blaws? of India\b'
-        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|subject to)\b[^.;]{0,60}?\bIndian [Ll]aw\b'
-      names:
-        - Insurance Regulatory and Development Authority of India
-        - IRDAI
-        - Insurance Ombudsman
-        - Bima Bharosa
-        - Motor Vehicles Act, 1988
-        - Insurance Act, 1938
-      currency_codes: [INR]
-      currency_symbols: ["₹", "Rs."]
-      registration_numbers:
-        # Corporate Identity Number, e.g. "U66010MH2000PLC128403".
-        - '\b[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}\b'
-      postcodes:
-        - '\b(?:Mumbai|New Delhi|Delhi|Bengaluru|Bangalore|Chennai|Kolkata|Hyderabad|Pune|Ahmedabad|Gurugram|Noida)\s*[-,]?\s*\d{6}(?!\d)'
-        - '\bPIN(?: Code)?\s*[:\-]?\s*\d{6}(?!\d)'
-      phone_numbers:
-        - '\+91[\s-]?\d'
 
   - code: HK
     name: Hong Kong
