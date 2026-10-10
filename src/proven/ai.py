@@ -36,11 +36,13 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from . import config
+from . import config, jurisdiction
 from .gates import norm_ws
 from .ingest import page_text
+from .lang.lexicons import en as english_lexicon
 from .retrieval import Hit, Retriever
 
 # Mechanisms the model is permitted to propose. A closed vocabulary, so the model
@@ -446,10 +448,8 @@ def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
                              "passages_used": len(extra)})
 
 
-_OUTCOME_WORDS = re.compile(
-    r"\b(is in breach|has breached|breaches the|void(?:ed)?|will not be paid|"
-    r"claim will fail|is not covered|not covered by|forfeits? cover|denied|"
-    r"you are covered|are covered for|will be paid)\b", re.IGNORECASE)
+_OUTCOME_WORDS = english_lexicon.OUTCOME_PATTERN
+_ADVICE_WORDS = english_lexicon.ADVICE_PATTERN
 
 
 def _asserts_outcome(text: str) -> bool:
@@ -457,6 +457,18 @@ def _asserts_outcome(text: str) -> bool:
     prose. Enforced here because a persuasive sentence is exactly how an adjudicating
     claim would sneak past a rule-level guard."""
     return bool(_OUTCOME_WORDS.search(text or ""))
+
+
+def _asserts_advice(text: str) -> bool:
+    """Future language-model paths use the same per-language advice boundary."""
+    return bool(_ADVICE_WORDS.search(text or ""))
+
+
+def _sgd(value: object) -> str:
+    try:
+        return jurisdiction.format_money(Decimal(str(value)), "SGD")
+    except (InvalidOperation, TypeError, ValueError):
+        return str(value or "")
 
 
 def _deterministic_explanation(finding: dict) -> str:
@@ -600,8 +612,8 @@ def _deterministic_answer(question: str, brief: dict, score: Optional[dict],
                 return (f"On the documents provided, cover sits at "
                         f"{detail['adequacy_ratio']} of the value at risk. The engine "
                         f"illustrates a reduced settlement of "
-                        f"S${detail.get('illustration', '?')} on an assessed loss of "
-                        f"S${detail.get('loss', '?')}. That is an illustration, not "
+                        f"{_sgd(detail.get('illustration', '?'))} on an assessed loss of "
+                        f"{_sgd(detail.get('loss', '?'))}. That is an illustration, not "
                         f"the amount payable — this policy states the trigger but not "
                         f"the formula.")
         return ("No adequacy shortfall was computed from the documents provided. "

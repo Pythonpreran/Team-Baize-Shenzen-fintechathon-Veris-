@@ -57,13 +57,14 @@ jobs:
       - name: Scan for secrets, forbidden files and forbidden strings
         run: python scripts/scan_repo.py
 
-      - name: Check the front end parses
+      - name: Check the front end parses and translations are complete
         run: |
           set -e
           for f in web/*.js web/landing/*.js; do
             echo "node --check $f"
             node --check "$f"
           done
+          python scripts/check_i18n.py
 
       # ── the corpus ───────────────────────────────────────────────────────
       # ATTEMPTED, NOT REQUIRED. The documents are third-party publications that cannot

@@ -19,7 +19,14 @@
 // rather than in the URL because the app has no router — nav8() sets S.view and
 // re-renders — and inventing one here would be a larger change than the sidebar
 // collapse it exists to serve.
-const S = { user: null, view: null, data: {}, tab: {} };
+const LOCALE_STORAGE_KEY = "veris_locale";
+const PSEUDO_LOCALE = "pseudo";
+const S = {
+  user: null, view: null, data: {}, tab: {},
+  locale: (() => {
+    try { return localStorage.getItem(LOCALE_STORAGE_KEY) || "en"; } catch (_) { return "en"; }
+  })(),
+};
 // Set when the built-in example bundle is loaded, so the Overview can keep saying the
 // business is fictional even though the files were genuinely uploaded.
 const EXAMPLE_FLAG = "veris_example_loaded";
@@ -33,9 +40,110 @@ const WORDING_NOTICE_KEY = "veris_example_wording_notice";
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = v => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const money = v => { const n = Number(v); return isNaN(n) ? (v ?? "") : "S$" + n.toLocaleString("en-SG", { maximumFractionDigits: 0 }); };
 const pct = v => v == null ? "—" : String(v).includes("%") ? v : v + "%";
 const titleCase = s => String(s || "").toLowerCase().split(/[_\s]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+
+const I18N = { en: {} };
+const I18N_PATH = "/static/i18n/en.json";
+
+function _message(key) {
+  return String(key).split(".").reduce((value, part) =>
+    value && typeof value === "object" ? value[part] : undefined, I18N.en);
+}
+
+function _pseudo(value) {
+  const accent = {
+    a: "à", b: "ƀ", c: "ç", d: "ď", e: "ë", f: "ƒ", g: "ğ", h: "ħ", i: "ï",
+    j: "ĵ", k: "ķ", l: "ľ", m: "ṁ", n: "ñ", o: "ô", p: "þ", q: "ɋ", r: "ř",
+    s: "š", t: "ŧ", u: "ü", v: "ṽ", w: "ŵ", x: "ẋ", y: "ÿ", z: "ž",
+    A: "À", B: "Ƀ", C: "Ç", D: "Ď", E: "Ë", F: "Ƒ", G: "Ğ", H: "Ħ", I: "Ï",
+    J: "Ĵ", K: "Ķ", L: "Ľ", M: "Ṁ", N: "Ñ", O: "Ô", P: "Þ", Q: "Ɋ", R: "Ř",
+    S: "Š", T: "Ŧ", U: "Ü", V: "Ṽ", W: "Ŵ", X: "Ẋ", Y: "Ÿ", Z: "Ž",
+  };
+  return String(value).replace(/\{[^}]+\}|[A-Za-z]/g, token =>
+    token.startsWith("{") ? token : (accent[token] || token));
+}
+
+function t(key, params = {}) {
+  const raw = _message(key);
+  if (typeof raw !== "string") return key;
+  const forms = raw.split(" | ");
+  const selected = forms.length > 1 && Object.hasOwn(params, "count")
+    ? forms[Number(params.count) === 1 ? 0 : 1] : forms[0];
+  const template = S.locale === PSEUDO_LOCALE ? _pseudo(selected) : selected;
+  return template.replace(/\{([A-Za-z0-9_]+)\}/g, (_match, name) =>
+    params[name] == null ? `{${name}}` : String(params[name]));
+}
+
+function setLocale(locale) {
+  S.locale = locale === PSEUDO_LOCALE ? PSEUDO_LOCALE : "en";
+  try { localStorage.setItem(LOCALE_STORAGE_KEY, S.locale); } catch (_) { /* unavailable */ }
+  document.documentElement.lang = S.locale === PSEUDO_LOCALE ? "en-x-pseudo" : "en";
+  render();
+}
+
+function languageSelector() {
+  return `<label class="language-picker" for="language-picker">${esc(t("shell.language"))}
+    <select id="language-picker" data-act="set-locale" aria-label="${esc(t("shell.language"))}">
+      <option value="en"${S.locale === "en" ? " selected" : ""}>${esc(t("locale.english"))}</option>
+      <option value="${PSEUDO_LOCALE}"${S.locale === PSEUDO_LOCALE ? " selected" : ""}>${esc(t("locale.pseudo"))}</option>
+    </select></label>`;
+}
+
+async function loadI18n() {
+  try {
+    const response = await fetch(I18N_PATH, { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`translation catalogue HTTP ${response.status}`);
+    I18N.en = await response.json();
+  } catch (error) {
+    console.error("Unable to load the English translation catalogue.", error);
+  }
+  document.documentElement.lang = S.locale === PSEUDO_LOCALE ? "en-x-pseudo" : "en";
+}
+
+const I18N_READY = loadI18n();
+window.verisI18nReady = I18N_READY;
+
+const POLICY_FORMATS = {
+  SG: { locale: "en-SG", currency: "SGD", symbol: "S$" },
+  SGD: { locale: "en-SG", currency: "SGD", symbol: "S$" },
+  IN: { locale: "en-IN", currency: "INR", symbol: "₹" },
+  INR: { locale: "en-IN", currency: "INR", symbol: "₹" },
+};
+
+function policyCountry(country) {
+  const explicit = String(country || "").toUpperCase();
+  if (explicit === "GENERIC") return "";
+  if (explicit) return explicit;
+  const selected = String(S.policyCountry || "").toUpperCase();
+  if (selected === "GENERIC") return "";
+  // The legacy SME workspace has only Singapore policy data. T06 passes each policy's
+  // country explicitly, so this compatibility default cannot label a new generic policy.
+  return selected || "SG";
+}
+
+function policyFormat(country) {
+  return POLICY_FORMATS[policyCountry(country)] || null;
+}
+
+function money(value, country) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return value ?? "";
+  const format = policyFormat(country);
+  const locale = format?.locale || "en-US";
+  const body = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(amount);
+  return format ? format.symbol + body : body;
+}
+
+function formatPolicyDate(value, country) {
+  if (!value) return "";
+  const raw = String(value);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat(policyFormat(country)?.locale || "en-US", {
+    day: "numeric", month: "long", year: "numeric",
+  }).format(date);
+}
 
 /* ── Event delegation ─────────────────────────────────────────────────────
  *
@@ -57,6 +165,7 @@ const titleCase = s => String(s || "").toLowerCase().split(/[_\s]+/).filter(Bool
  */
 const ACTIONS = {
   nav: arg => nav8(arg),
+  "set-locale": (_arg, el) => setLocale(el.value),
   logout: () => logout(),
   "delete-case": () => deleteCase(),
   "export-record": () => exportRecord(),
@@ -168,15 +277,17 @@ window.addEventListener("popstate", () => {
   render();
 });
 
-document.addEventListener("click", ev => {
+function dispatchAction(ev) {
   const el = ev.target.closest("[data-act]");
   if (!el) return;
-
   const handler = ACTIONS[el.dataset.act];
   if (!handler) return;
   ev.preventDefault();
   handler(el.dataset.arg, el);
-});
+}
+
+document.addEventListener("click", dispatchAction);
+document.addEventListener("change", dispatchAction);
 
 /* ══════════════════════════════════════════════════════════════════════════
    VISUAL COMPONENTS
@@ -1679,20 +1790,29 @@ function renderLogin() {
 /* ── Shell ────────────────────────────────────────────────────────────── */
 
 function shell(role, nav) {
-  const roleLabel = { SME: "Business Owner", ADVISER: "Licensed Adviser", CARRIER: "Carrier Underwriter" }[role] || role;
+  const roleLabel = {
+    SME: t("shell.role.SME"),
+    ADVISER: t("shell.role.ADVISER"),
+    CARRIER: t("shell.role.CARRIER"),
+  }[role] || role;
+  const user = S.user || {};
   let navHtml = "";
   nav.forEach(s => {
-    if (s.section) { navHtml += `<div class="nav-section-title">${s.section}</div>`; return; }
+    if (s.section) {
+      navHtml += `<div class="nav-section-title">${esc(s.section)}</div>`;
+      return;
+    }
     const active = S.view === s.id ? "active" : "";
-    const badge = s.badge ? `<span class="badge-count">${s.badge}</span>` : "";
-    navHtml += `<div class="nav-item ${active}" data-v="${s.id}"><span class="icon">${s.icon}</span>${s.label}${badge}</div>`;
+    const badge = s.badge ? `<span class="badge-count">${esc(s.badge)}</span>` : "";
+    navHtml += `<button type="button" class="nav-item ${active}" data-act="nav"
+      data-v="${esc(s.id)}" data-arg="${esc(s.id)}"${active ? ' aria-current="page"' : ""}>
+      <span class="icon" aria-hidden="true">${s.icon}</span>${esc(s.label)}${badge}</button>`;
   });
   $("#app").innerHTML = `<div class="shell"><aside class="sidebar">
     <div class="sidebar-head"><h2>VERIS</h2><span class="badge">${esc(roleLabel)}</span></div>
-    <nav class="sidebar-nav">${navHtml}</nav>
-    <div class="sidebar-foot"><div class="name">${esc(S.user.name || S.user.email)}</div><div class="org">${esc(S.user.organisation_name || "")}</div><button class="btn btn-secondary btn-sm" data-act="switch-role" title="Keeps the case and its disclosures on the server, so the next role can review it">Switch Role</button><button class="btn btn-ghost btn-sm" data-act="logout" title="Signs out AND drops the case from the server">Sign Out</button><button class="btn btn-ghost btn-sm" data-act="tour-start" title="Replay the guided walkthrough of this workspace">Take the tour</button></div>
+    <nav class="sidebar-nav" aria-label="${esc(roleLabel)}">${navHtml}</nav>
+    <div class="sidebar-foot"><div class="name">${esc(user.name || user.email || "")}</div><div class="org">${esc(user.organisation_name || "")}</div>${languageSelector()}<button class="btn btn-secondary btn-sm" data-act="switch-role" title="${esc(t("shell.switch_role_title"))}">${esc(t("shell.switch_role"))}</button><button class="btn btn-ghost btn-sm" data-act="logout" title="${esc(t("shell.sign_out_title"))}">${esc(t("shell.sign_out"))}</button><button class="btn btn-ghost btn-sm" data-act="tour-start" title="${esc(t("shell.take_tour_title"))}">${esc(t("shell.take_tour"))}</button></div>
   </aside><main class="main" id="main"></main></div>`;
-  $$(".nav-item").forEach(n => n.onclick = () => nav8(n.dataset.v));
   // Offered after the shell exists so the invitation has something to point at, and only
   // once per role — see tourInvite(). Never while a tour is already running, which would
   // otherwise re-invite on every step that navigates.
@@ -1743,7 +1863,7 @@ function paintUnreadBadge() {
   const badge = document.createElement("span");
   badge.className = "badge-count";
   badge.textContent = String(S.unread);
-  badge.setAttribute("aria-label", `${S.unread} unread`);
+  badge.setAttribute("aria-label", t("shell.unread", { count: S.unread }));
   item.appendChild(badge);
 }
 
@@ -1765,20 +1885,20 @@ function renderSME() {
   // then the sequence that got you here, then what to do, then what we watch, then the
   // documents that would improve all of it.
   shell("SME", [
-    { section: "My business" },
-    { id: "sme-home", label: "Overview", icon: "◈" },
-    { id: "sme-position", label: "Your position", icon: "◉" },
-    { id: "sme-alerts", label: "What's new", icon: "◍", badge: S.unread || 0 },
-    { section: "Where I stand" },
-    { id: "sme-protect-hub", label: "Protection", icon: "◆" },
-    { id: "sme-time-hub", label: "Timeline", icon: "⧗" },
-    { id: "sme-act-hub", label: "What to do", icon: "→" },
-    { section: "Behind the scenes" },
-    { id: "sme-mon-hub", label: "Monitoring", icon: "◎" },
-    { id: "sme-docs-hub", label: "Documents", icon: "▤" },
-    { section: "Your control" },
-    { id: "sme-consent", label: "Share with adviser", icon: "↦" },
-    { id: "sme-record", label: "Your record", icon: "▣" },
+    { section: t("nav.sme.my_business") },
+    { id: "sme-home", label: t("nav.sme.overview"), icon: "◈" },
+    { id: "sme-position", label: t("nav.sme.your_position"), icon: "◉" },
+    { id: "sme-alerts", label: t("nav.sme.whats_new"), icon: "◍", badge: S.unread || 0 },
+    { section: t("nav.sme.where_i_stand") },
+    { id: "sme-protect-hub", label: t("nav.sme.protection"), icon: "◆" },
+    { id: "sme-time-hub", label: t("nav.sme.timeline"), icon: "⧗" },
+    { id: "sme-act-hub", label: t("nav.sme.what_to_do"), icon: "→" },
+    { section: t("nav.sme.behind_the_scenes") },
+    { id: "sme-mon-hub", label: t("nav.sme.monitoring"), icon: "◎" },
+    { id: "sme-docs-hub", label: t("nav.sme.documents"), icon: "▤" },
+    { section: t("nav.sme.your_control") },
+    { id: "sme-consent", label: t("nav.sme.share_with_adviser"), icon: "↦" },
+    { id: "sme-record", label: t("nav.sme.your_record"), icon: "▣" },
   ]);
   const m = $("#main");
   const views = {
@@ -2151,6 +2271,7 @@ async function smeHome(el) {
     api("/api/brief"), api("/api/score"), api("/api/signals"), api("/api/sentinel"),
     api("/api/notifications"), api("/api/blindspots"), api("/api/gap-summary"),
   ]);
+  S.policyCountry = brief?.jurisdiction?.pack || brief?.jurisdiction?.detected || null;
   const findings = brief.findings || [];
   const byState = brief.summary?.by_state || {};
   const byClass = brief.summary?.by_class || {};
@@ -2531,28 +2652,29 @@ function jurisdictionPanel(j) {
   const against = (j.reasons || []).filter(r => r.direction !== "for");
   const reasonItem = r => r.signal
     ? `<li><b>${esc(r.signal_label || r.signal)}</b> “${esc(r.matched || "")}”
-        <span class="text-muted">— ${esc(r.document || "")}, page ${esc(r.page)}${
-          r.country_name ? ` · points to ${esc(r.country_name)}` : ""}</span></li>`
+        <span class="text-muted">— ${esc(r.document || "")}, ${esc(t("jurisdiction.page", { page: r.page }))}${
+          r.country_name ? ` · ${esc(t("jurisdiction.points_to", { country: r.country_name }))}` : ""}</span></li>`
     : `<li>${esc(r.statement || "")}</li>`;
   const notApplied = j.rules_not_applied || [];
   const confidence = String(j.confidence || "").toLowerCase();
   // GENERIC is a safety fallback, not a country pack. Keep the warning branch even if a
   // malformed response incorrectly marks it available.
   const packAvailable = j.pack !== "GENERIC" && j.pack_available === true;
-  return `<div class="card mb-16" role="region" aria-label="Which country's law applies">
-    <div class="card-head"><h3>Which country's law applies</h3>
+  return `<div class="card mb-16" role="region" aria-label="${esc(t("jurisdiction.region"))}">
+    <div class="card-head"><h3>${esc(t("jurisdiction.title"))}</h3>
       <span class="tag ${packAvailable ? "tag-info" : "tag-REVIEW"}">${packAvailable
-        ? `${esc(j.pack_name)} pack` : "No jurisdiction pack"}</span>
-      ${confidence ? `<span class="tag">${esc(confidence)} confidence</span>` : ""}</div>
+        ? esc(t("jurisdiction.available_pack", { name: j.pack_name || j.pack }))
+        : esc(t("jurisdiction.no_pack"))}</span>
+      ${confidence ? `<span class="tag">${esc(t("jurisdiction.confidence", { confidence }))}</span>` : ""}</div>
     ${j.notice
       ? `<div class="insight warn"><div class="insight-text">${esc(j.notice)}</div></div>`
       : `<p class="text-sm">${esc(j.summary || "")}</p>`}
-    <details class="v-details"><summary>Why we read it this way</summary>
-      ${forCountry.length ? `<p class="text-xs text-muted mt-8">Pointing to ${esc(j.detected_name || j.leading || "the country")}:</p>
+    <details class="v-details"><summary>${esc(t("jurisdiction.why"))}</summary>
+      ${forCountry.length ? `<p class="text-xs text-muted mt-8">${esc(t("jurisdiction.points_to", { country: j.detected_name || j.leading || "" }))}</p>
         <ul class="text-sm">${forCountry.map(reasonItem).join("")}</ul>` : ""}
-      ${against.length ? `<p class="text-xs text-muted mt-8">Pointing elsewhere, or missing:</p>
+      ${against.length ? `<p class="text-xs text-muted mt-8">${esc(t("jurisdiction.points_elsewhere"))}</p>
         <ul class="text-sm">${against.map(reasonItem).join("")}</ul>` : ""}
-      ${notApplied.length ? `<p class="text-xs text-muted mt-8">Not applied to these documents:</p>
+      ${notApplied.length ? `<p class="text-xs text-muted mt-8">${esc(t("jurisdiction.not_applied"))}</p>
         <ul class="text-sm">${notApplied.map(r => `<li>${esc(r.title || r.rule_id)}
           <span class="text-muted">— ${esc(r.reason || "")}</span></li>`).join("")}</ul>` : ""}
     </details>
@@ -4622,14 +4744,14 @@ async function advNote(el) {
 function renderAdviser() {
   if (!S.view || !S.view.startsWith("adv")) S.view = "adv-queue";
   shell("ADVISER", [
-    { section: "Cases" },
-    { id: "adv-queue", label: "Review Queue", icon: "≡" },
-    { id: "adv-review", label: "Current Review", icon: "▣" },
-    { section: "Act on it" },
-    { id: "adv-actions", label: "Requests to action", icon: "→" },
-    { id: "adv-requests", label: "Information Requests", icon: "?" },
-    { section: "Your record" },
-    { id: "adv-note", label: "File note", icon: "▤" },
+    { section: t("nav.adviser.cases") },
+    { id: "adv-queue", label: t("nav.adviser.review_queue"), icon: "≡" },
+    { id: "adv-review", label: t("nav.adviser.current_review"), icon: "▣" },
+    { section: t("nav.adviser.act_on_it") },
+    { id: "adv-actions", label: t("nav.adviser.requests_to_action"), icon: "→" },
+    { id: "adv-requests", label: t("nav.adviser.information_requests"), icon: "?" },
+    { section: t("nav.adviser.your_record") },
+    { id: "adv-note", label: t("nav.adviser.file_note"), icon: "▤" },
   ]);
   const m = $("#main");
   const advViews = { "adv-queue": advQueue, "adv-review": advReview,
@@ -5047,19 +5169,19 @@ function renderCarrier() {
   // because "what should I look at now" is the only question they open the tool with.
   // The read-only portfolio screens keep their place below; nothing was removed.
   shell("CARRIER", [
-    { section: "My work" },
-    { id: "car-triage", label: "Work queue", icon: "≡" },
-    { id: "car-inbox", label: "Needs attention", icon: "◍" },
-    { id: "car-decisions", label: "Decision log", icon: "▤" },
-    { section: "The book" },
-    { id: "car-analyses", label: "Coverage Gap Analysis", icon: "▣" },
-    { id: "car-patterns", label: "Book patterns", icon: "⧉" },
-    { id: "car-portfolio", label: "Overview", icon: "◈" },
-    { id: "car-premium", label: "Premium at risk", icon: "⚠" },
-    { id: "car-matrix", label: "Attention Matrix", icon: "▦" },
-    { id: "car-accounts", label: "Priority accounts", icon: "◉" },
-    { section: "Ask the book" },
-    { id: "car-ask", label: "Book copilot", icon: "✦" },
+    { section: t("nav.carrier.my_work") },
+    { id: "car-triage", label: t("nav.carrier.work_queue"), icon: "≡" },
+    { id: "car-inbox", label: t("nav.carrier.needs_attention"), icon: "◍" },
+    { id: "car-decisions", label: t("nav.carrier.decision_log"), icon: "▤" },
+    { section: t("nav.carrier.the_book") },
+    { id: "car-analyses", label: t("nav.carrier.coverage_gap_analysis"), icon: "▣" },
+    { id: "car-patterns", label: t("nav.carrier.book_patterns"), icon: "⧉" },
+    { id: "car-portfolio", label: t("nav.carrier.overview"), icon: "◈" },
+    { id: "car-premium", label: t("nav.carrier.premium_at_risk"), icon: "⚠" },
+    { id: "car-matrix", label: t("nav.carrier.attention_matrix"), icon: "▦" },
+    { id: "car-accounts", label: t("nav.carrier.priority_accounts"), icon: "◉" },
+    { section: t("nav.carrier.ask_the_book") },
+    { id: "car-ask", label: t("nav.carrier.book_copilot"), icon: "✦" },
   ]);
   const m = $("#main");
   const carViews = {
@@ -5933,7 +6055,7 @@ async function carAccounts(el) {
 }
 
 /* ── Init ─────────────────────────────────────────────────────────────── */
-render();
+I18N_READY.finally(() => render());
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM ELEVATION — INTERACTION LAYER

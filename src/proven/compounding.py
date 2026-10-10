@@ -42,6 +42,12 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Optional
 
+from . import jurisdiction
+
+
+def _money(value: object) -> str:
+    return jurisdiction.format_money(Decimal(str(value)), "SGD")
+
 # ── what kind of change this is ─────────────────────────────────────────────
 BUSINESS_CHANGE = "BUSINESS_CHANGE"
 POLICY_CHANGE = "POLICY_CHANGE"
@@ -259,7 +265,7 @@ def _business_changes(facts, store) -> tuple[list[Change], list[str]]:
             out.append(Change(
                 on=when, kind=BUSINESS_CHANGE,
                 label="You bought equipment",
-                detail=(f"{item} at S${Decimal(str(amount)):,.0f}. New plant raises "
+                detail=(f"{item} at {_money(amount)}. New plant raises "
                         f"the value at risk."),
                 document_kind="SUPPLIER_INVOICE",
                 author_class=getattr(doc, "author_class", "THIRD_PARTY"),
@@ -284,8 +290,8 @@ def _business_changes(facts, store) -> tuple[list[Change], list[str]]:
                 out.append(Change(
                     on=when, kind=BUSINESS_CHANGE,
                     label="Your stock outgrew its sum insured",
-                    detail=(f"Accounts show S${Decimal(str(stock_value)):,.0f} of "
-                            f"stock against S${Decimal(str(stock_si)):,.0f} insured."),
+                    detail=(f"Accounts show {_money(stock_value)} of "
+                            f"stock against {_money(stock_si)} insured."),
                     document_kind=kind, author_class=author,
                     evidence_class=_GRADES_AS.get(author, "DECLARED"),
                     what_would_close_it=(

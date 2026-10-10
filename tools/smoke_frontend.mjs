@@ -3,6 +3,8 @@
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
+const ENGLISH_CATALOGUE = JSON.parse(readFileSync("web/i18n/en.json", "utf8"));
+
 const made = [];
 function el(tag = "div") {
   const node = {
@@ -76,7 +78,13 @@ const sandbox = {
   TextDecoder: class { decode() { return ""; } },
   Blob: class {}, File: class {}, FormData: class { append() {} },
   URL: { createObjectURL: () => "blob:", revokeObjectURL: () => {} },
-  fetch: async (path) => { calls.push(path); throw new Error("network disabled in smoke test"); },
+  fetch: async (path) => {
+    calls.push(path);
+    if (path === "/static/i18n/en.json") {
+      return { status: 200, ok: true, json: async () => ENGLISH_CATALOGUE };
+    }
+    throw new Error("network disabled in smoke test");
+  },
 };
 sandbox.window.location = sandbox.location;
 sandbox.globalThis = sandbox;
@@ -84,6 +92,7 @@ sandbox.globalThis = sandbox;
 const ctx = vm.createContext(sandbox);
 const code = readFileSync("web/app.js", "utf8");
 vm.runInContext(code, ctx, { filename: "app.js" });
+await sandbox.window.verisI18nReady;
 
 const g = ctx;
 const results = [];
@@ -95,6 +104,27 @@ function tryRun(label, fn) {
 // The two unauthenticated entry points, which is where the new work lives.
 tryRun("renderLanding()", () => g.renderLanding());
 tryRun("renderLogin()", () => g.renderLogin());
+tryRun("policy money formatting keeps SGD stable and formats INR locally", () => {
+  if (g.money("60000", "SG") !== "S$60,000") throw new Error("SGD display changed");
+  if (g.money("500000", "IN") !== "₹5,00,000") throw new Error("INR display is not local");
+  if (g.formatPolicyDate("2026-10-19", "IN") !== "19 October 2026")
+    throw new Error("policy date was not formatted");
+});
+tryRun("pseudo locale renders the translated shell while money stays formatted", () => {
+  g.setUser({ role: "SME", name: "Demo", email: "demo@example.test", organisation_name: "Demo" });
+  try {
+    g.setLocale("pseudo");
+    const label = g.t("nav.sme.overview");
+    if (label === "nav.sme.overview") throw new Error("translation catalogue did not load");
+    g.shell("SME", [{ section: g.t("nav.sme.my_business") },
+      { id: "sme-home", label, icon: "◈" }]);
+    if (!doc._app.innerHTML.includes(label)) throw new Error("pseudo navigation did not render");
+    if (!doc._app.innerHTML.includes('data-act="set-locale"')) throw new Error("language switcher missing");
+    if (g.money("60000", "SG") !== "S$60,000") throw new Error("locale changed money display");
+  } finally {
+    g.setLocale("en");
+  }
+});
 
 // The new pure components, called with realistic shapes.
 const score = { overall: 78, status: "Needs attention", assessed_dimensions: 4,

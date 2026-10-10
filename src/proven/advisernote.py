@@ -44,6 +44,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from .lang.lexicons import en as english_lexicon
+
 AI_DRAFT = "AI_DRAFT"
 ADVISER_EDITED = "ADVISER_EDITED"
 ADVISER_APPROVED = "ADVISER_APPROVED"
@@ -58,11 +60,7 @@ STATE_LABELS: dict[str, str] = {
 # Language that turns a note into a coverage opinion. Refused unless it appears inside a
 # verbatim quotation, because a wording that says "not covered" must be quotable — the
 # engine's whole method is to quote the document rather than paraphrase it.
-BANNED: tuple[str, ...] = (
-    "you are covered", "you're covered", "not covered", "no cover",
-    "the insurer will pay", "the insurer won't pay", "the claim will fail",
-    "the claim would fail", "guaranteed", "breach", "violation",
-)
+BANNED: tuple[str, ...] = english_lexicon.NOTE_BANNED_PHRASES
 
 MAX_NOTE = 6000
 
@@ -104,7 +102,7 @@ class Note:
 # ── grounding ───────────────────────────────────────────────────────────────
 
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
-_CLAUSE = re.compile(r"\bcl\.?\s*(\d+(?:\.\d+)*(?:\([a-z0-9]+\))*)", re.I)
+_CLAUSE = english_lexicon.CLAUSE_PATTERNS[0]
 _PAGE = re.compile(r"\bpage\s+(\d+)\b", re.I)
 _RULE_ID = re.compile(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)+\b")
 

@@ -34,6 +34,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional
 
+from . import jurisdiction
+
 # ── bases for every interval bound ──────────────────────────────────────────
 # A bound is only as good as where it came from, so it always says.
 BOUND_EVIDENCED = "EVIDENCED"       # read from a document in this bundle
@@ -220,6 +222,10 @@ def _decimal_str(value: Decimal) -> str:
     return format(quantised, "f")
 
 
+def _money(value: object) -> str:
+    return jurisdiction.format_money(Decimal(str(value)), "SGD")
+
+
 def _build_gap(operand: str, source: _Source, facts: Any) -> _Gap:
     """Price one gap, or declare it unpriceable and say which kind of unpriceable."""
     if source.kind == _STATUTORY:
@@ -358,7 +364,7 @@ def _recommendation(payload: list[dict]) -> str:
     if top["interval"]:
         return (
             f"Obtain: {document}. It would close the widest measured gap — up to "
-            f"S${top['interval']['high']} of exposure currently unestablished — and "
+            f"{_money(top['interval']['high'])} of exposure currently unestablished — and "
             f"would make {top['operand'].replace('_', ' ')} "
             f"{top['becomes_class'].lower()}.")
     return (

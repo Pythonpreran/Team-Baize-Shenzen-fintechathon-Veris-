@@ -42,7 +42,10 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Optional
+
+from . import jurisdiction
 
 # ── provider configuration ───────────────────────────────────────────────────
 
@@ -564,8 +567,8 @@ def _call_model(purpose: str, context: dict, category: str,
 
 def _sgd(v) -> str:
     try:
-        return "S$" + f"{float(v):,.0f}"
-    except (TypeError, ValueError):
+        return jurisdiction.format_money(Decimal(str(v)), "SGD")
+    except (InvalidOperation, TypeError, ValueError):
         return str(v or "")
 
 

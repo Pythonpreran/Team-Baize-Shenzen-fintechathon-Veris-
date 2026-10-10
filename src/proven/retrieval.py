@@ -27,13 +27,13 @@ which mode produced it.
 from __future__ import annotations
 
 import math
-import re
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
 from . import config
+from .lang import tokenizer_for_document, tokenizer_for_query
 
 # Chunking. Policy prose is dense and clause bodies are short, so small chunks with
 # overlap retrieve better than page-sized blocks: a page-level chunk buries the one
@@ -41,16 +41,6 @@ from . import config
 CHUNK_CHARS = 700
 CHUNK_OVERLAP = 140
 MIN_CHUNK_CHARS = 60
-
-_WORD = re.compile(r"[a-z0-9']+")
-
-# Ignored in lexical scoring. Short list on purpose — insurance prose leans on words
-# like "not", "unless" and "any" that a general stop-word list would discard, and
-# those are exactly the words that flip a clause's meaning.
-_STOPWORDS = frozenset("""
-a an and are as at be by for from in is it its of on or that the this to was were
-with will shall may
-""".split())
 
 
 @dataclass
@@ -93,7 +83,12 @@ class Hit:
 
 
 def _tokenise(text: str) -> tuple[str, ...]:
-    return tuple(w for w in _WORD.findall(text.lower()) if w not in _STOPWORDS)
+    """Tokenise a document through the tokenizer selected by its Unicode script."""
+    return tokenizer_for_document(text).tokenize(text)
+
+
+def _tokenise_query(text: str) -> tuple[str, ...]:
+    return tokenizer_for_query(text).tokenize(text)
 
 
 def chunk_page(text: str, *, page_no: int, document_id: str, document_kind: str,
@@ -173,7 +168,7 @@ class _BM25:
         self.avg_len = (sum(len(c.tokens) for c in chunks) / self.n) if chunks else 1.0
 
     def search(self, query: str, top_k: int) -> list[Hit]:
-        terms = _tokenise(query)
+        terms = _tokenise_query(query)
         if not terms or not self.chunks:
             return []
         scored: list[tuple[float, int]] = []

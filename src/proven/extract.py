@@ -29,11 +29,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, Optional
 
 from . import jurisdiction
 from .ingest import DocStore, LoadedDoc
+from .lang import date_parser_for, money_parser_for, money_parser_from_text
 
 STRUCTURED = "STRUCTURED"
 PDF_TEXT = "PDF_TEXT"
@@ -130,86 +131,56 @@ class PolicyFacts:
 
 # ── text helpers ────────────────────────────────────────────────────────────
 
-_MONEY = r"(?:S\$|SGD|\$)?\s*([0-9][0-9,]{2,15}(?:\.[0-9]{2})?)"
-_DATE_PATTERNS = (
-    (re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b"), "ymd"),
-    (re.compile(r"\b(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\b"), "dmy"),
-    (re.compile(r"\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\b"), "dmonthy"),
-)
-_MONTHS = {m: i for i, m in enumerate(
-    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov",
-     "dec"], start=1)}
-
-
-def _to_decimal(raw: str) -> Optional[Decimal]:
-    try:
-        return Decimal(raw.replace(",", "").strip())
-    except (InvalidOperation, AttributeError):
-        return None
-
-
-def _to_date(raw_match: re.Match, kind: str) -> Optional[date]:
-    try:
-        if kind == "ymd":
-            y, m, d = (int(raw_match.group(i)) for i in (1, 2, 3))
-        elif kind == "dmy":
-            d, m, y = (int(raw_match.group(i)) for i in (1, 2, 3))
-        else:
-            d = int(raw_match.group(1))
-            m = _MONTHS.get(raw_match.group(2)[:3].lower(), 0)
-            y = int(raw_match.group(3))
-        return date(y, m, d)
-    except (ValueError, TypeError):
-        return None
-
-
-# Every `find_*` helper returns the needle VERBATIM — stripped at the ends only,
-# never whitespace-normalised. A span is a byte range into the stored page text and
-# the fidelity gate compares it byte-for-byte, so a needle that collapsed a double
-# space is a needle that no longer occurs in the document. That silently turned
-# correctly extracted values into ABSENT facts: "Stock in trade  SGD 100,000" (two
-# spaces, as pypdf emits it) normalised to a string the page did not contain.
-
 
 def _verbatim(segment: str, end: int) -> str:
     return segment[:end].strip()
 
 
-def find_money(pages: list[str], labels: tuple[str, ...],
-               window: int = 90) -> Optional[tuple[Decimal, str, int]]:
-    """First money amount appearing within `window` characters after any label.
-    Returns (amount, the exact matched substring, page_no) so the caller can anchor
-    a span on text that provably exists in the stored page."""
+def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
+                             window: int = 90, *, currency: Optional[str] = "SGD") \
+        -> Optional[tuple[Decimal, str, int, str]]:
+    """Read a labelled amount only when a pack or an explicit document marker identifies
+    its currency. A bare number under an unknown pack is not money evidence."""
+    parser = money_parser_for(currency)
     for page_no, text in enumerate(pages, start=1):
         low = text.lower()
         for label in labels:
             idx = low.find(label.lower())
             while idx >= 0:
                 segment = text[idx:idx + window]
-                m = re.search(_MONEY, segment)
-                if m:
-                    amount = _to_decimal(m.group(1))
-                    if amount is not None:
-                        return amount, _verbatim(segment, m.end()), page_no
+                active = parser or money_parser_from_text(segment)
+                hit = active.locate_money(segment, allow_bare=parser is not None) \
+                    if active is not None else None
+                if hit is not None:
+                    return hit.amount, _verbatim(segment, hit.end), page_no, hit.currency
                 idx = low.find(label.lower(), idx + 1)
     return None
 
 
+def find_money(pages: list[str], labels: tuple[str, ...],
+               window: int = 90, *, currency: Optional[str] = "SGD") \
+        -> Optional[tuple[Decimal, str, int]]:
+    """Compatibility wrapper for callers that only need the amount and its anchor."""
+    hit = find_money_with_currency(pages, labels, window, currency=currency)
+    return None if hit is None else hit[:3]
+
+
 def find_date(pages: list[str], labels: tuple[str, ...],
-              window: int = 90) -> Optional[tuple[date, str, int]]:
-    """First parseable date within `window` characters after any label."""
+              window: int = 90, *, currency: Optional[str] = "SGD") \
+        -> Optional[tuple[date, str, int]]:
+    """First unambiguous English date within `window` characters after any label."""
+    parser = date_parser_for(currency or "SGD")
+    if parser is None:
+        return None
     for page_no, text in enumerate(pages, start=1):
         low = text.lower()
         for label in labels:
             idx = low.find(label.lower())
             while idx >= 0:
                 segment = text[idx:idx + window]
-                for pattern, kind in _DATE_PATTERNS:
-                    m = pattern.search(segment)
-                    if m:
-                        parsed = _to_date(m, kind)
-                        if parsed is not None:
-                            return parsed, _verbatim(segment, m.end()), page_no
+                hit = parser.locate_date(segment)
+                if hit is not None:
+                    return hit.value, _verbatim(segment, hit.end), page_no
                 idx = low.find(label.lower(), idx + 1)
     return None
 
@@ -321,7 +292,8 @@ def _schedule_structured(facts: PolicyFacts, doc: LoadedDoc) -> None:
                         "business_description:"))
 
 
-def _schedule_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
+def _schedule_text(facts: PolicyFacts, doc: LoadedDoc, *,
+                   currency: Optional[str]) -> None:
     """Read a schedule that arrived as a PDF. Conservative by design: a label we do
     not recognise yields no fact, and no fact yields an honest abstention."""
     pages = doc.pages
@@ -334,16 +306,16 @@ def _schedule_text(facts: PolicyFacts, doc: LoadedDoc) -> None:
                                    "buildings")),
         ("deductible", ("deductible", "excess")),
     ):
-        hit = find_money(pages, labels)
+        hit = find_money_with_currency(pages, labels, currency=currency)
         if hit:
-            facts.put(_fact(name, hit[0], doc, hit[1], hit[2], unit="SGD",
+            facts.put(_fact(name, hit[0], doc, hit[1], hit[2], unit=hit[3],
                             source=PDF_TEXT))
 
     for name, labels in (
         ("inception", ("period of insurance", "inception", "from")),
         ("premium_received", ("premium received", "date received", "payment received")),
     ):
-        hit = find_date(pages, labels)
+        hit = find_date(pages, labels, currency=currency)
         if hit:
             facts.put(_fact(name, hit[0], doc, hit[1], hit[2], source=PDF_TEXT))
 
@@ -465,12 +437,14 @@ def _supporting_structured(facts: PolicyFacts, doc: LoadedDoc,
 
 
 def _supporting_text(facts: PolicyFacts, doc: LoadedDoc,
-                     workpass_minimum: Optional[int] = None) -> None:
+                     workpass_minimum: Optional[int] = None,
+                     *, currency: Optional[str] = None) -> None:
     pages, kind = doc.pages, doc.kind
     if kind == "ACCOUNTS":
-        hit = find_money(pages, ("inventory", "stock in trade", "stocks"))
+        hit = find_money_with_currency(pages, ("inventory", "stock in trade", "stocks"),
+                                       currency=currency)
         if hit:
-            facts.put(_fact("stock_value", hit[0], doc, hit[1], hit[2], unit="SGD",
+            facts.put(_fact("stock_value", hit[0], doc, hit[1], hit[2], unit=hit[3],
                             source=PDF_TEXT))
     elif kind == "CPF_RECORD":
         hit = find_int(pages, ("total employees", "number of employees",
@@ -567,10 +541,12 @@ def _supporting_text(facts: PolicyFacts, doc: LoadedDoc,
                 facts.put(_fact("workpass_below_minimum_count", 0, doc,
                                 found[0][1], found[0][2], source=PDF_TEXT))
     elif kind == "SUPPLIER_INVOICE":
-        hit = find_money(pages, ("total", "amount due", "invoice total", "grand total"))
+        hit = find_money_with_currency(
+            pages, ("total", "amount due", "invoice total", "grand total"),
+            currency=currency)
         if hit:
             facts.put(_fact("invoice_equipment_value", hit[0], doc, hit[1], hit[2],
-                            unit="SGD", source=PDF_TEXT))
+                            unit=hit[3], source=PDF_TEXT))
 
 
 def workpass_minimum(pack: "jurisdiction.Pack") -> Optional[int]:
@@ -611,16 +587,21 @@ def extract_facts(store: DocStore,
     if pack is None:
         pack = jurisdiction.assess(store.documents()).pack
     minimum = workpass_minimum(pack)
+    money_currency = pack.currency.code if pack.currency is not None else None
     facts = PolicyFacts()
     for doc in store.documents():
         facts.kinds_present.add(doc.kind)
         structured = bool(doc.data)
         try:
             if doc.kind == "SCHEDULE":
-                (_schedule_structured if structured else _schedule_text)(facts, doc)
+                if structured:
+                    _schedule_structured(facts, doc)
+                else:
+                    _schedule_text(facts, doc, currency=money_currency)
+            elif structured:
+                _supporting_structured(facts, doc, minimum)
             else:
-                (_supporting_structured if structured else _supporting_text)(
-                    facts, doc, minimum)
+                _supporting_text(facts, doc, minimum, currency=money_currency)
         except Exception as exc:
             # Deliberately broad. The input is "whatever documents a small business
             # holds", so the set of ways one can be malformed is open-ended — a

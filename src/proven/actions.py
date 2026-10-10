@@ -40,6 +40,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Iterable, Optional
 
+from . import jurisdiction
+
 # ── what kind of correction is being asked for ───────────────────────────────
 # A closed vocabulary. Each one names a change to the CONTRACT, because that is the only
 # thing that closes a protection gap — a report does not.
@@ -430,6 +432,10 @@ def _fact_value(facts: dict, name: Optional[str]):
     return f.get("value"), f.get("document_kind"), f.get("author_class")
 
 
+def _money(value: Decimal) -> str:
+    return jurisdiction.format_money(value, "SGD")
+
+
 def _exposure(documented: Optional[Decimal], observed: Optional[Decimal],
               interest: str = "") -> tuple[Optional[str], str]:
     """The only arithmetic in this module.
@@ -459,10 +465,10 @@ def _exposure(documented: Optional[Decimal], observed: Optional[Decimal],
                       "establish it is the action.")
     diff = observed - documented
     if diff <= 0:
-        return "0", (f"Observed value S${observed:,.0f} does not exceed the documented "
-                     f"limit S${documented:,.0f}. No shortfall on these figures.")
-    return str(diff), (f"Observed value S${observed:,.0f} less documented limit "
-                       f"S${documented:,.0f} = S${diff:,.0f} above the documented limit. "
+        return "0", (f"Observed value {_money(observed)} does not exceed the documented "
+                     f"limit {_money(documented)}. No shortfall on these figures.")
+    return str(diff), (f"Observed value {_money(observed)} less documented limit "
+                       f"{_money(documented)} = {_money(diff)} above the documented limit. "
                        f"Both figures are cited above; this is the subtraction.")
 
 

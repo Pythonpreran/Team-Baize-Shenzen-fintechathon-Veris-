@@ -91,7 +91,7 @@ a{color:var(--brand);text-decoration:none}
 .sidebar-head .badge{display:inline-block;margin-top:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:4px;background:var(--brand-light);color:var(--brand)}
 .sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto}
 .nav-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-4);padding:4px 12px;margin-bottom:4px;margin-top:12px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--text-3);font-weight:500;font-size:13px;cursor:pointer;transition:all var(--transition);margin-bottom:2px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text-3);font:inherit;font-weight:500;font-size:13px;text-align:left;width:100%;cursor:pointer;transition:all var(--transition);margin-bottom:2px}
 .nav-item:hover{background:var(--surface-alt);color:var(--text)}
 .nav-item.active{background:var(--brand-light);color:var(--brand);font-weight:600}
 .nav-item .icon{width:18px;font-size:14px;text-align:center;flex-shrink:0}
@@ -99,6 +99,8 @@ a{color:var(--brand);text-decoration:none}
 .sidebar-foot{padding:14px 16px;border-top:1px solid var(--border-subtle)}
 .sidebar-foot .name{font-weight:600;font-size:13px;color:var(--text)}
 .sidebar-foot .org{font-size:11px;color:var(--text-4)}
+.language-picker{display:block;margin-top:10px;color:var(--text-4);font-size:11px;font-weight:600}
+.language-picker select{display:block;width:100%;margin-top:4px;padding:5px 7px;border:1px solid var(--border-subtle);border-radius:var(--radius-xs);background:var(--surface);color:var(--text);font:inherit}
 .sidebar-foot .btn{margin-top:8px;width:100%}
 .main{flex:1;margin-left:var(--nav-w);padding:28px 36px;max-width:1140px}
 .page-title{margin-bottom:24px}

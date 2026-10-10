@@ -59,6 +59,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from . import jurisdiction
+
 DISCLAIMER = ("Deterministic illustration — not a quotation and not advice on what to "
               "buy. Sizing a business interruption sum insured is a licensed adviser's "
               "determination.")
@@ -113,6 +115,10 @@ _TWO = Decimal("0.01")
 
 def _q(amount: Decimal) -> Decimal:
     return amount.quantize(_TWO, rounding=ROUND_HALF_UP)
+
+
+def _money(amount: Decimal) -> str:
+    return jurisdiction.format_money(amount, "SGD")
 
 
 def _operand(facts, name: str) -> Optional[dict]:
@@ -395,10 +401,10 @@ def assess(case: dict) -> dict:
                     headline=(f"Business interruption sum insured is {adequacy}% of the "
                               f"gross profit it needs to cover."),
                     detail=(
-                        f"The section is insured for S${_q(si)} over {chosen_months} "
-                        f"months. Annual gross profit on record is S${_q(gp)}, so the "
+                        f"The section is insured for {_money(_q(si))} over {chosen_months} "
+                        f"months. Annual gross profit on record is {_money(_q(gp))}, so the "
                         f"gross profit exposed across the indemnity period is "
-                        f"S${required} — a shortfall of S${shortfall}. Where a BI sum "
+                        f"{_money(required)} — a shortfall of {_money(shortfall)}. Where a BI sum "
                         "insured is short, average reduces the claim proportionately "
                         "however carefully the original forecast was prepared."),
                     basis="COMPUTED",

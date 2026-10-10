@@ -1,0 +1,76 @@
+{
+  "locale": {
+    "english": "English",
+    "pseudo": "Pseudo-locale"
+  },
+  "shell": {
+    "role": {
+      "SME": "Business Owner",
+      "ADVISER": "Licensed Adviser",
+      "CARRIER": "Carrier Underwriter"
+    },
+    "language": "Language",
+    "switch_role": "Switch role",
+    "switch_role_title": "Keep the case and its disclosures on the server, so the next role can review it",
+    "sign_out": "Sign out",
+    "sign_out_title": "Sign out and remove the case from the server",
+    "take_tour": "Take the tour",
+    "take_tour_title": "Replay the guided walkthrough of this workspace",
+    "unread": "{count} unread item | {count} unread items"
+  },
+  "nav": {
+    "sme": {
+      "my_business": "My business",
+      "overview": "Overview",
+      "your_position": "Your position",
+      "whats_new": "What's new",
+      "where_i_stand": "Where I stand",
+      "protection": "Protection",
+      "timeline": "Timeline",
+      "what_to_do": "What to do",
+      "behind_the_scenes": "Behind the scenes",
+      "monitoring": "Monitoring",
+      "documents": "Documents",
+      "your_control": "Your control",
+      "share_with_adviser": "Share with adviser",
+      "your_record": "Your record"
+    },
+    "adviser": {
+      "cases": "Cases",
+      "review_queue": "Review queue",
+      "current_review": "Current review",
+      "act_on_it": "Act on it",
+      "requests_to_action": "Requests to action",
+      "information_requests": "Information requests",
+      "your_record": "Your record",
+      "file_note": "File note"
+    },
+    "carrier": {
+      "my_work": "My work",
+      "work_queue": "Work queue",
+      "needs_attention": "Needs attention",
+      "decision_log": "Decision log",
+      "the_book": "The book",
+      "coverage_gap_analysis": "Coverage gap analysis",
+      "book_patterns": "Book patterns",
+      "overview": "Overview",
+      "premium_at_risk": "Premium at risk",
+      "attention_matrix": "Attention matrix",
+      "priority_accounts": "Priority accounts",
+      "ask_the_book": "Ask the book",
+      "book_copilot": "Book copilot"
+    }
+  },
+  "jurisdiction": {
+    "region": "Jurisdiction assessment",
+    "title": "Which country's law applies",
+    "available_pack": "{name} pack",
+    "no_pack": "No jurisdiction pack",
+    "confidence": "{confidence} confidence",
+    "why": "Why we read it this way",
+    "points_to": "Pointing to {country}:",
+    "points_elsewhere": "Pointing elsewhere, or missing:",
+    "not_applied": "Not applied to these documents:",
+    "page": "page {page}"
+  }
+}

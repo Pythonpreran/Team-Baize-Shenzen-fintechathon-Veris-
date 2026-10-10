@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from . import jurisdiction
+
 DISCLAIMER = "Deterministic illustration — not a guaranteed claim payout."
 ORDER_APPLIED = ("sum insured cap → peril sub-limit → average clause → deductible")
 
@@ -52,6 +54,10 @@ _TWO = Decimal("0.01")
 
 def _q(amount: Decimal) -> Decimal:
     return amount.quantize(_TWO, rounding=ROUND_HALF_UP)
+
+
+def _money(amount: object) -> str:
+    return jurisdiction.format_money(Decimal(str(amount)), "SGD")
 
 
 @dataclass
@@ -252,9 +258,9 @@ def simulate(case: dict, peril: str = "fire",
         "headline": {
             "owner_absorbs": w["owner_shortfall"],
             "insurer_illustration": w["final_illustration"],
-            "statement": (f"On a {peril} loss of S${w['loss']}, this illustration has "
-                          f"the insurer paying S${w['final_illustration']} and the "
-                          f"owner absorbing S${w['owner_shortfall']}."),
+            "statement": (f"On a {peril} loss of {_money(w['loss'])}, this illustration has "
+                          f"the insurer paying {_money(w['final_illustration'])} and the "
+                          f"owner absorbing {_money(w['owner_shortfall'])}."),
         },
         "disclaimer": DISCLAIMER,
         "order_applied": ORDER_APPLIED,
