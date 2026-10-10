@@ -245,6 +245,9 @@ detection:
   registration_numbers:
     # Product UINs start with the regulator marker and retain slash-delimited product parts.
     - '\bIRDAI/[A-Z]{2,5}/[A-Z0-9][A-Z0-9._-]*(?:/[A-Z0-9][A-Z0-9._-]*){2,}\b'
+    # Insurer registration footer: require its printed authority label plus exactly three
+    # digits. A bare number or a longer reference cannot establish the country.
+    - '(?i)\bIRDAI\s+(?:REGN\.?|REG\.?|REGISTRATION)\s*(?:NO\.?|NUMBER)\s*[:#-]?\s*\d{3}\b'
     # Corporate Identity Number, e.g. U66010MH2000PLC128403.
     - '\b[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}\b'
     # PAN, e.g. ABCDE1234F.

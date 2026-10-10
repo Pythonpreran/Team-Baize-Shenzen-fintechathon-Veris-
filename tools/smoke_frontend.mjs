@@ -108,6 +108,9 @@ tryRun("policy money formatting keeps SGD stable and formats INR locally", () =>
   if (g.money("60000", "SG") !== "S$60,000") throw new Error("SGD display changed");
   if (g.money("500000", "IN") !== "₹5,00,000 (5 lakh)")
     throw new Error("INR display is not local with its lakh unit");
+  const precise = g.money("10000000000000001.5", "IN");
+  if (precise !== "₹10,00,00,00,00,00,00,001.5 (1,00,00,00,000.00000015 crore)")
+    throw new Error(`INR precision was lost: ${precise}`);
   if (g.formatPolicyDate("2026-10-19", "IN") !== "19 October 2026")
     throw new Error("policy date was not formatted");
 });

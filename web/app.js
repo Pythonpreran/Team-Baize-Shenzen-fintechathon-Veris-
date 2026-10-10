@@ -126,23 +126,75 @@ function policyFormat(country) {
   return POLICY_FORMATS[policyCountry(country)] || null;
 }
 
-function indianMoneyUnit(amount, format) {
-  if (format?.currency !== "INR" || Math.abs(amount) < 100000) return "";
-  const crore = Math.abs(amount) >= 10000000;
-  const divisor = crore ? 10000000 : 100000;
+function exactDecimal(value) {
+  const raw = typeof value === "string" ? value.trim() : String(value ?? "");
+  const match = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(raw);
+  if (!match) return null;
+  let [, sign, whole, fraction = ""] = match;
+  whole = whole.replace(/^0+(?=\d)/, "");
+  fraction = fraction.replace(/0+$/, "");
+  if (whole === "0" && !fraction) sign = "";
+  return { sign, whole, fraction };
+}
+
+function indianGroups(whole) {
+  if (whole.length <= 3) return whole;
+  const tail = whole.slice(-3);
+  let head = whole.slice(0, -3);
+  const groups = [];
+  while (head) {
+    groups.unshift(head.slice(-2));
+    head = head.slice(0, -2);
+  }
+  return [...groups, tail].join(",");
+}
+
+function indianDecimalText(amount) {
+  return `${amount.sign}${indianGroups(amount.whole)}${amount.fraction ? `.${amount.fraction}` : ""}`;
+}
+
+function atLeastIndianUnit(amount, threshold) {
+  return amount.whole.length > threshold.length
+    || (amount.whole.length === threshold.length && amount.whole >= threshold);
+}
+
+function scaleIndianDecimal(amount, places) {
+  const digits = `${amount.whole}${amount.fraction}`;
+  const point = amount.whole.length - places;
+  let whole;
+  let fraction;
+  if (point <= 0) {
+    whole = "0";
+    fraction = `${"0".repeat(-point)}${digits}`;
+  } else {
+    whole = digits.slice(0, point);
+    fraction = digits.slice(point);
+  }
+  whole = whole.replace(/^0+(?=\d)/, "");
+  return { sign: amount.sign, whole, fraction: fraction.replace(/0+$/, "") };
+}
+
+function indianMoneyUnit(amount) {
+  const crore = atLeastIndianUnit(amount, "10000000");
+  if (!crore && !atLeastIndianUnit(amount, "100000")) return "";
+  const scaled = scaleIndianDecimal(amount, crore ? 7 : 5);
   const unit = crore ? t("currency.crore") : t("currency.lakh");
-  const value = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 })
-    .format(amount / divisor);
-  return ` (${value} ${unit})`;
+  return ` (${indianDecimalText(scaled)} ${unit})`;
+}
+
+function indianMoney(value, format) {
+  const amount = exactDecimal(value);
+  return amount ? format.symbol + indianDecimalText(amount) + indianMoneyUnit(amount) : null;
 }
 
 function money(value, country) {
+  const format = policyFormat(country);
+  if (format?.currency === "INR") return indianMoney(value, format) ?? (value ?? "");
   const amount = Number(value);
   if (!Number.isFinite(amount)) return value ?? "";
-  const format = policyFormat(country);
   const locale = format?.locale || "en-US";
   const body = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(amount);
-  return format ? format.symbol + body + indianMoneyUnit(amount, format) : body;
+  return format ? format.symbol + body : body;
 }
 
 function formatPolicyDate(value, country) {

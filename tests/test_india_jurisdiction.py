@@ -51,6 +51,21 @@ def test_indian_schedule_is_detected_from_uin_and_currency_signals():
     assert jurisdiction.applicable(detected).pack.code == "IN"
 
 
+def test_labeled_indian_insurer_registration_signal_is_conservative():
+    matched = jurisdiction.detect_jurisdiction(_pages(
+        "Insurer registration: IRDAI Regn. No. 151"))
+    assert (matched.code, matched.confidence) == ("IN", "MEDIUM")
+    registration = next(reason for reason in matched.reasons
+                        if reason.get("signal") == "registration_numbers")
+    assert registration["matched"] == "IRDAI Regn. No. 151"
+
+    near_miss = jurisdiction.detect_jurisdiction(_pages(
+        "Insurer registration: IRDAI Regn. No. 1510"))
+    assert (near_miss.code, near_miss.confidence) == (jurisdiction.GENERIC, "LOW")
+    assert all(reason.get("signal") != "registration_numbers"
+               for reason in near_miss.reasons)
+
+
 def test_indian_and_singapore_working_days_use_their_selected_holiday_calendars():
     assert jurisdiction.pack("IN").holiday_calendar.wired is True
     assert jurisdiction.pack("SG").holiday_calendar.wired is True
