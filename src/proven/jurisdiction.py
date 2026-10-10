@@ -649,13 +649,13 @@ def _name_pattern(name: str) -> re.Pattern[str]:
 # applicable law" names no jurisdiction, so it is not contrary evidence.
 #
 # Country references are deliberately case-insensitive: a policy may write `thai law` in
-# running text. The generic-reference prefix is equally deliberate. It excludes phrases
-# such as `laws of the jurisdiction in which it is issued` without making uppercase the
-# proxy for a concrete country name.
+# running text. The generic-reference prefix is equally deliberate. It excludes unnamed
+# phrases such as `laws of the jurisdiction in which it is issued`, while a qualified
+# `State of <name>` remains contrary evidence rather than a generic descriptor.
 _GENERIC_GOVERNING_LAW_REFERENCE = (
     r"(?:(?:the|any|all|this|such)\s+)?"
     r"(?:applicable|governing|relevant|local|prevailing|"
-    r"jurisdiction|country|state|place|territory|land|law|laws)\b"
+    r"jurisdiction|country|state(?!\s+of\s+[A-Za-z])|place|territory|land|law|laws)\b"
 )
 _CONCRETE_JURISDICTION_REFERENCE = (
     rf"(?!{_GENERIC_GOVERNING_LAW_REFERENCE})"

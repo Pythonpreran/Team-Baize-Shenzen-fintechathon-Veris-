@@ -390,6 +390,15 @@ def test_generic_laws_of_jurisdiction_boilerplate_does_not_override_a_supported_
     assert not any(r.get("signal") == "unrecognised_governing_law" for r in d.reasons)
 
 
+def test_a_qualified_state_law_forces_generic_beside_a_supported_clause():
+    d = jurisdiction.detect_jurisdiction(_pages(
+        "This policy is governed by the laws of Singapore.",
+        "Section B is subject to the laws of the State of New York."))
+    assert (d.code, d.confidence, d.leading) == ("GENERIC", "LOW", "SG")
+    foreign = [r for r in d.reasons if r.get("signal") == "unrecognised_governing_law"]
+    assert len(foreign) == 1 and "State of New York" in foreign[0]["matched"]
+
+
 def test_conflicting_governing_law_clauses_force_generic_even_with_other_signals():
     name = next(n for n in jurisdiction.pack("SG").detection.names
                 if not (n.isupper() and len(n) <= 6))
