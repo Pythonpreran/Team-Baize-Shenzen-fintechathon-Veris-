@@ -38,6 +38,7 @@ htmlcov/
 *.pem
 *.key
 *.veris-dev-master-key
+sandbox/*.operations.jsonl
 *_secret*
 *-secret*
 

@@ -274,16 +274,13 @@ class Scheduler:
                         "facts_rejected": 0, "result": f"error: {type(e).__name__}"},
             ))
 
-    def run_discovery_now(self) -> dict:
-        """Run the Discovery check immediately, outside the normal interval.
+    def run_discovery_now(self, *, business_id: Optional[str] = None,
+                          business_name: Optional[str] = None) -> dict:
+        """Run Discovery immediately for one tenant-scoped notification namespace."""
+        return self._run_discovery(business_id=business_id, business_name=business_name)
 
-        This is what a "Check now" button calls. It resets the interval clock so a manual
-        check does not get followed by an automatic one seconds later, and it returns the run
-        it recorded so the caller can show the outcome instead of saying "started".
-        """
-        return self._run_discovery()
-
-    def _observe_and_notify(self, result: dict) -> dict:
+    def _observe_and_notify(self, result: dict, *, business_id: Optional[str] = None,
+                            business_name: Optional[str] = None) -> dict:
         """Compare this look against the previous one and raise anything new.
 
         Kept in its own try/except, separate from the fetch, because these are two different
@@ -293,18 +290,19 @@ class Scheduler:
         record that proves the check actually happened.
         """
         biz = discovery.demo_business()
-        business_id = str(biz.get("uen") or "unknown")
+        watched_business_id = str(business_id or biz.get("uen") or "unknown")
+        watched_business_name = str(business_name or biz.get("name") or "your business")
         try:
             observation = self._watchlist.observe(
-                business_id, result.get("facts") or [])
+                watched_business_id, result.get("facts") or [])
             raised = alerts.raise_alerts(
                 observation,
-                business_id=business_id,
-                business_name=str(biz.get("name") or "your business"),
+                business_id=watched_business_id,
+                business_name=watched_business_name,
                 store=self._notifications)
             email = raised.get("email") or {}
             return {
-                "business_id": business_id,
+                "business_id": watched_business_id,
                 "first_observation": observation["first_observation"],
                 "facts_tracked": observation["facts_tracked"],
                 "previous_check": observation.get("previous_observed_at"),
@@ -322,14 +320,15 @@ class Scheduler:
             }
         except Exception as e:
             return {
-                "business_id": business_id,
+                "business_id": watched_business_id,
                 "error": f"{type(e).__name__}: {e}",
                 "notifications_created": 0,
                 "note": ("The check itself ran. Comparing it against the previous look "
                          "failed, so nothing was raised from this run."),
             }
 
-    def _run_discovery(self) -> dict:
+    def _run_discovery(self, *, business_id: Optional[str] = None,
+                       business_name: Optional[str] = None) -> dict:
         self._last_discovery = time.time()
         t0 = time.time()
         live = config.live_sources_enabled()
@@ -339,7 +338,8 @@ class Scheduler:
             verified = sum(1 for f in facts
                           if f.get("claim_scope") == discovery.DISCOVERY_VERIFIED)
             rejected = sum(1 for f in facts if not f.get("grounded"))
-            watch = self._observe_and_notify(result)
+            watch = self._observe_and_notify(
+                result, business_id=business_id, business_name=business_name)
             raised = int(watch.get("notifications_created") or 0)
             # A run is "elevated" when it found something that stands up, or when it had
             # something new to tell the owner. The second is the stronger signal: a verified

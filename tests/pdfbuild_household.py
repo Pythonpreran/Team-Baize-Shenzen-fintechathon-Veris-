@@ -33,6 +33,7 @@ def singapore_health_schedule_pdf() -> bytes:
         "Singlife Shield Standard Plan schedule reference: ****-ISP2",
         "Period: 1 January 2026 to 31 December 2026",
         "Synthetic schedule sum insured: SGD 1,500,000",
+        "Synthetic separate plan sum insured: SGD 1,000,000",
         "Hospitalisation benefits are listed for both insured members.",
         "Waiting periods, co-payment and exclusions require the policy wording.",
     ]], banner=SYNTHETIC_MARK)
@@ -92,6 +93,7 @@ def india_motor_schedule_pdf() -> bytes:
         "Policy reference: ****-MOTOR7",
         "Policy period: 19 October 2025 to 18 October 2026",
         "Third-party cover expiry: 18 October 2026",
+        "Depreciation schedule: plastic parts 50%; metal parts 10% for a vehicle aged up to five years.",
         "Depreciation, deductibles and conditions require the policy wording.",
     ]], banner=SYNTHETIC_MARK)
 

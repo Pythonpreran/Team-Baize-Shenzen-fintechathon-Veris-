@@ -1,0 +1,74 @@
+[
+  {
+    "evidence": "eval/bench.py canonical.cited_answer",
+    "name": "Cited policy answer",
+    "status": "LOCAL_DETERMINISTIC",
+    "task": 1
+  },
+  {
+    "evidence": "eval/bench.py canonical.honest_abstention",
+    "name": "Honest abstention",
+    "status": "LOCAL_DETERMINISTIC",
+    "task": 2
+  },
+  {
+    "evidence": "tests/test_protection_map_api.py",
+    "name": "Protection map",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 3
+  },
+  {
+    "evidence": "tests/test_health_whatif_api.py",
+    "name": "Health what-if",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 4
+  },
+  {
+    "evidence": "tests/test_claims_api.py",
+    "name": "Start health claim",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 5
+  },
+  {
+    "evidence": "tests/test_demo_spine_e2e.py",
+    "name": "Answer insurer query",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 6
+  },
+  {
+    "evidence": "tests/test_demo_spine_e2e.py",
+    "name": "Settlement correction",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 7
+  },
+  {
+    "evidence": "tests/test_claims.py",
+    "name": "Escalate overdue claim",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 8
+  },
+  {
+    "evidence": "No local trace; human submission should not claim this.",
+    "name": "Renew compulsory motor cover",
+    "status": "NOT_IMPLEMENTED_P1",
+    "task": 9
+  },
+  {
+    "evidence": "tests/test_renewal.py",
+    "name": "Renewal diff",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 10
+  },
+  {
+    "evidence": "No local trace; human submission should not claim this.",
+    "name": "Share and revoke claim file",
+    "status": "NOT_IMPLEMENTED_P1",
+    "task": 11
+  },
+  {
+    "evidence": "tests/test_adviser_actions.py",
+    "name": "SME adviser escalation",
+    "status": "LOCAL_TEST_CONTRACT",
+    "task": 12
+  }
+]

@@ -53,7 +53,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from . import config, llm
+from . import config, llm, security
 
 # ── claim scope: what the Discovery Agent may assert ─────────────────────────
 #
@@ -260,9 +260,10 @@ def fetch_acra_by_name(entity_name: str, limit: int = 5
     import urllib.parse
     url = ACRA_DATASTORE_URL.format(q=urllib.parse.quote(q), limit=int(limit))
     try:
+        security.require_outbound_url(url, purpose="registry lookup")
         req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA,
                                                    "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:  # nosec B310
             raw = resp.read(512_000).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         return [], "", f"HTTP {e.code}: {e.reason}"
@@ -826,7 +827,7 @@ def html_to_text(raw: str) -> str:
     return text.strip()
 
 
-_LOCAL_HOSTS = ("127.0.0.1", "localhost", "0.0.0.0", "[::1]")
+_LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
 
 def _is_local(url: str) -> bool:
@@ -847,8 +848,9 @@ def fetch_url(url: str) -> tuple[bool, str, str]:
     actually goes and looks at the outside world.
     """
     try:
+        security.require_outbound_url(url, purpose="discovery fetch")
         req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:  # nosec B310
             content_type = resp.headers.get("Content-Type", "")
             if "text" not in content_type and "json" not in content_type:
                 return False, "", f"Non-text content type: {content_type}"

@@ -1,0 +1,72 @@
+services:
+  veris:
+    build: .
+    restart: unless-stopped
+    environment:
+      VERIS_MODE: hosted
+      VERIS_PORTFOLIO_DB_PATH: /data/portfolio.sqlite
+      VERIS_AUTH_DB_PATH: /data/auth.sqlite
+      VERIS_REVIEW_DB_PATH: /data/reviewer.sqlite
+      VERIS_MASTER_KEY: ${VERIS_MASTER_KEY:?Set in the deployment secret manager.}
+      VERIS_RECORD_HMAC_KEY: ${VERIS_RECORD_HMAC_KEY:?Set in the deployment secret manager.}
+      VERIS_JUDGE_INVITE_CODES: ${VERIS_JUDGE_INVITE_CODES:?Set one-time invite codes in the deployment secret manager.}
+      VERIS_SANDBOX_URL: http://sandbox:8200
+      VERIS_SANDBOX_CLIENT_ID: ${VERIS_SANDBOX_CLIENT_ID:?Set a generated private sandbox client id in the deployment secret manager.}
+      VERIS_SANDBOX_CLIENT_SECRET: ${VERIS_SANDBOX_CLIENT_SECRET:?Set a generated private sandbox client secret in the deployment secret manager.}
+      VERIS_CORPUS_DIR: /corpus
+      VERIS_LLM_PROFILE: ${VERIS_LLM_PROFILE:-none}
+    volumes:
+      - veris_data:/data
+      - ${VERIS_LOCAL_CORPUS_DIR:?Mount a locally seeded corpus read-only.}:/corpus:ro
+    expose:
+      - "8000"
+    depends_on:
+      - sandbox
+    networks:
+      - hosted_proxy
+      - hosted_sandbox
+
+  sandbox:
+    build: .
+    command: python -m uvicorn sandbox.app:app --host 0.0.0.0 --port 8200
+    restart: unless-stopped
+    environment:
+      VERIS_MODE: hosted
+      VERIS_SANDBOX_DB_PATH: /data/sandbox.sqlite
+      VERIS_SANDBOX_LOG_PATH: /data/operations.jsonl
+      VERIS_SANDBOX_SIGNING_KEY: ${VERIS_SANDBOX_SIGNING_KEY:?Set a generated private sandbox signing key in the deployment secret manager.}
+      VERIS_SANDBOX_CLIENT_ID: ${VERIS_SANDBOX_CLIENT_ID:?Set a generated private sandbox client id in the deployment secret manager.}
+      VERIS_SANDBOX_CLIENT_SECRET: ${VERIS_SANDBOX_CLIENT_SECRET:?Set a generated private sandbox client secret in the deployment secret manager.}
+    volumes:
+      - sandbox_data:/data
+    expose:
+      - "8200"
+    networks:
+      - hosted_sandbox
+
+  reverse-proxy:
+    image: nginx:1.27.4-alpine
+    restart: unless-stopped
+    depends_on:
+      - veris
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${VERIS_TLS_CERT_DIR:?Mount HTTPS certificate and key directory read-only.}:/etc/nginx/tls:ro
+    networks:
+      hosted_proxy:
+        ipv4_address: 172.30.0.2
+
+volumes:
+  veris_data:
+  sandbox_data:
+
+networks:
+  hosted_proxy:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+  hosted_sandbox:
+    internal: true

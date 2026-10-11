@@ -301,6 +301,23 @@ const ACTIONS = {
   "ask-chip": arg => { const d = askFind(arg); if (d) askSend(`Take me to ${d.label}`); },
   "ask-citation": arg => askOpenCitation(arg),
   "ask-citation-close": () => askCloseCitation(),
+  "agent-consent": () => agentGrantConsent(),
+  "agent-confirm": arg => agentConfirm(arg),
+  "agent-mandate-create": () => agentCreateMandate(),
+  "agent-mandate-revoke": arg => agentRevokeMandate(arg),
+  "claim-start": () => claimStart(),
+  "claim-upload": arg => claimUpload(arg),
+  "claim-packet": arg => claimBuildPacket(arg),
+  "claim-ready": arg => claimMarkReady(arg),
+  "claim-submit": arg => claimPrepareSubmit(arg),
+  "claim-query-draft": arg => claimQueryDraft(arg),
+  "claim-query-send": arg => claimPrepareQuerySend(arg),
+  "settlement-check": arg => settlementCheck(arg),
+  "settlement-dispute": arg => settlementPrepareDispute(arg),
+  "settlement-reconcile": arg => settlementReconcile(arg),
+  "motor-depreciation": arg => motorDepreciation(arg),
+  "protection-map-scenario": () => setProtectionScenario(),
+  "life-event": arg => addProtectionEvent(arg),
   /* Landing page: move from marketing to the login form, and jump between sections.
    * `show-login` sets a flag rather than navigating, so the transition needs no round trip
    * and the browser Back button still returns to the landing page. */
@@ -524,8 +541,24 @@ async function getPresentation(purpose, verified_context) {
 
 /* ── API transport ────────────────────────────────────────────────────── */
 
+function csrfToken() {
+  const prefix = "veris_csrf=";
+  const cookie = String(document.cookie || "");
+  return cookie.split(";").map(v => v.trim()).find(v => v.startsWith(prefix))?.slice(prefix.length) || "";
+}
+
+function apiHeaders(headers = {}, method = "GET") {
+  const merged = { ...headers };
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(String(method).toUpperCase())) {
+    const token = csrfToken();
+    if (token) merged["X-CSRF-Token"] = token;
+  }
+  return merged;
+}
+
 async function api(path, opts = {}) {
-  const h = { ...opts.headers };
+  const method = opts.method || "GET";
+  const h = apiHeaders(opts.headers, method);
   if (opts.body && !(opts.body instanceof FormData)) {
     h["Content-Type"] = "application/json";
     opts.body = JSON.stringify(opts.body);
@@ -1249,7 +1282,10 @@ window.tourStart = tourStart;
  * own.
  */
 
-const ASK = { open: false, busy: false, msgs: [], dests: [], route: null, cleanup: null };
+const ASK = {
+  open: false, busy: false, msgs: [], dests: [], route: null, cleanup: null,
+  destinationStatus: "idle", destinationLoad: null,
+};
 
 const ASK_PREFIX = { SME: "sme-", ADVISER: "adv-", CARRIER: "car-" };
 
@@ -1283,26 +1319,47 @@ function askUnmount() {
   ASK.open = false;
   ASK.msgs = [];
   ASK.dests = [];
+  ASK.destinationStatus = "idle";
+  ASK.destinationLoad = null;
 }
 
 /* Suggestion chips come from the server, not from a list in here. The catalogue is filtered
  * by role there, so hardcoding chips would be a second source of truth for the boundary —
- * and the wrong one, because this file cannot see the session. */
+ * and the wrong one, because this file cannot see the session. A request that could name a
+ * screen waits for this catalogue instead of treating an empty in-flight list as evidence
+ * that it is a policy question. */
 async function askLoadDestinations() {
-  if (ASK.dests.length) return;
-  try {
-    const d = await api("/api/assistant/destinations");
-    ASK.dests = (d && d.destinations) || [];
-  } catch { ASK.dests = []; }
+  if (ASK.destinationStatus === "ready" || ASK.dests.length) {
+    ASK.destinationStatus = "ready";
+    return true;
+  }
+  if (ASK.destinationStatus === "failed") return false;
+  if (ASK.destinationLoad) return ASK.destinationLoad;
+  ASK.destinationStatus = "loading";
+  ASK.destinationLoad = api("/api/assistant/destinations")
+    .then(d => {
+      ASK.dests = Array.isArray(d && d.destinations) ? d.destinations : [];
+      ASK.destinationStatus = "ready";
+      return true;
+    })
+    .catch(() => {
+      ASK.dests = [];
+      ASK.destinationStatus = "failed";
+      return false;
+    })
+    .finally(() => { ASK.destinationLoad = null; });
+  return ASK.destinationLoad;
 }
 
 async function askOpen() {
   ASK.open = true;
+  if (ASK.destinationStatus === "failed") ASK.destinationStatus = "idle";
   if (!ASK.msgs.length) {
     ASK.msgs.push({ who: "veris", text: t("ask.greeting") });
   }
+  const destinationLoad = askLoadDestinations();
   askPaint();
-  await askLoadDestinations();
+  await destinationLoad;
   if (ASK.open) askPaint();
 }
 
@@ -1399,11 +1456,12 @@ function askPaint() {
     ${chips && ASK.msgs.length <= 1
       ? `<div class="ask__chips"><div class="ask__chips-k">${esc(t("ask.try"))}</div>
           <div class="ask__chips-r">${chips}</div></div>` : ""}
-    <form class="ask__foot" id="ask-form">
+    <form class="ask__foot" id="ask-form" aria-busy="${ASK.busy || ASK.destinationStatus === "loading"}">
       <input id="ask-input" class="ask__in" type="text" autocomplete="off"
         placeholder="${esc(t("ask.placeholder"))}" aria-label="${esc(t("ask.input_label"))}"
-        maxlength="300">
-      <button class="ask__send" type="submit" aria-label="${esc(t("ask.send"))}">
+        maxlength="300" ${ASK.busy || ASK.destinationStatus === "loading" ? "disabled" : ""}>
+      <button class="ask__send" type="submit" aria-label="${esc(t("ask.send"))}"
+        ${ASK.busy || ASK.destinationStatus === "loading" ? "disabled" : ""}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 8 6 8z"
           fill="currentColor"/></svg></button>
     </form>`;
@@ -1463,6 +1521,18 @@ async function askSend(preset) {
   ASK.msgs.push({ who: "you", text: q });
   ASK.busy = true;
   askPaint();
+  const destinationsReady = await askLoadDestinations();
+  const ambiguousNavigation = ASK_EXPLICIT_NAVIGATION_REQUEST.test(q)
+    && !ASK_SCREEN_REFERENCE.test(q);
+  if (!destinationsReady && ambiguousNavigation) {
+    /* A failed role-scoped catalogue must not turn a complete destination name into an
+     * unrelated policy question. Structural references still go to the server navigator,
+     * which enforces the role boundary independently of this client cache. */
+    ASK.busy = false;
+    ASK.msgs.push({ who: "veris", text: t("ask.destination_unavailable") });
+    askPaint();
+    return;
+  }
   const navigation = askNavigationIntent(q);
   try {
     const a = await api(navigation ? "/api/assistant" : "/api/ai/ask", {
@@ -2085,6 +2155,7 @@ function renderSME() {
   // documents that would improve all of it.
   shell("SME", [
     { id: "sme-portfolio", label: t("nav.sme.portfolio"), icon: "◈" },
+    { id: "sme-protection-map", label: t("protection_map.title"), icon: "⊞" },
     { id: "sme-ask", label: t("nav.sme.ask_veris"), icon: "◌" },
     { id: "sme-claims", label: t("nav.sme.claims"), icon: "✦" },
     { id: "sme-alerts", label: t("nav.sme.tasks_alerts"), icon: "◍", badge: S.unread || 0 },
@@ -2096,6 +2167,7 @@ function renderSME() {
   const m = $("#main");
   const views = {
     "sme-portfolio": smePortfolio,
+    "sme-protection-map": smeProtectionMap,
     "sme-ask": smeAsk,
     "sme-claims": smeClaims,
     // the ten destinations
@@ -2791,7 +2863,8 @@ function planEvidenceControl(policy, item) {
 function planLayoutCard(policy) {
   const coverageItems = Array.isArray(policy.coverage_items) ? policy.coverage_items : [];
   const healthItems = Array.isArray(policy.health_items) ? policy.health_items : [];
-  const items = [...coverageItems, ...healthItems];
+  const motorItems = Array.isArray(policy.motor_items) ? policy.motor_items : [];
+  const items = [...coverageItems, ...healthItems, ...motorItems];
   const mapping = policy.health_mapping || {};
   const period = policy.period || {};
   const start = period.start ? formatPolicyDate(period.start, policy.country) : "";
@@ -2803,6 +2876,16 @@ function planLayoutCard(policy) {
   }))}</p>`;
   const healthNotice = mapping.notice_key
     ? `<p class="portfolio-health-notice">${esc(healthText(mapping.notice_key))}</p>` : "";
+  const repairId = `motor-repair-${String(policy.id || "").replace(/[^A-Za-z0-9_-]/g, "")}`;
+  const motorAlert = policy.motor_alert?.alert ? `<div class="insight ${policy.motor_alert.state === "COMPULSORY_GAP" ? "critical" : "warn"}">
+      <div class="insight-label">${esc(t("motor.alert_title"))}</div><div class="insight-text">${esc(policy.motor_alert.alert)}</div>
+      ${policy.motor_alert.source?.quote ? `<blockquote class="portfolio-evidence__quote">${esc(policy.motor_alert.source.quote)}</blockquote>` : ""}
+      ${policy.motor_alert.penalty == null ? `<p class="text-xs text-muted">${esc(t("motor.no_penalty"))}</p>` : ""}
+      <div class="form-group"><label for="${esc(repairId)}">${esc(t("motor.repair_cost"))}</label>
+        <input id="${esc(repairId)}" inputmode="decimal" maxlength="80"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-act="motor-depreciation" data-arg="${esc(`${policy.id}|${repairId}`)}">${esc(t("motor.depreciation"))}</button>
+      ${S.motorIllustration?.policy_id === policy.id ? `<p class="text-sm">${esc(S.motorIllustration.notice || "")}</p>` : ""}
+    </div>` : "";
   const sections = PLAN_LAYOUT_SECTIONS.map(section => {
     const sectionItems = section.id === "evidence" ? items
       : items.filter(item => portfolioSectionFor(item.mechanism_code) === section.id);
@@ -2838,7 +2921,7 @@ function planLayoutCard(policy) {
       <div><dt>${esc(t("portfolio.header.period"))}</dt><dd>${esc(periodText)}</dd></div>
       <div><dt>${esc(t("portfolio.header.policy"))}</dt><dd>${esc(policy.masked_number || "")}</dd></div>
     </dl>
-    ${generic}${healthNotice}
+    ${generic}${healthNotice}${motorAlert}
     <div class="plan-layout__sections">${sections}</div>
   </article>`;
 }
@@ -2897,14 +2980,335 @@ async function smePortfolio(el) {
       <h2>${esc(t("portfolio.policies"))}</h2>${policies.map(planLayoutCard).join("")}</section>`;
 }
 
+async function smeProtectionMap(el) {
+  el.innerHTML = spinner(t("protection_map.loading"));
+  const scenarioLoss = String(S.protectionScenarioLoss || "").trim();
+  const mapPath = scenarioLoss
+    ? `/api/protection-map?scenario_loss=${encodeURIComponent(scenarioLoss)}` : "/api/protection-map";
+  const [mapped, events] = await Promise.all([
+    api(mapPath), api("/api/protection-map/events"),
+  ]);
+  if (!mapped || !events) return;
+  const cells = mapped.cells || [];
+  const overlaps = mapped.overlaps || [];
+  el.innerHTML = portfolioSyntheticBanner() + pageTitle(t("protection_map.title"), t("protection_map.lead"))
+    + `<div class="card mb-16"><table><thead><tr><th>${esc(t("protection_map.entity"))}</th><th>${esc(t("protection_map.risk"))}</th><th>${esc(t("protection_map.state"))}</th><th>${esc(t("protection_map.why"))}</th></tr></thead><tbody>
+      ${cells.map(cell => `<tr><td>${esc(cell.entity || "")}</td><td>${esc(titleCase(cell.risk || ""))}</td>
+        <td><span class="tag ${cell.state === "COMPULSORY_GAP" ? "tag-danger" : ""}">${esc(cell.state || "")}</span></td>
+        <td class="text-sm">${esc(cell.reason || "")}</td></tr>`).join("")}
+    </tbody></table></div>`
+    + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("protection_map.next_document"))}</h3></div>
+      <p class="text-sm">${esc(mapped.next_document?.document || "")} — ${esc(mapped.next_document?.reason || "")}</p></div>`
+    + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("protection_map.overlaps"))}</h3></div>
+      <div class="form-group"><label for="protection-scenario-loss">${esc(t("protection_map.scenario_loss"))}</label>
+        <input id="protection-scenario-loss" value="${esc(scenarioLoss)}" inputmode="decimal" maxlength="80"></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-act="protection-map-scenario">${esc(t("protection_map.show_scenario"))}</button>
+      <p class="text-xs text-muted">${esc(t("protection_map.scenario_notice"))}</p>
+      ${(overlaps.length ? overlaps.map(overlap => `<div class="text-sm mb-12"><p>${esc(overlap.notice || "")}</p>
+        <ul>${(overlap.illustrations || []).map(row => `<li>${esc(row.policy || "")}: ${esc(row.separate_policy_limit_illustration || "—")}</li>`).join("")}</ul></div>`).join("") : `<p class="text-sm text-muted">—</p>`)}
+    </div>`
+    + `<div class="card"><div class="card-head"><h3>${esc(t("protection_map.life_events"))}</h3></div>
+      <p class="text-sm text-muted">${esc(t("protection_map.event_notice"))}</p>
+      <div class="btn-group">${(events.events || []).map(event => `<button type="button" class="btn btn-ghost btn-sm" data-act="life-event" data-arg="${esc(event.code)}">${esc(event.label || "")}</button>`).join("")}</div></div>`;
+}
+
+function setProtectionScenario() {
+  S.protectionScenarioLoss = $("#protection-scenario-loss")?.value || "";
+  render();
+}
+
+async function addProtectionEvent(code) {
+  try {
+    const event = await api("/api/protection-map/events", { method: "POST", body: { code } });
+    toast(event.label || code);
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
 function smeAsk(el) {
   el.innerHTML = portfolioSyntheticBanner() + pageTitle(t("portfolio.ask_title"), t("portfolio.ask_body"))
     + `<div class="card"><button type="button" class="btn btn-primary" data-act="ask-open">
       ${esc(t("portfolio.ask_launch"))}</button></div>`;
 }
 
-function smeClaims(el) {
-  el.innerHTML = portfolioSyntheticBanner() + pageTitle(t("portfolio.claims_title"), t("portfolio.claims_body"));
+const AGENT_PREVIEW_LABELS = {
+  claim_id: () => t("agent.preview_claim_id"),
+  packet_manifest_sha256: () => t("agent.preview_packet_manifest"),
+  reply_text: () => t("agent.preview_reply_text"),
+  reply_sha256: () => t("agent.preview_reply_hash"),
+  deduction_ids: () => t("agent.preview_deduction_ids"),
+  dispute_text: () => t("agent.preview_dispute_text"),
+  dispute_sha256: () => t("agent.preview_dispute_hash"),
+  invoice_id: () => t("agent.preview_invoice_id"),
+  invoice_payee: () => t("agent.preview_invoice_payee"),
+  invoice_amount: () => t("agent.preview_invoice_amount"),
+  invoice_tenant_id: () => t("agent.preview_invoice_tenant"),
+  policy_id: () => t("agent.preview_policy_id"),
+  ladder_entry_id: () => t("agent.preview_ladder_entry"),
+  deadline_due_at: () => t("agent.preview_deadline"),
+  mandate_id: () => t("agent.preview_mandate_id"),
+  mandate_scope: () => t("agent.preview_mandate_scope"),
+  mandate_per_payment_cap: () => t("agent.preview_mandate_cap"),
+  mandate_payee_allowlist: () => t("agent.preview_mandate_payees"),
+  mandate_valid_until: () => t("agent.preview_mandate_until"),
+  mandate_advance_notice: () => t("agent.preview_mandate_notice"),
+  mandate_status: () => t("agent.preview_mandate_status"),
+};
+
+function agentPreviewLabel(name) {
+  return (AGENT_PREVIEW_LABELS[name] || (() => t("agent.preview_value")))();
+}
+
+function agentPreviewValue(field) {
+  if (field.name !== "mandate_status") return String(field.value || "");
+  return field.value === "MATCHED"
+    ? t("agent.preview_mandate_matched")
+    : t("agent.preview_mandate_missing");
+}
+
+function agentConfirmationPreview(item) {
+  const preview = item?.preview || {};
+  const fields = Array.isArray(preview.fields) ? preview.fields : [];
+  if (preview.tenant_scoped !== true || !preview.canonical_payload || !fields.length) {
+    return `<p class="text-sm text-muted">${esc(t("agent.preview_unavailable"))}</p>`;
+  }
+  const rows = fields.map(field => `<dt class="text-xs text-muted">${esc(agentPreviewLabel(field.name))}</dt>
+      <dd class="text-sm">${esc(agentPreviewValue(field))}</dd>`).join("");
+  return `<section class="agent-confirmation-preview mt-8" aria-label="${esc(t("agent.preview_title"))}">
+      <h4>${esc(t("agent.preview_title"))}</h4>
+      <p class="text-xs text-muted">${esc(t("agent.preview_scope", { tenant: preview.tenant_id || "" }))}</p>
+      <dl>${rows}</dl>
+      <details><summary>${esc(t("agent.preview_canonical"))}</summary>
+        <code class="text-xs">${esc(preview.canonical_payload)}</code></details>
+    </section>`;
+}
+
+async function smeClaims(el) {
+  el.innerHTML = spinner(t("claims.loading"));
+  const [portfolio, claimData, agentStatus, inbox] = await Promise.all([
+    api("/api/portfolio"), api("/api/claims"), api("/api/agent/status"), api("/api/agent/confirmations"),
+  ]);
+  if (!portfolio || !claimData || !agentStatus || !inbox) return;
+  const policies = (portfolio.policies || []).filter(policy =>
+    String(policy.line_of_business || "").toUpperCase() === "HEALTH");
+  const claims = claimData.claims || [];
+  const active = claims.find(claim => claim.id === S.claimOpen) || claims[0] || null;
+  if (active) S.claimOpen = active.id;
+  S.claimRecord = active;
+  const selectedPolicy = policies.find(policy => policy.id === active?.policy_id) || policies[0] || null;
+  S.claimPolicy = selectedPolicy;
+  const sourceRows = (active?.checklist || []).map(item => {
+    const source = item.source || {};
+    return `<li><strong>${esc(item.item || "")}</strong><p class="text-sm">${esc(item.reason || "")}</p>
+      ${source.quote ? `<blockquote class="portfolio-evidence__quote">${esc(source.quote)}</blockquote>` : ""}
+      <p class="text-xs text-muted">${esc(source.document || "")}${source.page ? ` · ${esc(source.page)}` : ""}</p></li>`;
+  }).join("");
+  const deadline = active?.deadline || {};
+  const plan = S.agentPlan;
+  const trace = plan?.steps?.length
+    ? `<ol class="text-sm">${plan.steps.map(step => `<li><span class="tag">${esc(step.tier)}</span> ${esc(step.summary || "")}
+        <span class="tag">${esc(step.state || "")}</span></li>`).join("")}</ol>`
+    : `<p class="text-sm text-muted">${esc(t("agent.trace_empty"))}</p>`;
+  const confirmations = (inbox.confirmations || []).map(item => `<div class="card mb-8">
+      <p class="text-sm"><strong>${esc(item.tool_name || "")}</strong> — ${esc(item.summary || "")}</p>
+      ${agentConfirmationPreview(item)}
+      <p class="text-xs text-muted">${esc(item.payload_hash || "")}</p>
+      <button type="button" class="btn btn-primary btn-sm" data-act="agent-confirm" data-arg="${esc(item.id)}">${esc(t("agent.confirm"))}</button>
+    </div>`).join("");
+  const draftSummary = (S.agentDrafts || []).map(draft => `<p class="text-sm">${esc(draft.summary || "")}</p>`).join("");
+  const actionPanel = !active ? "" : `<div class="btn-group mt-12">
+      ${active.state === "DRAFTING" ? `<div class="form-group"><label for="claim-document-kind">${esc(t("claims.document_kind"))}</label>
+          <select id="claim-document-kind"><option value="HOSPITAL_DISCHARGE_SUMMARY">${esc(t("claims.discharge_summary"))}</option>
+            <option value="HOSPITAL_BILL">${esc(t("claims.itemised_bill"))}</option></select></div>
+        <input id="claim-files" type="file" multiple accept="application/pdf,image/jpeg,image/png" aria-label="${esc(t("claims.upload"))}">
+        <button type="button" class="btn btn-ghost" data-act="claim-upload" data-arg="${esc(active.id)}">${esc(t("claims.upload"))}</button>
+        <button type="button" class="btn btn-secondary" data-act="claim-packet" data-arg="${esc(active.id)}">${esc(t("claims.packet"))}</button>
+        <button type="button" class="btn btn-primary" data-act="claim-ready" data-arg="${esc(active.id)}">${esc(t("claims.ready"))}</button>` : ""}
+      ${active.state === "READY" ? `<button type="button" class="btn btn-primary" data-act="claim-submit" data-arg="${esc(active.id)}">${esc(t("claims.submit"))}</button>` : ""}
+      ${active.state === "ACKNOWLEDGED" ? `<p class="text-sm text-muted">${esc(t("claims.awaiting_sandbox_query"))}</p>` : ""}
+      ${active.state === "QUERY_OPEN" ? `<button type="button" class="btn btn-secondary" data-act="claim-query-draft" data-arg="${esc(active.id)}">${esc(t("claims.query_draft"))}</button>
+        <button type="button" class="btn btn-primary" data-act="claim-query-send" data-arg="${esc(active.id)}">${esc(t("claims.query_send"))}</button>` : ""}
+      ${active.state === "UNDER_ASSESSMENT" ? `<p class="text-sm text-muted">${esc(t("claims.awaiting_sandbox_decision"))}</p>` : ""}
+      ${active.state === "DECIDED" ? `<div class="claim-scenario-inputs">
+          <div class="form-group"><label for="settlement-loss">${esc(t("claims.loss"))}</label><input id="settlement-loss" inputmode="decimal" maxlength="80"></div>
+          <div class="form-group"><label for="settlement-room-charge">${esc(t("claims.room_charge"))}</label><input id="settlement-room-charge" inputmode="decimal" maxlength="80"></div>
+          <div class="form-group"><label for="settlement-days">${esc(t("claims.stay_days"))}</label><input id="settlement-days" inputmode="decimal" maxlength="40"></div>
+          <div class="form-group"><label for="settlement-deductible">${esc(t("claims.deductible"))}</label><input id="settlement-deductible" inputmode="decimal" maxlength="80"></div>
+          <div class="form-group"><label for="settlement-proportionate">${esc(t("claims.proportionate_factor"))}</label><input id="settlement-proportionate" inputmode="decimal" maxlength="80"></div>
+        </div><button type="button" class="btn btn-secondary" data-act="settlement-check" data-arg="${esc(active.id)}">${esc(t("claims.settlement_check"))}</button>
+        <button type="button" class="btn btn-primary" data-act="settlement-dispute" data-arg="${esc(active.id)}">${esc(t("claims.settlement_dispute"))}</button>` : ""}
+      ${active.state === "SETTLED" ? `<button type="button" class="btn btn-secondary" data-act="settlement-reconcile" data-arg="${esc(active.id)}">${esc(t("claims.settlement_reconcile"))}</button>` : ""}
+    </div>`;
+  if (!policies.length) {
+    el.innerHTML = portfolioSyntheticBanner(portfolio) + pageTitle(t("claims.title"), t("claims.lead"))
+      + `<div class="card"><h3>${esc(t("claims.empty_title"))}</h3><p>${esc(t("claims.empty_body"))}</p></div>`;
+    return;
+  }
+  el.innerHTML = portfolioSyntheticBanner(portfolio) + pageTitle(t("claims.title"), t("claims.lead"))
+    + (!agentStatus.consent?.granted ? `<div class="card mb-16"><h3>${esc(t("agent.consent_title"))}</h3>
+      <p class="text-sm">${esc(t("agent.consent_body"))}</p>
+      <button type="button" class="btn btn-primary" data-act="agent-consent">${esc(t("agent.consent_grant"))}</button></div>` : "")
+    + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("claims.start"))}</h3></div>
+      <div class="form-group"><label for="claim-incident">${esc(t("claims.incident_at"))}</label>
+        <input id="claim-incident" type="datetime-local"></div>
+      <div class="form-group"><label for="claim-incident-offset">${esc(t("claims.incident_offset"))}</label>
+        <input id="claim-incident-offset" inputmode="text" maxlength="6" placeholder="+05:30"></div>
+      <div class="form-group"><label for="claim-mode">${esc(t("claims.mode"))}</label>
+        <select id="claim-mode"><option value="REIMBURSEMENT">${esc(t("claims.reimbursement"))}</option>
+          <option value="CASHLESS">${esc(t("claims.cashless"))}</option></select></div>
+      <button type="button" class="btn btn-primary" data-act="claim-start">${esc(t("claims.start"))}</button></div>`
+    + (active ? `<div class="card mb-16"><div class="card-head"><h3>${esc(active.state || "")}</h3><span class="tag">${esc(active.id || "")}</span></div>
+      <h4>${esc(t("claims.checklist"))}</h4><ul class="text-sm">${sourceRows}</ul>
+      <h4>${esc(t("claims.deadline"))}</h4><p class="text-sm">${esc(deadline.due_at || deadline.notice || "")}</p>
+      ${active.packet ? `<p class="text-xs text-muted">${esc(active.packet.manifest_sha256 || "")}</p>` : `<p class="text-xs text-muted">${esc(t("claims.packet_missing"))}</p>`}
+      ${actionPanel}
+      ${(S.claimDraft?.draft?.text || "") ? `<p class="text-sm mt-12">${esc(S.claimDraft.draft.text)}</p>` : ""}
+      ${(S.settlementResult?.check?.notice || "") ? `<p class="text-sm mt-12">${esc(S.settlementResult.check.notice)}</p>` : ""}
+      ${(S.reconciliation?.notice || "") ? `<p class="text-sm mt-12">${esc(S.reconciliation.notice)}</p>` : ""}
+    </div>` : "")
+    + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("agent.trace_title"))}</h3></div>${trace}${draftSummary}</div>
+      <div class="card mb-16"><div class="card-head"><h3>${esc(t("agent.confirmations_title"))}</h3></div>
+        ${confirmations || `<p class="text-sm text-muted">${esc(t("agent.confirmations_empty"))}</p>`}
+        ${(inbox.confirmations || []).length ? `<div class="form-group"><label for="agent-stepup">${esc(t("agent.password"))}</label>
+          <input id="agent-stepup" type="password" autocomplete="current-password" maxlength="200">
+          <p class="text-xs text-muted">${esc(t("agent.step_up"))}</p></div>` : ""}</div>
+      <p class="text-xs text-muted">${esc(t("claims.synthetic_notice"))}</p>`;
+}
+
+async function agentGrantConsent() {
+  await api("/api/agent/consent", { method: "POST", body: { scopes: ["agent:read", "agent:prepare", "agent:act"] } });
+  render();
+}
+
+async function agentCreateMandate() {
+  try {
+    await api("/api/agent/mandates", { method: "POST", body: {
+      scopes: ["invoice.pay"],
+      per_payment_cap: $("#mandate-cap")?.value || "",
+      payee_allowlist: [$("#mandate-payee")?.value || ""],
+      valid_from: $("#mandate-from")?.value || "",
+      valid_until: $("#mandate-until")?.value || "",
+      advance_notice_required: Boolean($("#mandate-notice")?.checked),
+      password: $("#mandate-password")?.value || "",
+    } });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function agentRevokeMandate(mandateId) {
+  const password = $("#mandate-password")?.value || "";
+  try {
+    await api(`/api/agent/mandates/${encodeURIComponent(mandateId)}`, {
+      method: "DELETE", body: { password },
+    });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimStart() {
+  const policy = S.claimPolicy;
+  if (!policy) return;
+  const incidentLocal = $("#claim-incident")?.value || "";
+  const offset = $("#claim-incident-offset")?.value || "";
+  const mode = $("#claim-mode")?.value || "REIMBURSEMENT";
+  if (!incidentLocal) { toast(t("claims.incident_required"), "err"); return; }
+  if (!/^[+-]\d{2}:\d{2}$/.test(offset)) { toast(t("claims.offset_required"), "err"); return; }
+  try {
+    S.agentPlan = await api("/api/agent/plan", { method: "POST", body: { intent: "Get Dad's hospital claim ready" } });
+    const intake = await api("/api/claims/intake", { method: "POST", body: {
+      policy_id: policy.id, incident_at: `${incidentLocal}${offset}`, mode,
+    } });
+    S.claimOpen = intake.claim.id;
+    S.agentDrafts = await Promise.all([
+      api("/api/agent/prepare", { method: "POST", body: { tool_name: "claim.prepare", payload: { policy_id: policy.id } } }),
+      api("/api/agent/prepare", { method: "POST", body: { tool_name: "letter.draft", payload: { policy_id: policy.id } } }),
+    ]);
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimUpload(claimId) {
+  const files = [...($("#claim-files")?.files || [])];
+  const kind = $("#claim-document-kind")?.value || "";
+  if (!files.length || !kind) return;
+  const form = new FormData();
+  files.forEach(file => {
+    form.append("files", file, file.name);
+    form.append("kinds", kind);
+  });
+  try {
+    await api(`/api/claims/${encodeURIComponent(claimId)}/documents`, { method: "POST", body: form });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimBuildPacket(claimId) {
+  const policy = S.claimPolicy;
+  if (!policy) return;
+  try {
+    await api(`/api/claims/${encodeURIComponent(claimId)}/packet`, { method: "POST", body: {
+      document_ids: [...(policy.source_document_ids || []), ...(S.claimRecord?.uploaded_document_ids || [])],
+    } });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimMarkReady(claimId) {
+  try { await api(`/api/claims/${encodeURIComponent(claimId)}/ready`, { method: "POST" }); render(); }
+  catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimPrepareSubmit(claimId) {
+  try { await api(`/api/claims/${encodeURIComponent(claimId)}/submit`, { method: "POST" }); render(); }
+  catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function agentConfirm(actionId) {
+  const password = $("#agent-stepup")?.value || "";
+  try {
+    S.agentConfirmation = await api("/api/agent/confirm", { method: "POST", body: {
+      action_id: actionId,
+      payload_hash: (await api("/api/agent/confirmations")).confirmations
+        .find(item => item.id === actionId)?.payload_hash || "",
+      password,
+    } });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimQueryDraft(claimId) {
+  try { S.claimDraft = await api(`/api/claims/${encodeURIComponent(claimId)}/query/draft`, { method: "POST", body: { note: "" } }); render(); }
+  catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function claimPrepareQuerySend(claimId) {
+  try { await api(`/api/claims/${encodeURIComponent(claimId)}/query/send`, { method: "POST" }); render(); }
+  catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function settlementCheck(claimId) {
+  const body = {
+    loss: $("#settlement-loss")?.value || null,
+    room_charge_per_day: $("#settlement-room-charge")?.value || null,
+    days: $("#settlement-days")?.value || null,
+    deductible: $("#settlement-deductible")?.value || null,
+    proportionate_factor: $("#settlement-proportionate")?.value || null,
+  };
+  try {
+    S.settlementResult = await api(`/api/claims/${encodeURIComponent(claimId)}/settlement/check`, {
+      method: "POST", body,
+    });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function settlementPrepareDispute(claimId) {
+  try { await api(`/api/claims/${encodeURIComponent(claimId)}/settlement/dispute`, { method: "POST" }); render(); }
+  catch (error) { toast(error.message || String(error), "err"); }
+}
+
+async function settlementReconcile(claimId) {
+  try { S.reconciliation = await api(`/api/claims/${encodeURIComponent(claimId)}/settlement/reconcile`); render(); }
+  catch (error) { toast(error.message || String(error), "err"); }
 }
 
 async function portfolioEvidence(arg) {
@@ -2919,6 +3323,18 @@ async function portfolioEvidence(arg) {
     S.portfolioEvidence = { policyId, coverageId, error: error.message || String(error) };
   }
   render();
+}
+
+async function motorDepreciation(arg) {
+  const [policyId, repairId] = String(arg || "").split("|");
+  const repairCost = document.getElementById(repairId || "")?.value || "";
+  if (!repairCost) { toast(t("motor.repair_cost_required"), "err"); return; }
+  try {
+    S.motorIllustration = await api(`/api/motor/${encodeURIComponent(policyId)}/depreciation-what-if`, {
+      method: "POST", body: { part_material: "PLASTIC", repair_cost: repairCost },
+    });
+    render();
+  } catch (error) { toast(error.message || String(error), "err"); }
 }
 
 async function loadHouseholdExample() {
@@ -3142,7 +3558,7 @@ async function streamBundle(formData, onEvent) {
   let r;
   try {
     r = await fetch("/api/bundle/stream",
-      { method: "POST", body: formData, credentials: "same-origin" });
+      { method: "POST", body: formData, headers: apiHeaders({}, "POST"), credentials: "same-origin" });
   } catch (e) {
     throw new Error("Cannot reach the server. Check it is running.");
   }
@@ -4109,7 +4525,10 @@ async function smeAgents(el) {
  */
 async function smeConsent(el) {
   el.innerHTML = spinner();
-  const st = await api("/api/consent/status"); if (!st) return;
+  const [st, mandateData] = await Promise.all([
+    api("/api/consent/status"), api("/api/agent/mandates"),
+  ]);
+  if (!st || !mandateData) return;
   const shareable = st.shareable || [];
   const recipient = st.adviser_recipient || "Licensed adviser";
   // MEASURED DEFECT. The recipient was a free-text box pre-filled with "Licensed
@@ -4163,7 +4582,18 @@ async function smeConsent(el) {
       </div>
       <div class="card"><div class="card-head"><h3>Why this is a button and not a setting</h3></div>
         <p class="text-sm text-muted">Permission you can't take back isn't permission. Stopping sharing removes their access immediately.</p>
-        <p class="text-xs text-muted mt-8">${esc(st.notice || "")}</p></div>`;
+        <p class="text-xs text-muted mt-8">${esc(st.notice || "")}</p></div>`
+    + `<div class="card mt-16"><div class="card-head"><h3>${esc(t("agent.mandates_title"))}</h3></div>
+        ${(mandateData.mandates || []).length ? `<ul class="text-sm">${mandateData.mandates.map(mandate => `<li>${esc(mandate.payee_allowlist?.join(", ") || "")} · ${esc(mandate.per_payment_cap || "")}
+          ${mandate.revoked_at ? `<span class="tag">${esc(t("agent.mandate_revoked"))}</span>` : `<button type="button" class="btn btn-ghost btn-sm" data-act="agent-mandate-revoke" data-arg="${esc(mandate.id)}">${esc(t("agent.mandate_revoke"))}</button>`}</li>`).join("")}</ul>`
+          : `<p class="text-sm text-muted">${esc(t("agent.mandates_empty"))}</p>`}
+        <div class="form-group"><label for="mandate-cap">${esc(t("agent.mandate_cap"))}</label><input id="mandate-cap" value="500.00" inputmode="decimal"></div>
+        <div class="form-group"><label for="mandate-payee">${esc(t("agent.mandate_payee"))}</label><input id="mandate-payee" value="${esc(t("agent.mandate_default_payee"))}"></div>
+        <div class="grid-2"><div class="form-group"><label for="mandate-from">${esc(t("agent.mandate_from"))}</label><input id="mandate-from" type="date" value="2026-10-01"></div>
+          <div class="form-group"><label for="mandate-until">${esc(t("agent.mandate_until"))}</label><input id="mandate-until" type="date" value="2026-12-31"></div></div>
+        <label class="consent-row"><input id="mandate-notice" type="checkbox" checked><span>${esc(t("agent.mandate_notice"))}</span></label>
+        <div class="form-group"><label for="mandate-password">${esc(t("agent.password"))}</label><input id="mandate-password" type="password" autocomplete="current-password"></div>
+        <button type="button" class="btn btn-secondary" data-act="agent-mandate-create">${esc(t("agent.mandate_create"))}</button></div>`;
 
   const grant = $("#cgrant");
   if (grant) grant.onclick = async () => {
@@ -6500,31 +6930,12 @@ async function carPortfolio(el) {
 
 async function carPremium(el) {
   el.innerHTML = `<div class="loading"><div class="spinner"></div>Computing premium at risk</div>`;
-  const d = await api("/api/carrier/premium-at-risk"); if (!d) return;
-  if (d.available === false) { el.innerHTML = noBookState(d); return; }
-  const gaps = d.gaps || [];
-  el.innerHTML = `<div class="synthetic-banner">DEMONSTRATION — SYNTHETIC PORTFOLIO DATA. Rates are illustrative market averages, not quotations.</div>
-    <div class="page-title"><h1>Premium at Risk</h1><p>The revenue absent from the book — not a risk judgement, not a quotation.</p></div>
-    <div class="card mb-16 text-center" style="padding:32px">
-      <h2 style="font-size:36px;font-weight:800;color:var(--danger);letter-spacing:-0.02em">${money(d.total_premium_at_risk_sgd)}<span style="font-size:16px;font-weight:500;color:var(--text-3)"> /year</span></h2>
-      <p class="text-sm text-muted mt-8">${esc(d.headline)}</p>
-    </div>
-    <div class="stats">
-      <div class="stat red"><div class="val">${d.accounts_drifted}</div><div class="lbl">Accounts Drifted</div><div class="sub">${esc(d.drift_rate_pct)} of book</div></div>
-      <div class="stat amber"><div class="val">${money(d.total_exposure_gap_sgd)}</div><div class="lbl">Total Exposure Gap</div><div class="sub">Documented value minus insured value</div></div>
-      <div class="stat"><div class="val">${d.accounts_total}</div><div class="lbl">Total Accounts</div></div>
-    </div>
-    <div class="card mb-16"><div class="card-head"><h3>By Insured Interest</h3></div>
-      <table><thead><tr><th>Interest</th><th>Exposure Gap</th><th>Implied Premium</th><th>Accounts</th></tr></thead><tbody>
-        ${Object.entries(d.by_interest || {}).map(([k, v]) => `<tr><td class="td-name">${esc(titleCase(k))}</td><td>${money(v.gap_sgd)}</td><td style="font-weight:700;color:var(--danger)">${money(v.premium_sgd)}</td><td>${v.count}</td></tr>`).join("")}
-      </tbody></table>
-    </div>
-    <div class="card"><div class="card-head"><h3>Largest Gaps</h3></div>
-      <table><thead><tr><th>Account</th><th>Interest</th><th>Exposure Gap</th><th>Implied Premium</th><th>Basis</th></tr></thead><tbody>
-        ${gaps.slice(0, 10).map(g => `<tr><td class="td-name">${esc(g.business_name)}</td><td>${esc(titleCase(g.interest))}</td><td>${money(g.gap_sgd)}</td><td style="font-weight:700;color:var(--danger)">${money(g.implied_premium_sgd)}</td><td class="text-sm text-muted">${esc(g.basis)}</td></tr>`).join("")}
-      </tbody></table>
-    </div>
-    <div class="insight warn mt-16"><div class="insight-label">Rate notice</div><div class="insight-text">${esc(d.rate_notice)}</div></div>`;
+  const d = await api("/api/carrier/premium-at-risk");
+  if (!d) return;
+  /* The API always supplies the evidence-bound refusal.  Keeping a dormant revenue
+   * renderer here would make it possible for a future response shape to revive an
+   * illustrative premium that VERIS is forbidden to compute. */
+  el.innerHTML = noBookState(d);
 }
 
 /* The attention matrix is a 3x3 grid keyed grid[internal][external] over LOW/MED/HIGH,

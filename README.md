@@ -1,130 +1,75 @@
 # VERIS
 
-An **evidence-bound insurance agent**. It reads the policies a household or a small
-business already holds, answers questions about them with page-cited evidence, maps
-where protection is missing or doubled up, and carries a claim from first notice to
-settlement — asking before every step that has an effect outside the product.
+VERIS is an **evidence-bound insurance agent** for households and small businesses. It reads policies already held, answers with page-cited evidence, maps documented gaps and overlaps, prepares local synthetic claim work, and stops for confirmation before a tier-2 synthetic action. A deterministic core computes every number; no model decides coverage, settlement, evidence class, premium, or product choice.
 
-A deterministic core, not a language model, computes every number. No machine-learning
-model decides whether cover exists, resolves which clause governs, computes or adjusts a
-settlement figure, or sets an evidence class. The test suite asserts that against the
-import graph rather than claiming it in prose.
-
-> This README is a placeholder. The full documentation set — architecture, security
-> self-assessment, compliance matrix, evaluation results and deployment guide — lands
-> with the documentation task.
+> This repository contains local synthetic demonstrations and evidence only. It does not claim a real insurer/bank integration, payment, hosted deployment, video, registration, or submission.
 
 ## Quickstart
 
-```bash
+```powershell
 python -m venv .venv
-.venv/Scripts/Activate.ps1        # Windows PowerShell
-# source .venv/bin/activate       # macOS / Linux
-pip install -r requirements.txt   # applies constraints.txt: every package pinned
-
-# Optional: the published insurer wordings the worked example reads. See below.
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt -e .
 python scripts/fetch_corpus.py --seed-from ../06-evidence
-
-python -m pytest -q
 python -m uvicorn proven.api:app --port 8000
 ```
 
-Then open <http://localhost:8000>.
+Open `http://localhost:8000`. The default local mode supports the offline synthetic demo. Do not expose it to a network; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for hosted mode.
 
-`requirements.txt` pins the direct dependencies, and the `constraints.txt` it applies
-pins everything they pull in. So a fresh install gets exactly the versions the suite
-was run against, and exactly the versions `THIRD_PARTY_NOTICES.md` lists.
+To run the local synthetic claim-to-correction composition, follow the generated-local-credential instructions in [docs/DEMO-RUNBOOK.md](docs/DEMO-RUNBOOK.md), then run:
 
-## Optional model profiles
-
-VERIS runs every consequential flow without a model. Set `VERIS_LLM_PROFILE` only after
-the tenant has granted AI-processing consent in the product: `openai` defaults to
-`https://api.openai.com/v1` with `gpt-4o-mini`; `deepseek` defaults to
-`https://api.deepseek.com/v1` with `deepseek-chat`; `qwen` defaults to
-`https://dashscope.aliyuncs.com/compatible-mode/v1` with `qwen-plus`; and `ollama`
-defaults to `http://localhost:11434/v1` with `llama3.2`. `none` selects deterministic
-operation. `VERIS_LLM_BASE_URL` and `VERIS_LLM_MODEL` are explicit overrides; the key
-variables are listed without values in `.env.example`.
-
-The provider boundary redacts recognised personal data before transport, records only
-redacted prompt logs, applies tenant and global token budgets, and rejects unsupported
-numbers, dates, outcome language and product advice. Document text is delimited as
-untrusted data, and a model-proposed tool call is accepted only when tied to an explicit
-user request. It never receives document images.
-
-## One-time local demonstration migration
-
-Older local portfolio stores can contain SME demonstration bundles created before VERIS
-persisted a server-stamped bundle origin. Their public fields are intentionally similar
-to an ordinary uploaded analysis, so VERIS does not infer the origin, relabel a record,
-or remove a duplicate. It leaves an unmarked legacy bundle unchanged and tells the owner
-to start a new local portfolio and reload the synthetic household. This conservative
-one-time path protects uploaded records; current demonstration and uploaded bundles keep
-their durable origin on both the business and policy records.
-
-## The document corpus
-
-The engine reads real, published policy wordings, statute text and one judgment. Those
-are **not in this repository**. They are other people's copyrighted publications: this
-project has a reader's right to them, not a publisher's.
-
-What *is* committed is [`corpus/manifest.yaml`](corpus/manifest.yaml) — for every
-document: its publisher, the URL it was retrieved from, its country and document class,
-the sha256 of the exact bytes, and what the document is *not* authority for. So any
-figure the product quotes can be re-fetched and re-checked at source by someone who has
-only this repository.
-
-```bash
-python scripts/fetch_corpus.py --seed-from <dir>   # from local copies (primary path)
-python scripts/fetch_corpus.py                      # download from the publishers
-python scripts/fetch_corpus.py --status             # what the corpus holds
+```powershell
+docker compose up --build
 ```
 
-Without the corpus the product still runs: the synthetic examples load, every
-deterministic path works, and the tests that genuinely need a published wording **skip
-with a reason naming the missing document** rather than passing quietly with fewer
-assertions.
+The sandbox stays private to the compose network and makes no real external call.
 
-The synthetic example documents in `demo-documents/` *are* committed, because we
-generated them. One document is deliberately absent from that directory: the example's
-base policy wording, which is a real insurer's publication. The server attaches it from
-the corpus, and there is no route that serves it to a browser.
+## Verify
 
-## Repository hygiene
-
-```bash
-python scripts/scan_repo.py      # secrets, forbidden files, forbidden strings
-node --check web/app.js          # the front end has no build step
+```powershell
+python -m pytest -q -p no:warnings
+python scripts/smoke_deployment.py
+node --check web/app.js
+node --check web/reviewer.js
+python scripts/scan_repo.py
+python scripts/check_i18n.py
+pip-audit --progress-spinner off
+bandit -q -r src -ll
+python -m security.redteam
+python -m eval.bench --all
+python scripts/generate_compliance_matrix.py --check
+python scripts/check_docs.py
+python scripts/verify_evidence.py
 ```
 
-`scan_repo.py` fails on key-shaped literals, on any `.env` or database file, and on a
-third-party PDF anywhere outside the synthetic set. It runs in CI.
+## Canonical test cases
 
-## Layout
+1. Cited declared-condition waiting-period answer.
+2. Honest abstention naming the missing document.
+3. Protection map with documented states and a sourced compulsory alert where evidence permits.
+4. Evidence-bound health illustration.
+5. Synthetic health-claim intake, checklist, packet, and confirmation boundary.
+6. Synthetic insurer-query reply preparation.
+7. Synthetic settlement check, dispute preparation, correction receipt, and reconciliation.
+8. Synthetic overdue-claim escalation gate.
+9. Renewal/payment under mandate — not implemented in this delivery scope.
+10. Renewal comparison — local test contract.
+11. Adviser file sharing/revocation — not implemented in this delivery scope.
+12. Small-business adviser action workflow — local test contract.
 
-| Path | What is in it |
-|---|---|
-| `src/proven/` | the engine: ingestion, clause accounting, extraction, rules, arithmetic, evidence grading, abstention gates |
-| `taxonomy/` | the clause taxonomy and mechanism definitions, as data a domain reviewer can read |
-| `corpus/` | the manifest of third-party documents (the documents themselves live outside git) |
-| `web/` | front end. Vanilla HTML, CSS and JS. No build step, no npm dependency |
-| `tests/` | the suite, which must run fully offline |
-| `eval/` | the measurement harness and its labels, with each label's derivation recorded |
-| `scripts/` | corpus fetcher, repository scanner, and the THIRD_PARTY_NOTICES generator |
-| `demo-documents/` | the synthetic documents of the worked example |
-| `fixtures/` | structured fixtures for documents a real business would supply |
+## Documentation and evidence
+
+Start at [docs/README.md](docs/README.md). The generated local evidence bundle is in [evidence/README.md](evidence/README.md); verify it with `python scripts/verify_evidence.py`.
+
+Published third-party policy documents are not in the repository. [corpus/manifest.yaml](corpus/manifest.yaml) records their source and hashes; `scripts/fetch_corpus.py` retrieves them into a separate corpus directory. The viewer displays cited excerpts and publisher links rather than full corpus pages.
+
+## Security posture
+
+`VERIS_MODE=local` is an offline demo posture. `VERIS_MODE=hosted` requires invite-only login, CSRF, secure cookies, HSTS, parser limits, outbound allowlisting, and environment-only secrets. Read [docs/SECURITY-SELF-ASSESSMENT.md](docs/SECURITY-SELF-ASSESSMENT.md) before hosting.
 
 ## Licence
 
-[Apache License 2.0](LICENSE) — see also [NOTICE](NOTICE). Every third-party component,
-external service and data source, with its role and licence, is in
-[OPEN-SOURCE.md](OPEN-SOURCE.md); generated licence texts are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). To report a vulnerability, see
-[SECURITY.md](SECURITY.md).
-
-The published documents in the corpus are not covered by this licence and are not in the
-repository. The evidence viewer shows a cited paragraph of such a document with a link to
-the publisher's own copy; full pages are drawn only for documents you uploaded yourself.
+[Apache License 2.0](LICENSE) — see [NOTICE](NOTICE), [OPEN-SOURCE.md](OPEN-SOURCE.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and [SECURITY.md](SECURITY.md).
 
 ## Team
 

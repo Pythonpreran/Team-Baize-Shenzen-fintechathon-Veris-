@@ -692,6 +692,54 @@ COVERED: set[tuple[str, str]] = {
     ("POST", "/api/ai/propose"),
     ("POST", "/api/ai/explain"),
     ("POST", "/api/ai/ask"),
+    # Deterministic agent controls — covered in test_agent_runtime.py. The decisive cases
+    # are tenant scope, consent, exact-payload confirmation, step-up and ledger tampering.
+    ("GET", "/api/agent/status"),
+    ("POST", "/api/agent/consent"),
+    ("POST", "/api/agent/consent/revoke"),
+    ("POST", "/api/agent/plan"),
+    ("POST", "/api/agent/prepare"),
+    ("GET", "/api/agent/confirmations"),
+    ("POST", "/api/agent/confirm"),
+    ("POST", "/api/agent/totp/enrol"),
+    ("GET", "/api/agent/mandates"),
+    ("POST", "/api/agent/mandates"),
+    ("DELETE", "/api/agent/mandates/{mandate_id}"),
+    ("GET", "/api/agent/ledger"),
+    ("GET", "/api/agent/ledger/export"),
+    ("GET", "/api/agent/ledger/verify"),
+    ("GET", "/api/reviewer/queue"),
+    ("POST", "/api/reviewer/queue"),
+    ("POST", "/api/reviewer/findings/{finding_id}/review"),
+    ("GET", "/api/reviewer/export"),
+    # Synthetic counterparty bridge — contract/replay coverage is in test_sandbox.py.
+    ("POST", "/api/sandbox/webhook"),
+    ("GET", "/api/sandbox/operations"),
+    # Health claims copilot — covered in test_claims.py and test_claims_api.py.
+    ("GET", "/api/claims"),
+    ("POST", "/api/claims/intake"),
+    ("GET", "/api/claims/{claim_id}"),
+    ("POST", "/api/claims/{claim_id}/packet"),
+    ("POST", "/api/claims/{claim_id}/documents"),
+    ("POST", "/api/claims/{claim_id}/ready"),
+    ("POST", "/api/claims/{claim_id}/submit"),
+    ("POST", "/api/claims/{claim_id}/query/draft"),
+    ("POST", "/api/claims/{claim_id}/query/send"),
+    ("GET", "/api/claims/{claim_id}/sla"),
+    ("POST", "/api/claims/{claim_id}/escalation"),
+    # Health what-if illustration — covered in test_health_whatif.py and API tests.
+    ("POST", "/api/health/what-if"),
+    # Settlement correction loop — covered in test_settlement.py and test_settlement_api.py.
+    ("POST", "/api/claims/{claim_id}/settlement/check"),
+    ("POST", "/api/claims/{claim_id}/settlement/dispute"),
+    ("GET", "/api/claims/{claim_id}/settlement/reconcile"),
+    # Motor evidence and depreciation illustration — covered in test_motor.py and API tests.
+    ("GET", "/api/motor/{policy_id}/alert"),
+    ("POST", "/api/motor/{policy_id}/depreciation-what-if"),
+    # Evidence-bound whole-portfolio map and self-authored life events.
+    ("GET", "/api/protection-map"),
+    ("GET", "/api/protection-map/events"),
+    ("POST", "/api/protection-map/events"),
     ("GET", "/api/evidence/search"),
     ("GET", "/api/score"),
     ("GET", "/api/signals"),
@@ -701,6 +749,8 @@ COVERED: set[tuple[str, str]] = {
     # session still reaches the business workspace, and no session reaches another
     # role's surface.
     ("GET", "/api/auth/accounts"),
+    ("GET", "/api/auth/csrf"),
+    ("POST", "/api/auth/signup"),
     ("POST", "/api/auth/login"),
     ("POST", "/api/auth/logout"),
     ("GET", "/api/auth/me"),
@@ -773,6 +823,7 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/adviser/{_path:path}"),
     ("GET", "/carrier"),
     ("GET", "/carrier/{_path:path}"),
+    ("GET", "/reviewer"),
     # Notifications — covered in test_notifications_api.py. The load-bearing tests are the
     # ones about restraint rather than delivery: a first check tells nobody anything, the
     # same change is never sent twice, and a notification suppressed by a preference is

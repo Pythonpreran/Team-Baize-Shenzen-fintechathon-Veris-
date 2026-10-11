@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from . import llm
+from . import llm, security
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = REPO_ROOT / ".env"
@@ -35,10 +35,13 @@ MAX_CONTEXT_CHUNKS = 6
 
 
 def _load_env_file(path: Path = ENV_FILE) -> None:
-    """Read a simple KEY=VALUE .env into os.environ without overwriting real env
-    vars. Deliberately not python-dotenv: this is twelve lines and one less
-    dependency to install on demo night."""
-    if not path.exists():
+    """Read a local development ``.env`` without overriding process values.
+
+    Hosted processes never read a filesystem secret file.  Deployment secrets must be
+    injected by the runtime environment, which avoids a mounted file silently winning
+    over the audited deployment configuration.
+    """
+    if security.hosted_mode() or not path.exists():
         return
     try:
         for raw in path.read_text(encoding="utf-8").splitlines():

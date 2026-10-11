@@ -1,0 +1,118 @@
+{
+  "benchmark_completion": {
+    "completed": 4,
+    "executed": 4,
+    "rate": 1.0,
+    "scope": "local deterministic benchmark/control set, including non-canonical controls."
+  },
+  "canonical_task_completion": {
+    "case_to_task": {
+      "canonical.cited_answer": 1,
+      "canonical.honest_abstention": 2
+    },
+    "completed": 2,
+    "executed": 2,
+    "not_measured": [
+      "completed real-world claims, deployments, registrations, submissions and videos",
+      "professional-review false-alarm rate",
+      "live-provider profile comparison"
+    ],
+    "rate": 1.0,
+    "scope": "only explicitly mapped canonical-task checks in this narrow local subset; not a claim that every canonical task is externally complete.",
+    "task_ids": [
+      1,
+      2
+    ]
+  },
+  "cases": [
+    {
+      "error": null,
+      "id": "canonical.cited_answer",
+      "latency_ms": 0.181,
+      "passed": true
+    },
+    {
+      "error": null,
+      "id": "canonical.honest_abstention",
+      "latency_ms": 0.131,
+      "passed": true
+    },
+    {
+      "error": null,
+      "id": "control.agent_read_plan",
+      "latency_ms": 76.528,
+      "passed": true
+    },
+    {
+      "error": null,
+      "id": "security.redteam",
+      "latency_ms": 205.52,
+      "passed": true
+    }
+  ],
+  "derivation_limits": [
+    "Objective fixture checks are narrow and do not establish general insurance accuracy.",
+    "No human reviewer credentials or expert labels are embedded in this repository.",
+    "Latency is local-process timing, not hosted or user-study timing."
+  ],
+  "efficiency": {
+    "cost_basis": "profile none; no model transport was attempted.",
+    "estimated_cost_usd": 0.0,
+    "median_latency_ms": 76.528,
+    "steps_per_task": {
+      "canonical.cited_answer": 1,
+      "canonical.honest_abstention": 1,
+      "control.agent_read_plan": 2,
+      "security.redteam": 1
+    }
+  },
+  "execution": "LOCAL_DETERMINISTIC",
+  "metrics": {
+    "citation_fidelity": {
+      "denominator": 1,
+      "derivation": "INDEPENDENT_OBJECTIVE",
+      "numerator": 1,
+      "scope": "one exact synthetic citation",
+      "value": 1.0
+    },
+    "false_alarm_rate": {
+      "reason": "No professionally reviewed gap-finding labels are present.",
+      "value": null
+    },
+    "general_accuracy": {
+      "reason": "No REVIEWED_BY_EXPERT benchmark labels are present.",
+      "value": null
+    },
+    "objective_qa_accuracy": {
+      "denominator": 1,
+      "derivation": "INDEPENDENT_OBJECTIVE",
+      "numerator": 1,
+      "scope": "one synthetic date fact",
+      "value": 1.0
+    },
+    "unnecessary_refusal_rate": {
+      "denominator": 1,
+      "derivation": "INDEPENDENT_OBJECTIVE",
+      "numerator": 0,
+      "scope": "one documented date fact",
+      "value": 0.0
+    },
+    "unsupported_answer_rate": {
+      "denominator": 1,
+      "derivation": "INDEPENDENT_OBJECTIVE",
+      "numerator": 0,
+      "scope": "one outcome-question refusal",
+      "value": 0.0
+    }
+  },
+  "network_access": false,
+  "profile": "none",
+  "profiles_not_run": {
+    "deepseek": "No live provider run was requested or performed.",
+    "ollama": "No local model runtime was configured for this benchmark.",
+    "openai": "No live provider run was requested or performed.",
+    "qwen": "No live provider run was requested or performed."
+  },
+  "schema_version": 3,
+  "seed": 20261012
+}

@@ -245,7 +245,7 @@ def test_deletion_refuses_further_transitions(client):
 
 # ── the three front doors ────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("path", ["/", "/login", "/app", "/adviser", "/carrier"])
+@pytest.mark.parametrize("path", ["/", "/login", "/app", "/adviser", "/carrier", "/reviewer"])
 def test_every_entry_path_serves_the_app(client, path):
     r = client.get(path)
     assert r.status_code == 200
@@ -262,9 +262,10 @@ def test_deep_links_serve_the_app(client, path):
 def test_entrypoints_are_declared_with_their_roles(client):
     body = client.get("/api/entrypoints").json()
     paths = {e["path"]: e for e in body["entrypoints"]}
-    assert set(paths) == {"/app", "/adviser", "/carrier"}
+    assert set(paths) == {"/app", "/adviser", "/carrier", "/reviewer"}
     assert paths["/adviser"]["role"] == "ADVISER"
     assert paths["/carrier"]["role"] == "CARRIER"
+    assert paths["/reviewer"]["role"] == "REVIEWER"
 
 
 def test_entrypoints_state_they_are_not_an_access_boundary(client):

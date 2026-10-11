@@ -1,0 +1,47 @@
+{
+  "files": [
+    {
+      "path": "agent-traces/canonical-task-traces.json",
+      "sha256": "d6527f4f91619a521de45553836dc0ca037d5d0d153f467dbc768cb25e3e71a4"
+    },
+    {
+      "path": "evaluation/scoreboard.json",
+      "sha256": "4e3503a778fa16e006a7a6cde52676b28b09ffb8d7ddbca85ea1a844c3e9e4b4"
+    },
+    {
+      "path": "evaluation/scoreboard.md",
+      "sha256": "c95409ebb22f3f6aa0625eb76232d6351a4bbeb59d1e98032a4501a1d2a9bce1"
+    },
+    {
+      "path": "README.md",
+      "sha256": "192eeb87319ac62a443ce8fd21e260e1c27b1a079d64747039c3931278a231a3"
+    },
+    {
+      "path": "redteam/security-results.json",
+      "sha256": "31163fa57b4a4f5cfb2309bafd57be53653c062bb3b69c4cfe5bbbc624011ef3"
+    },
+    {
+      "path": "redteam/security-results.md",
+      "sha256": "229c806dee828265d22ec5ca23ef21089420029b524eb202d7554d6b3d619815"
+    },
+    {
+      "path": "sandbox-operation-verification.json",
+      "sha256": "80607cef8993d2b0d3ca940b3502924083e7d23d4570bc74e9834eb03a9b6392"
+    },
+    {
+      "path": "sandbox-operations.jsonl",
+      "sha256": "d9ea80244cf151df18f5b8e78318c8d5adeb907e1cb6deb116aaeb4eadc0f712"
+    },
+    {
+      "path": "screenshots/README.md",
+      "sha256": "afbfc758d0feecd7f6f0324a4e5f4de9e0b820cde6b1b8a1efa67a1b82b65177"
+    }
+  ],
+  "limitations": [
+    "No external counterparty, deployment, video, registration or submission is claimed.",
+    "Screenshot capture remains a human action.",
+    "Sandbox signatures use public fixture material for reproducible local verification, not a deployment credential."
+  ],
+  "schema_version": 1,
+  "scope": "LOCAL_SYNTHETIC_EVIDENCE_ONLY"
+}

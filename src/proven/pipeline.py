@@ -14,6 +14,7 @@ Two entry points, one code path:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import sqlite3
 from dataclasses import dataclass, field
@@ -632,11 +633,17 @@ def granted_fields(
 def _document_kinds(conn: sqlite3.Connection, span_ids: list[str]) -> set[str]:
     if not span_ids:
         return set()
-    marks = ",".join("?" * len(span_ids))
-    rows = conn.execute(
-        f"SELECT DISTINCT d.kind AS kind FROM span s JOIN document d "
-        f"ON d.id = s.document_id WHERE s.id IN ({marks})", span_ids).fetchall()
-    return {r["kind"] for r in rows}
+    # Bind one opaque span id per query rather than interpolating a variable IN list.
+    # The list is small (the cited spans for one finding), and keeping every value a
+    # bound parameter makes the consent boundary auditable without dynamic SQL.
+    kinds: set[str] = set()
+    for span_id in span_ids:
+        row = conn.execute(
+            "SELECT d.kind AS kind FROM span s JOIN document d ON d.id = s.document_id "
+            "WHERE s.id=?", (span_id,)).fetchone()
+        if row is not None:
+            kinds.add(str(row["kind"]))
+    return kinds
 
 
 def disclosed_brief(
@@ -840,15 +847,27 @@ RECORD_EXPORT_VERSION = 1
 RECORD_EXPORT_FORMAT = "proven.record.v1"
 
 
-def export_record(conn: sqlite3.Connection, business_id: str) -> dict:
-    """The portable record as a self-contained, self-verifying document.
+def _record_integrity_material(doc: dict) -> bytes:
+    """Canonical export content protected by the optional deployment HMAC."""
+    protected = {
+        "format": doc.get("format"),
+        "version": doc.get("version"),
+        "business_id": doc.get("business_id"),
+        "fact_count": doc.get("fact_count"),
+        "facts": doc.get("facts"),
+    }
+    return json.dumps(protected, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=True).encode("utf-8")
 
-    Portability was previously a claim about an in-memory table that vanished on
-    restart. This is the artefact that makes the claim true: every field needed to
-    recompute the hash chain travels with it, plus the basis document's filename and
-    sha256 so a recipient can tie a fact to the file it came from. `verify_record()`
-    below re-verifies an export with no access to this database, which is the
-    property "portable" has to mean.
+
+def export_record(conn: sqlite3.Connection, business_id: str,
+                  *, hmac_key: bytes | None = None) -> dict:
+    """The portable record plus optional server-held authenticity protection.
+
+    The SHA-256 links remain independently portable: any recipient can localise a
+    changed fact without a secret. Hosted deployments additionally HMAC the canonical
+    export using an environment-only key, allowing the issuing server to distinguish a
+    structurally valid but locally fabricated chain from one it emitted.
     """
     rows = conn.execute(
         "SELECT rf.*, d.filename AS basis_filename, d.sha256 AS basis_sha256, "
@@ -857,15 +876,15 @@ def export_record(conn: sqlite3.Connection, business_id: str) -> dict:
         "WHERE rf.business_id=? ORDER BY rf.seq",
         (business_id,)).fetchall()
     facts = [{
-        "seq": r["seq"],
-        "attribute": r["attribute"], "value": r["value"], "unit": r["unit"],
-        "author_class": r["author_class"], "as_at_date": r["as_at_date"],
-        "appended_at": r["appended_at"], "prev_hash": r["prev_hash"],
-        "hash": r["hash"], "basis_document_id": r["basis_document_id"],
-        "basis_document_filename": r["basis_filename"],
-        "basis_document_sha256": r["basis_sha256"],
-        "basis_document_kind": r["basis_kind"],
-    } for r in rows]
+        "seq": row["seq"],
+        "attribute": row["attribute"], "value": row["value"], "unit": row["unit"],
+        "author_class": row["author_class"], "as_at_date": row["as_at_date"],
+        "appended_at": row["appended_at"], "prev_hash": row["prev_hash"],
+        "hash": row["hash"], "basis_document_id": row["basis_document_id"],
+        "basis_document_filename": row["basis_filename"],
+        "basis_document_sha256": row["basis_sha256"],
+        "basis_document_kind": row["basis_kind"],
+    } for row in rows]
     doc = {
         "format": RECORD_EXPORT_FORMAT,
         "version": RECORD_EXPORT_VERSION,
@@ -881,48 +900,74 @@ def export_record(conn: sqlite3.Connection, business_id: str) -> dict:
         "fact_count": len(facts),
         "facts": facts,
     }
-    doc["verification"] = verify_record(doc)
+    if hmac_key:
+        doc["integrity"] = {
+            "scheme": "HMAC-SHA256",
+            "key_id": hashlib.sha256(hmac_key).hexdigest()[:16],
+            "value": hmac.new(hmac_key, _record_integrity_material(doc),
+                              hashlib.sha256).hexdigest(),
+        }
+    else:
+        doc["integrity"] = {
+            "scheme": "SHA256_CHAIN_ONLY",
+            "key_id": None,
+            "value": None,
+        }
+    doc["verification"] = verify_record(doc, hmac_key=hmac_key)
     return doc
 
 
-def verify_record(exported: dict) -> dict:
-    """Re-verify an exported record from the export alone.
-
-    Recomputes every hash and checks every link. Returns which fact broke and how,
-    rather than a bare boolean — an integrity claim a recipient cannot localise is
-    not much of a claim.
-    """
+def verify_record(exported: dict, *, hmac_key: bytes | None = None) -> dict:
+    """Re-verify a portable chain and, when supplied, its server HMAC."""
     facts = exported.get("facts") or []
     business_id = exported.get("business_id", "")
     problems: list[dict] = []
     prev_hash = ""
     expected_seq = 1
-    for i, f in enumerate(facts):
-        if f.get("prev_hash", "") != prev_hash:
-            problems.append({"index": i, "attribute": f.get("attribute"),
+    for index, fact in enumerate(facts):
+        if fact.get("prev_hash", "") != prev_hash:
+            problems.append({"index": index, "attribute": fact.get("attribute"),
                              "problem": "CHAIN_BROKEN",
                              "expected_prev_hash": prev_hash,
-                             "found_prev_hash": f.get("prev_hash")})
-        seq = f.get("seq", expected_seq)
+                             "found_prev_hash": fact.get("prev_hash")})
+        seq = fact.get("seq", expected_seq)
         if seq != expected_seq:
-            problems.append({"index": i, "attribute": f.get("attribute"),
+            problems.append({"index": index, "attribute": fact.get("attribute"),
                              "problem": "SEQUENCE_GAP",
                              "expected_seq": expected_seq, "found_seq": seq})
         payload = _record_payload(
-            seq, f.get("prev_hash", "") or "", business_id, f.get("attribute", ""),
-            f.get("value", ""), f.get("unit"), f.get("basis_document_id", ""),
-            f.get("author_class", ""), f.get("as_at_date"),
-            f.get("appended_at", ""))
+            seq, fact.get("prev_hash", "") or "", business_id, fact.get("attribute", ""),
+            fact.get("value", ""), fact.get("unit"), fact.get("basis_document_id", ""),
+            fact.get("author_class", ""), fact.get("as_at_date"),
+            fact.get("appended_at", ""))
         recomputed = hashlib.sha256(payload.encode("utf-8")).hexdigest()
-        if recomputed != f.get("hash"):
-            problems.append({"index": i, "attribute": f.get("attribute"),
+        if recomputed != fact.get("hash"):
+            problems.append({"index": index, "attribute": fact.get("attribute"),
                              "problem": "HASH_MISMATCH",
-                             "recomputed": recomputed, "stored": f.get("hash")})
-        prev_hash = f.get("hash", "")
+                             "recomputed": recomputed, "stored": fact.get("hash")})
+        prev_hash = fact.get("hash", "")
         expected_seq = seq + 1
-    return {"chain_valid": not problems, "fact_count": len(facts),
-            "problems": problems,
-            "format_recognised": exported.get("format") == RECORD_EXPORT_FORMAT}
+
+    integrity = exported.get("integrity")
+    scheme = integrity.get("scheme") if isinstance(integrity, dict) else None
+    hmac_present = scheme == "HMAC-SHA256"
+    hmac_valid: bool | None = None
+    if hmac_present and hmac_key:
+        expected = hmac.new(hmac_key, _record_integrity_material(exported),
+                            hashlib.sha256).hexdigest()
+        hmac_valid = hmac.compare_digest(str(integrity.get("value") or ""), expected)
+        if not hmac_valid:
+            problems.append({"index": None, "attribute": None,
+                             "problem": "HMAC_MISMATCH"})
+
+    return {
+        "chain_valid": not any(problem["problem"] != "HMAC_MISMATCH" for problem in problems),
+        "hmac_valid": hmac_valid,
+        "hmac_present": hmac_present,
+        "fact_count": len(facts),
+        "problems": problems,
+        "format_recognised": exported.get("format") == RECORD_EXPORT_FORMAT,
+    }
 
 
 # ── cross-carrier comparison — "the pitch, live" ────────────────────────────

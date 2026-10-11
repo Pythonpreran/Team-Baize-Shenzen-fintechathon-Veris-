@@ -88,7 +88,7 @@ def test_protecting_the_wording_replaces_quotations_and_nothing_else():
 
 def test_the_normalisation_removes_only_what_it_names():
     raw = {"id": "0123456789abcdef0123456789abcdef", "at": "2026-10-10T12:00:00+00:00",
-           "business_id": "uploaded-AbCd1234", "headline": "S$60,000 on day 71",
+           "business_id": "uploaded-AbCd123-", "headline": "S$60,000 on day 71",
            "jurisdiction": {"pack": "SG"}, "orchestration": {"x": 1},
            "nested": [{"jurisdiction": 1, "keep": "this"}]}
     assert sme_golden.normalise(raw) == {

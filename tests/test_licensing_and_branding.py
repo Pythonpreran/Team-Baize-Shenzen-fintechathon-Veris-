@@ -574,10 +574,13 @@ def test_no_route_offers_an_oauth_handshake():
     assert not [p for p in paths if re.search(r"callback|authori[sz]e|oauth", p)]
 
 
-def test_no_module_reads_a_client_secret_from_the_environment():
+def test_only_the_private_local_sandbox_reads_its_generated_service_secret():
     offenders = [p.name for p in sorted((REPO / "src" / "proven").rglob("*.py"))
                  if "CLIENT_SECRET" in p.read_text(encoding="utf-8")]
-    assert offenders == []
+    assert offenders == ["sandbox.py"]
+    source = (REPO / "src" / "proven" / "sandbox.py").read_text(encoding="utf-8")
+    assert "SANDBOX_CLIENT_SECRET_ENV" in source
+    assert "synthetic-demo-only" not in source
 
 
 def test_the_carrier_workspace_speaks_for_a_fictional_sandbox_insurer():

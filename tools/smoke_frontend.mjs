@@ -680,6 +680,115 @@ await (async () => {
   }
 })();
 
+await (async () => {
+  const previousFetch = sandbox.fetch;
+  const requests = [];
+  let resolveCatalogue;
+  try {
+    vm.runInContext(`ASK.dests = []; ASK.destinationStatus = "idle"; ASK.destinationLoad = null;
+      ASK.msgs = []; ASK.busy = false;`, ctx);
+    sandbox.fetch = path => {
+      requests.push(path);
+      if (path === "/api/assistant/destinations") {
+        return new Promise(resolve => { resolveCatalogue = resolve; });
+      }
+      if (path === "/api/assistant") {
+        return Promise.resolve({ status: 200, ok: true, json: async () => ({
+          answer: "Navigation answer", route: null, suggestions: [], mode: "DETERMINISTIC",
+        }) });
+      }
+      throw new Error(`unexpected request: ${path}`);
+    };
+    const sending = g.askSend("Show me Documents");
+    await Promise.resolve();
+    if (requests.join(",") !== "/api/assistant/destinations")
+      throw new Error("an unloaded catalogue did not block classification");
+    resolveCatalogue({ status: 200, ok: true, json: async () => ({
+      destinations: [{ id: "sme-docs-hub", label: "Documents", trail: ["Portfolio", "Documents"] }],
+    }) });
+    await sending;
+    if (requests[1] !== "/api/assistant")
+      throw new Error("an exact destination did not wait for the catalogue then navigate");
+
+    vm.runInContext(`ASK.dests = []; ASK.destinationStatus = "idle"; ASK.destinationLoad = null;
+      ASK.msgs = []; ASK.busy = false;`, ctx);
+    requests.length = 0;
+    sandbox.fetch = async path => {
+      requests.push(path);
+      if (path === "/api/assistant/destinations") {
+        return { status: 503, ok: false, json: async () => ({ detail: "unavailable" }) };
+      }
+      throw new Error(`unexpected request after catalogue failure: ${path}`);
+    };
+    await g.askSend("Show me Documents");
+    if (requests.length !== 1 || requests[0] !== "/api/assistant/destinations")
+      throw new Error("a failed catalogue sent an ambiguous destination elsewhere");
+    const failureText = vm.runInContext(`ASK.msgs.at(-1).text`, ctx);
+    if (failureText !== g.t("ask.destination_unavailable"))
+      throw new Error("a failed catalogue did not explain the safe retry path");
+    results.push(["ok  ", "Ask VERIS waits for its destination catalogue and fails closed on catalogue errors"]);
+  } catch (e) {
+    results.push(["FAIL", `Ask VERIS catalogue routing safety :: ${e.message}`]);
+  } finally {
+    sandbox.fetch = previousFetch;
+  }
+})();
+
+await (async () => {
+  const previousFetch = sandbox.fetch;
+  try {
+    const manifest = "a".repeat(64);
+    sandbox.fetch = async path => {
+      const payloads = {
+        "/api/portfolio": { policies: [{ id: "health-1", line_of_business: "HEALTH", source_document_ids: ["doc-1"] }] },
+        "/api/claims": { claims: [] },
+        "/api/agent/status": { consent: { granted: false } },
+        "/api/agent/confirmations": { confirmations: [{
+          id: "pending-preview", tool_name: "claim.submit", summary: "Synthetic preview", payload_hash: "h".repeat(64),
+          preview: {
+            tenant_id: "org-hocklee", tenant_scoped: true, payload_hash: "h".repeat(64),
+            canonical_payload: `{"claim_id":"claim-preview","packet_manifest_sha256":"${manifest}"}`,
+            fields: [
+              { name: "claim_id", value: "claim-preview" },
+              { name: "packet_manifest_sha256", value: manifest },
+            ],
+          },
+        }] },
+        "/api/protection-map": { cells: [], overlaps: [], next_document: { document: "school policy", reason: "needed" } },
+        "/api/protection-map/events": { events: [{ code: "NEW_BABY", label: "New baby" }] },
+      };
+      if (!(path in payloads)) throw new Error(`unexpected demo-spine request: ${path}`);
+      return { status: 200, ok: true, json: async () => payloads[path] };
+    };
+    await g.smeClaims(doc._app);
+    if (!doc._app.innerHTML.includes('data-act="claim-start"')
+        || !doc._app.innerHTML.includes("Agent trace")
+        || !doc._app.innerHTML.includes("Review exact action before step-up")
+        || !doc._app.innerHTML.includes("claim-preview")
+        || !doc._app.innerHTML.includes(manifest)
+        || !doc._app.innerHTML.includes('data-act="agent-confirm"'))
+      throw new Error("claims demo spine did not render the exact confirmation preview before step-up");
+    await g.smeProtectionMap(doc._app);
+    if (!doc._app.innerHTML.includes('data-act="life-event"')
+        || !doc._app.innerHTML.includes("Protection map"))
+      throw new Error("protection map did not render life-event controls");
+    results.push(["ok  ", "Connected demo spine renders claims, agent and protection-map controls"]);
+  } catch (e) {
+    results.push(["FAIL", `Connected demo spine controls :: ${e.message}`]);
+  } finally {
+    sandbox.fetch = previousFetch;
+  }
+})();
+
+tryRun("connected demo controls keep insurer events separate and require owner-entered scenarios", () => {
+  for (const forbidden of ["claim-sandbox-query", "claim-sandbox-decision", 'loss: "50000"', 'repair_cost: "10000"']) {
+    if (code.includes(forbidden)) throw new Error(`unsafe synthetic owner control remains: ${forbidden}`);
+  }
+  for (const required of ["agent-mandate-revoke", "claim-document-kind", "settlement-loss", "protection-scenario-loss"]) {
+    if (!code.includes(required)) throw new Error(`missing reviewed control: ${required}`);
+  }
+});
+
 let bad = 0;
 for (const [tag, label] of results) { if (tag === "FAIL") bad++; console.log(tag, label); }
 console.log(`\n${results.length - bad}/${results.length} passed`);

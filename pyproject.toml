@@ -23,10 +23,11 @@ dependencies = [
   "uvicorn==0.34.0",
   "pydantic==2.12.4",
   "PyYAML==6.0.3",
-  "pypdf==6.10.2",
-  "python-multipart==0.0.22",  # required by FastAPI for multipart upload
+  "pypdf==6.20.0",
+  "python-multipart==0.0.32",  # required by FastAPI for multipart upload
   "pypdfium2==5.14.0",         # page rendering; see src/proven/pdfrender.py
   "cryptography==50.0.2",      # AES-GCM tenant portfolio encryption
+  "pyotp==2.10.0",              # TOTP step-up for agent confirmations
   "holidays==0.106",           # jurisdiction-pack working-day calendars
 ]
 
@@ -36,6 +37,9 @@ dev = [
   "hypothesis==6.155.6",
   "httpx==0.28.1",             # fastapi.testclient transport
   "pip-licenses==5.5.5",       # generates THIRD_PARTY_NOTICES.md
+  "pip-audit==2.10.1",          # checks installed pins for published advisories
+  "filelock==4.1.0",             # pip-audit file-cache extra, pinned explicitly
+  "bandit==1.9.4",              # static security analysis
 ]
 
 [project.urls]

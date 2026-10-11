@@ -1,0 +1,19 @@
+{
+  "claim_id": "SBX-CLM-9655063EF9A1",
+  "fixture_key_derivation": "SHA-256 of documented public fixture material; not a deployment secret.",
+  "invoice_id": "SBX-INV-B4B22942223D",
+  "record_count": 3,
+  "synthetic": true,
+  "tenant_id": "evidence-fixture",
+  "verification_at_build": {
+    "anchor_count": 3,
+    "anchor_head_hmac": "33997cc7cd9d7111486b5a446221ba106ae8ec202a716493eccc65ea8b5a06f2",
+    "checkpoint_count": 3,
+    "checkpoint_head_hmac": "33997cc7cd9d7111486b5a446221ba106ae8ec202a716493eccc65ea8b5a06f2",
+    "count": 3,
+    "first_invalid_seq": null,
+    "head_hmac": "33997cc7cd9d7111486b5a446221ba106ae8ec202a716493eccc65ea8b5a06f2",
+    "reason": null,
+    "valid": true
+  }
+}

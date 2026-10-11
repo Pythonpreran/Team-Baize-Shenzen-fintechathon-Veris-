@@ -23,6 +23,7 @@ from proven import actions
 from proven.api import app
 
 ADVISER = {"email": "adviser@lionbrokers.demo", "password": "Demo@123"}
+OWNER = {"email": "owner@hockleefoods.demo", "password": "Demo@123"}
 CARRIER = {"email": "underwriter@carrier.demo", "password": "Demo@123"}
 RECIPIENT = "Licensed adviser"
 
@@ -220,7 +221,12 @@ def test_revoking_consent_stops_the_adviser_acting(client):
     _share_everything(client)
     client.post("/api/auth/login", json=ADVISER)
     assert client.get("/api/actions").status_code == 200
-    client.post("/api/consent/revoke", json={})
+    # T18 makes disclosure changes owner-only. Switch back to the owner to revoke,
+    # then prove the adviser loses the derived action path too.
+    client.post("/api/auth/login", json=OWNER)
+    revoked = client.post("/api/consent/revoke", json={})
+    assert revoked.status_code == 200
+    client.post("/api/auth/login", json=ADVISER)
     assert client.get("/api/actions").status_code == 403
     assert client.post(f"/api/actions/{aid}/advance",
                        json={"to_state": actions.ADVISER_REVIEWING}).status_code == 403

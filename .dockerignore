@@ -1,0 +1,14 @@
+.git/
+.venv/
+__pycache__/
+.pytest_cache/
+.hypothesis/
+.env
+*.db
+*.sqlite
+*.sqlite-*
+.veris-dev-master-key
+veris-corpus/
+proven/
+.agents/
+07-fintechathon/

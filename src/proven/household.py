@@ -130,6 +130,8 @@ POLICIES: tuple[PolicySpec, ...] = (
         coverage=(
             CoverageSpec("COVERED.HOSPITALISATION", None, None,
                          "This synthetic schedule identifies Singlife Shield Standard Plan for Arjun Rao and Meera Rao."),
+            CoverageSpec("LIMIT.SUM_INSURED", "1000000", "SGD",
+                         "Synthetic separate plan sum insured: SGD 1,000,000."),
         ),
     ),
     PolicySpec(
@@ -211,6 +213,8 @@ POLICIES: tuple[PolicySpec, ...] = (
                          "This synthetic schedule records third-party motor insurance for the Bengaluru family car."),
             CoverageSpec("RENEWAL.THIRD_PARTY", None, None,
                          "This synthetic schedule records a third-party cover expiry on 18 October 2026."),
+            CoverageSpec("CONDITION.DEPRECIATION_SCHEDULE", None, None,
+                         "Depreciation schedule: plastic parts 50%; metal parts 10% for a vehicle aged up to five years."),
         ),
     ),
 )

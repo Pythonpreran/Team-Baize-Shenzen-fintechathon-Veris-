@@ -28,13 +28,14 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import queue
 import re
 import secrets
 import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from fastapi import (
     Cookie, Depends, FastAPI, File, Form, HTTPException, Request, Response,
@@ -46,15 +47,16 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import (actions, advisernote, ai, align, assistant, auth, blindspots, book, carrier,
-               compounding,
+from . import (agent, actions, advisernote, ai, align, assistant, auth, blindspots, book, carrier,
+               claims, compounding,
                config, connectors, corpus, cyber, detect, discovery, gapsummary,
-               household, household_loader,
+               household, household_loader, health_whatif,
                bi, drift, events, ingest, jurisdiction, llm, mailer, marketmap,
                notifications, ocr,
-               orchestrator, pagequality, persistence, pipeline, premium_at_risk,
-               presenter, qa, renewal,
-               scenario, scheduler, score, sentinel, sourceview, stages, supplychain,
+               orchestrator, pagequality, persistence, pipeline,
+               presenter, protection_map, qa, renewal, reviewer,
+               motor,
+               scenario, scheduler, score, security, sandbox, sandbox_transport, sentinel, settlement, sourceview, stages, supplychain,
                voi, warranty, watchlist)
 from .errors import ProvenError
 from .retrieval import Retriever
@@ -85,6 +87,35 @@ HOUSEHOLD_EXAMPLE_DIR = EXAMPLE_DIR / "household"
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 SESSION_COOKIE = "proven_sid"
 SESSIONS = SessionStore()
+
+# A CSRF token is deliberately readable by the browser while the session cookie is not.
+# The unsafe request must echo the cookie in a header, so a cross-site form can carry the
+# cookie but cannot manufacture the matching header. Hosted mode enforces this boundary;
+# local mode keeps the established offline test and demo ergonomics.
+_CSRF_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_HOSTED_PUBLIC_PATHS = frozenset({
+    "/", "/landing", "/login", "/api/health", "/api/auth/csrf",
+    "/api/auth/login", "/api/auth/signup", "/api/auth/me",
+    "/api/jurisdictions", "/api/jurisdictions/SG", "/api/jurisdictions/IN",
+    "/api/jurisdictions/GENERIC",
+})
+_HOSTED_DOC_PATHS = frozenset({"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"})
+
+
+def _set_session_cookie(response: Response, session_id: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE, session_id, httponly=True, samesite="lax",
+        secure=security.hosted_mode(), max_age=SESSIONS.ttl_seconds, path="/")
+
+
+def _hosted_request_is_public(path: str) -> bool:
+    return path in _HOSTED_PUBLIC_PATHS or path.startswith("/static/")
+
+
+def _should_issue_csrf_cookie(path: str) -> bool:
+    """Only application entry points mint browser state; public data routes stay stateless."""
+    return (path in {"/login", "/app", "/adviser", "/carrier", "/reviewer", "/api/auth/csrf"}
+            or path.startswith(("/app/", "/adviser/", "/carrier/")))
 
 # Conversation turns are session-local and tenant-keyed.  The remembered question is
 # redacted before storage; the structured policy/member ids make a follow-up resolvable
@@ -121,9 +152,7 @@ def _session(request: Request, response: Response) -> Session:
     sid = request.cookies.get(SESSION_COOKIE)
     session, created = SESSIONS.get_or_create(sid)
     if created or sid != session.id:
-        response.set_cookie(
-            SESSION_COOKIE, session.id, httponly=True, samesite="lax",
-            max_age=SESSIONS.ttl_seconds, path="/")
+        _set_session_cookie(response, session.id)
     return session
 
 
@@ -243,7 +272,7 @@ def portfolio_overview(session: Session = Depends(_session)):
         # findings.
         repo.wrap_sme_analysis(scope, state)
     from . import health
-    return health.enrich_portfolio(repo.portfolio(scope))
+    return motor.enrich_portfolio(health.enrich_portfolio(repo.portfolio(scope)))
 
 
 @app.get("/api/household/members")
@@ -444,6 +473,991 @@ def load_household_example(session: Session = Depends(_session)):
     return {"ok": True, "portfolio": portfolio}
 
 
+
+# ── deterministic agent runtime ─────────────────────────────────────────────
+#
+# The agent controls live in a separate encrypted store beside the portfolio.  The
+# request never supplies a tenant, actor, role, evidence class or confirmation payload
+# hash as an authority claim: those are all derived or checked server-side.
+
+
+def _agent_store() -> agent.AgentStore:
+    return agent.store_from_environment()
+
+
+def _agent_runtime() -> agent.AgentRuntime:
+    return agent.AgentRuntime(_agent_store())
+
+
+def _claims_repository() -> claims.ClaimsRepository:
+    return claims.repository_from_environment()
+
+
+@app.exception_handler(agent.AgentStoreError)
+async def agent_store_error_handler(_request: Request, exc: agent.AgentStoreError):
+    return JSONResponse(status_code=exc.http_status, content={"error": str(exc)})
+
+
+@app.exception_handler(reviewer.ReviewerStoreError)
+async def reviewer_store_error_handler(_request: Request, exc: reviewer.ReviewerStoreError):
+    return JSONResponse(status_code=exc.http_status, content={"error": str(exc)})
+
+
+@app.exception_handler(agent.AgentPolicyError)
+async def agent_policy_error_handler(_request: Request, exc: agent.AgentPolicyError):
+    return JSONResponse(status_code=exc.http_status, content={"error": str(exc)})
+
+
+@app.exception_handler(claims.ClaimError)
+async def claim_error_handler(_request: Request, exc: claims.ClaimError):
+    return JSONResponse(status_code=exc.http_status, content={"error": str(exc)})
+
+
+@app.exception_handler(health_whatif.WhatIfError)
+async def health_what_if_error_handler(_request: Request, exc: health_whatif.WhatIfError):
+    return JSONResponse(status_code=422, content={"error": str(exc)})
+
+
+@app.exception_handler(settlement.SettlementError)
+async def settlement_error_handler(_request: Request, exc: settlement.SettlementError):
+    return JSONResponse(status_code=422, content={"error": str(exc)})
+
+
+@app.exception_handler(motor.MotorError)
+async def motor_error_handler(_request: Request, exc: motor.MotorError):
+    return JSONResponse(status_code=422, content={"error": str(exc)})
+
+
+@app.exception_handler(sandbox.SandboxError)
+async def sandbox_error_handler(_request: Request, exc: sandbox.SandboxError):
+    return JSONResponse(status_code=exc.http_status, content={"error": str(exc), "synthetic": True})
+
+
+class AgentConsentIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    scopes: list[str] = Field(min_length=1, max_length=16)
+
+
+class AgentPlanIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    intent: str = Field(min_length=1, max_length=500)
+    origin: str = Field(default="USER", max_length=20)
+
+
+class AgentPrepareIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    tool_name: str = Field(min_length=1, max_length=120)
+    payload: dict = Field(default_factory=dict)
+
+
+class AgentStepUpIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    password: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    totp_code: Optional[str] = Field(default=None, min_length=6, max_length=12)
+
+
+class AgentConfirmIn(AgentStepUpIn):
+    action_id: str = Field(min_length=1, max_length=160)
+    payload_hash: str = Field(min_length=64, max_length=64)
+
+
+class AgentMandateIn(AgentStepUpIn):
+    scopes: list[str] = Field(min_length=1, max_length=16)
+    per_payment_cap: str = Field(min_length=1, max_length=80)
+    payee_allowlist: list[str] = Field(min_length=1, max_length=16)
+    valid_from: str = Field(min_length=10, max_length=10)
+    valid_until: str = Field(min_length=10, max_length=10)
+    advance_notice_required: bool = True
+
+
+def _agent_scope(session: Session) -> tuple[persistence.TenantScope, auth.Principal]:
+    with session.lock:
+        scope = _portfolio_scope(session)
+        principal = _require_role(session, auth.SME)
+    return scope, principal
+
+
+def _agent_step_up(store: agent.AgentStore, principal: auth.Principal,
+                   proof: AgentStepUpIn) -> bool:
+    """Verify a re-entered account password or a tenant-enrolled TOTP without persisting either."""
+    password_ok = False
+    if proof.password:
+        try:
+            password_ok = auth.verify_principal_password(
+                principal, proof.password, hosted=security.hosted_mode())
+        except auth.AuthConfigurationError as exc:
+            raise HTTPException(503, str(exc)) from exc
+    totp_ok = bool(proof.totp_code and store.verify_totp(
+        principal.organisation_id, proof.totp_code))
+    return password_ok or totp_ok
+
+
+def _sandbox_connector() -> sandbox_transport.SandboxHttpConnector:
+    """Reach the separately owned local synthetic counterparty over its HTTP contract."""
+    return sandbox_transport.SandboxHttpConnector.from_environment()
+
+
+def _apply_signed_sandbox_event(signed: Mapping[str, object]) -> dict:
+    """Route every insurer-owned claim state through the remote HMAC/replay gate."""
+    return sandbox_webhook(SandboxWebhookIn(**dict(signed)))
+
+
+def _text_sha256(value: object) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
+
+def _query_reply_text(claim: Mapping[str, object]) -> str:
+    """Return the exact synthetic query reply, retaining the legacy safe default when needed."""
+    draft = claim.get("query_draft")
+    if not isinstance(draft, Mapping) or draft.get("state") != "DRAFTED":
+        return "Prepared reply"
+    text = str(draft.get("text") or "").strip()
+    owner_note = str(draft.get("owner_note") or "").strip()
+    if not text:
+        return "Prepared reply"
+    return text if not owner_note else f"{text}\n\nOwner note: {owner_note}"
+
+
+def _settlement_dispute_terms(claim: Mapping[str, object]) -> tuple[list[str], str]:
+    check = claim.get("settlement_check")
+    draft = check.get("draft") if isinstance(check, Mapping) else None
+    deductions = draft.get("deductions") if isinstance(draft, Mapping) else None
+    text = str(draft.get("text") or "").strip() if isinstance(draft, Mapping) else ""
+    if (not isinstance(check, Mapping) or check.get("state") != "READY_FOR_REVIEW"
+            or not isinstance(deductions, list) or not deductions or not text):
+        raise claims.ClaimTransitionError(
+            "A cited settlement draft is required before requesting confirmation.")
+    deduction_ids = sorted({str(row.get("id") or "") for row in deductions if isinstance(row, Mapping)})
+    if not deduction_ids or any(not value for value in deduction_ids):
+        raise claims.ClaimTransitionError("The cited settlement draft has no stable deduction identifiers.")
+    return deduction_ids, text
+
+
+def _agent_sandbox_executor(tool_name: str, payload: Mapping[str, object],
+                            scope: persistence.TenantScope) -> dict:
+    """Execute only a confirmed tier-2 tool against the local synthetic counterparties."""
+    connector = _sandbox_connector()
+    stable = hashlib.sha256(json.dumps(
+        {"tool": tool_name, "tenant": scope.tenant_id, "payload": dict(payload)}, sort_keys=True,
+        separators=(",", ":")).encode("utf-8")).hexdigest()
+    repository = _claims_repository()
+    if tool_name == "claim.submit":
+        local = repository.get(scope, str(payload["claim_id"]))
+        packet_manifest = str(payload.get("packet_manifest_sha256") or "")
+        if (local["state"] != "READY" or not packet_manifest
+                or local.get("packet_manifest_sha256") != packet_manifest):
+            raise claims.ClaimTransitionError(
+                "The verified claim packet no longer matches this exact submission confirmation.")
+        remote = connector.submit_claim(
+            {"policy_id": local["policy_id"], "claim_type": local["mode"],
+             "packet_sha256": packet_manifest, "tenant_id": scope.tenant_id}, stable)
+        repository.transition(scope, local["id"], to_state="SUBMITTED", actor="AGENT",
+                              note="Submitted to the synthetic sandbox after exact confirmation.")
+        repository.set_sandbox_claim(scope, local["id"], remote["claim_id"])
+        acknowledgement = _apply_signed_sandbox_event(remote["webhook"])
+        return {"accepted": True, "counterparty": "SYNTHETIC_SANDBOX", "claim": remote,
+                "acknowledgement": acknowledgement,
+                "local_claim": repository.get(scope, local["id"])}
+    if tool_name == "claim.reply":
+        local = repository.get(scope, str(payload["claim_id"]))
+        reply_text = str(payload.get("reply_text") or "")
+        if (local["state"] != "QUERY_OPEN" or not local.get("sandbox_claim_id")
+                or reply_text != _query_reply_text(local)
+                or str(payload.get("reply_sha256") or "") != _text_sha256(reply_text)):
+            raise claims.ClaimTransitionError(
+                "The prepared query reply no longer matches this exact confirmation.")
+        remote = connector.reply_to_query(str(local["sandbox_claim_id"]),
+                                          {"note": reply_text}, tenant_id=scope.tenant_id,
+                                          idempotency_key=stable)
+        repository.transition(scope, local["id"], to_state="UNDER_ASSESSMENT", actor="AGENT",
+                              note="Reply sent to the synthetic sandbox after exact confirmation.")
+        return {"accepted": True, "counterparty": "SYNTHETIC_SANDBOX", "claim": remote,
+                "local_claim": repository.get(scope, local["id"])}
+    if tool_name == "settlement.dispute":
+        local = repository.get(scope, str(payload["claim_id"]))
+        deduction_ids, dispute_text = _settlement_dispute_terms(local)
+        if (local["state"] != "DECIDED" or not local.get("sandbox_claim_id")
+                or list(payload.get("deduction_ids") or []) != deduction_ids
+                or str(payload.get("dispute_text") or "") != dispute_text
+                or str(payload.get("dispute_sha256") or "") != _text_sha256(dispute_text)):
+            raise claims.ClaimTransitionError(
+                "The cited settlement draft no longer matches this exact confirmation.")
+        # A failed counterparty call leaves the local claim DECIDED, so the owner can
+        # prepare a fresh exact-payload confirmation instead of being stranded in DISPUTED.
+        remote = connector.dispute_settlement(str(local["sandbox_claim_id"]),
+                                              {"note": dispute_text}, tenant_id=scope.tenant_id,
+                                              idempotency_key=stable)
+        repository.transition(scope, local["id"], to_state="DISPUTED", actor="AGENT",
+                              note="Prepared query accepted by the synthetic sandbox.")
+        correction = _apply_signed_sandbox_event(remote["webhook"])
+        return {"accepted": True, "counterparty": "SYNTHETIC_SANDBOX", "claim": remote,
+                "settlement_correction": correction,
+                "local_claim": repository.get(scope, local["id"])}
+    if tool_name == "invoice.pay":
+        if str(payload.get("invoice_tenant_id") or "") != scope.tenant_id:
+            raise agent.AgentPolicyError("The resolved sandbox invoice does not belong to this tenant.")
+        invoice = connector.pay_invoice(
+            str(payload["invoice_id"]), tenant_id=scope.tenant_id,
+            expected_payee=str(payload["invoice_payee"]),
+            expected_amount=str(payload["invoice_amount"]), idempotency_key=stable)
+        return {"accepted": True, "counterparty": "SYNTHETIC_SANDBOX", "invoice": invoice}
+    if tool_name == "endorsement.request":
+        request = connector.request(
+            "ENDORSEMENT_REQUEST", dict(payload), tenant_id=scope.tenant_id,
+            idempotency_key=stable)
+        return {"accepted": True, "counterparty": "SYNTHETIC_SANDBOX", "request": request}
+    if tool_name == "grievance.lodge":
+        local = repository.get(scope, str(payload["claim_id"]))
+        gate = _claim_escalation_gate(scope, local)
+        entry = gate.get("entry") if isinstance(gate.get("entry"), Mapping) else {}
+        if (gate.get("eligible") is not True
+                or entry.get("entry_id") != payload.get("ladder_entry_id")
+                or gate.get("deadline_due_at") != payload.get("deadline_due_at")):
+            raise agent.AgentPolicyError(
+                "The cited overdue-claim escalation prerequisites no longer match this confirmation.")
+        request = connector.request(
+            "GRIEVANCE", {"claim_id": local["id"], "ladder_entry_id": entry["entry_id"],
+                          "note": "Prepared cited overdue-claim escalation."},
+            tenant_id=scope.tenant_id, idempotency_key=stable)
+        repository.transition(scope, local["id"], to_state="ESCALATED", actor="AGENT",
+                              note="Cited overdue-claim escalation accepted by the synthetic sandbox.")
+        return {"accepted": True, "counterparty": "SYNTHETIC_SANDBOX", "request": request,
+                "local_claim": repository.get(scope, local["id"])}
+    raise agent.AgentPolicyError("No synthetic counterparty action is registered for that tool.")
+
+
+class SandboxWebhookIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    event: dict
+    signature: str = Field(min_length=64, max_length=64)
+
+
+@app.post("/api/sandbox/webhook")
+def sandbox_webhook(body: SandboxWebhookIn):
+    """Accept one counterparty event only after its owner verifies the HMAC remotely."""
+    if not _sandbox_connector().verify_webhook(body.event, body.signature):
+        raise HTTPException(403, "The synthetic sandbox webhook signature or timestamp is invalid.")
+    tenant_id = str(body.event.get("tenant_id") or "").strip()
+    event_id = str(body.event.get("event_id") or "").strip()
+    if not tenant_id or not event_id:
+        raise HTTPException(422, "A signed sandbox webhook needs tenant and event ids.")
+    store = _agent_store()
+    store.record_webhook_once(tenant_id, event_id)
+    store.append_ledger(
+        tenant_id, kind="SANDBOX_WEBHOOK", actor="sandbox:lotus-general",
+        detail={"event_id": event_id, "event_type": str(body.event.get("event_type") or ""),
+                "claim_id": str(body.event.get("claim_id") or "")},
+    )
+    # Insurer-side transitions arrive only after the counterparty's HMAC/replay gate.
+    # Unknown or stale events remain auditable but never rewrite a local claim state.
+    sandbox_claim_id = str(body.event.get("claim_id") or "")
+    local = _claims_repository().by_sandbox_claim(tenant_id, sandbox_claim_id)
+    transitions = {
+        "CLAIM_ACKNOWLEDGED": "ACKNOWLEDGED",
+        "CLAIM_QUERY_OPEN": "QUERY_OPEN",
+        "CLAIM_DECIDED": "DECIDED",
+        "SETTLEMENT_CORRECTED": "SETTLED",
+    }
+    target = transitions.get(str(body.event.get("event_type") or ""))
+    if local is not None and target is not None:
+        allowed = {row["to"] for row in _claims_repository().allowed_transitions(local["state"])
+                   if "INSURER" in row["actors"]}
+        if target in allowed:
+            _claims_repository().transition(
+                persistence.TenantScope(tenant_id, "sandbox", "Sandbox", "", "SME"),
+                local["id"], to_state=target, actor="INSURER",
+                note="Signed synthetic sandbox webhook received.")
+    return {"accepted": True, "synthetic": True, "event_id": event_id}
+
+
+@app.get("/api/sandbox/operations")
+def sandbox_operations(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return _sandbox_connector().operation_artifact(scope.tenant_id)
+
+
+# ── health claims copilot ───────────────────────────────────────────────────
+
+class ClaimIntakeIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    policy_id: str = Field(min_length=1, max_length=160)
+    incident_at: str = Field(min_length=10, max_length=80)
+    mode: str = Field(min_length=1, max_length=20)
+
+
+class ClaimPacketIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    document_ids: list[str] = Field(min_length=1, max_length=32)
+
+
+class ClaimNoteIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    note: str = Field(default="", max_length=2000)
+
+
+def _claim_policy(scope: persistence.TenantScope, policy_id: str) -> dict:
+    from . import health
+    portfolio = motor.enrich_portfolio(health.enrich_portfolio(_portfolio_repository().portfolio(scope)))
+    policy = next((item for item in portfolio.get("policies", [])
+                   if isinstance(item, dict) and item.get("id") == policy_id), None)
+    if policy is None:
+        raise HTTPException(404, "No policy belongs to this portfolio.")
+    return policy
+
+
+@app.get("/api/claims")
+def claims_list(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return {"claims": _claims_repository().list(scope), "synthetic": True}
+
+
+@app.post("/api/claims/intake")
+def claims_intake(body: ClaimIntakeIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    policy = _claim_policy(scope, body.policy_id)
+    claim = _claims_repository().create(
+        scope, policy=policy, incident_at=body.incident_at, mode=body.mode.upper())
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="CLAIM_INTAKE", actor=f"user:{principal.id}",
+        detail={"claim_id": claim["id"], "policy_id": body.policy_id, "mode": body.mode.upper()},
+    )
+    return {"claim": claim}
+
+
+@app.get("/api/claims/{claim_id}")
+def claim_detail(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return {"claim": _claims_repository().get(scope, claim_id)}
+
+
+@app.post("/api/claims/{claim_id}/packet")
+def claim_packet(claim_id: str, body: ClaimPacketIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    repository = _claims_repository()
+    claim = repository.get(scope, claim_id)
+    documents = [_portfolio_repository().get_document(scope, document_id)
+                 for document_id in body.document_ids]
+    packet = repository.packet(scope, claim_id, documents)
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="CLAIM_PACKET_DRAFTED", actor=f"user:{principal.id}",
+        detail={"claim_id": claim_id, "manifest_sha256": packet["manifest_sha256"],
+                "document_count": len(documents)},
+    )
+    return {"claim_id": claim["id"], "packet": packet}
+
+
+@app.post("/api/claims/{claim_id}/documents")
+async def claim_upload_documents(claim_id: str, files: list[UploadFile] = File(...),
+                                 kinds: list[str] = Form(...),
+                                 session: Session = Depends(_session)):
+    """Encrypt labelled owner-held claim documents before linking them to a local claim."""
+    scope, principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    if not files or len(files) > 8:
+        raise HTTPException(422, "Upload between one and eight claim documents or photos.")
+    if len(kinds) != len(files):
+        raise HTTPException(422, "Choose one checklist document type for each uploaded file.")
+    allowed_kinds = {"HOSPITAL_DISCHARGE_SUMMARY", "HOSPITAL_BILL"}
+    stored = []
+    for upload, supplied_kind in zip(files, kinds):
+        kind = str(supplied_kind or "").upper()
+        if kind not in allowed_kinds:
+            raise HTTPException(422, "Claim uploads must be labelled as a hospital discharge summary or itemised bill.")
+        blob = await upload.read(2_000_001)
+        if len(blob) > 2_000_000:
+            raise HTTPException(413, "A claim document or photo exceeds the 2 MB local demo limit.")
+        is_pdf = blob.startswith(b"%PDF-")
+        is_image = blob.startswith(b"\xff\xd8\xff") or blob.startswith(b"\x89PNG\r\n\x1a\n")
+        if not (is_pdf or is_image):
+            raise HTTPException(422, "Claim uploads must be a PDF, JPEG or PNG.")
+        stored.append(_portfolio_repository().add_document(
+            scope, kind=kind, blob=blob, language="en", country=str(claim["country"]),
+            filename=upload.filename or "claim-upload"))
+    ids = _claims_repository().attach_documents(scope, claim_id, [row["id"] for row in stored])
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="CLAIM_DOCUMENTS_UPLOADED", actor=f"user:{principal.id}",
+        detail={"claim_id": claim_id, "document_count": len(stored),
+                "document_kinds": [row["kind"] for row in stored]},
+    )
+    return {"claim_id": claim_id, "documents": stored, "uploaded_document_ids": ids}
+
+
+@app.post("/api/claims/{claim_id}/ready")
+def claim_ready(claim_id: str, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    repository = _claims_repository()
+    claim = repository.get(scope, claim_id)
+    packet = claim.get("packet") if isinstance(claim.get("packet"), dict) else None
+    if (not claim.get("packet_manifest_sha256") or packet is None
+            or packet.get("manifest_sha256") != claim.get("packet_manifest_sha256")
+            or packet.get("checklist_complete") is not True):
+        raise HTTPException(409, "Build a verified, checklist-complete claim packet before marking it ready.")
+    ready = repository.transition(scope, claim_id, to_state="READY", actor="OWNER",
+                                  note="Owner marked the packet ready for review.")
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="CLAIM_READY", actor=f"user:{principal.id}",
+        detail={"claim_id": claim_id, "manifest_sha256": ready["packet_manifest_sha256"]},
+    )
+    return {"claim": ready}
+
+
+@app.post("/api/claims/{claim_id}/submit")
+def claim_submit_prepare(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    packet_manifest = str(claim.get("packet_manifest_sha256") or "")
+    if claim["state"] != "READY" or len(packet_manifest) != 64:
+        raise HTTPException(409, "A verified, ready claim packet is required before submission confirmation.")
+    return _agent_runtime().prepare(
+        scope, tool_name="claim.submit",
+        payload={"claim_id": claim_id, "packet_manifest_sha256": packet_manifest})
+
+
+@app.post("/api/claims/{claim_id}/query/draft")
+def claim_query_draft(claim_id: str, body: ClaimNoteIn, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    runtime = _agent_runtime()
+    runtime.prepare(scope, tool_name="query.draft", payload={"claim_id": claim_id})
+    repository = _claims_repository()
+    claim = repository.get(scope, claim_id)
+    if not claim.get("sandbox_claim_id"):
+        raise HTTPException(409, "A synthetic insurer claim number is required before a settlement can be checked.")
+    policy = _claim_policy(scope, claim["policy_id"])
+    remote = _sandbox_connector().claim_status(str(claim["sandbox_claim_id"]), tenant_id=scope.tenant_id)
+    deductions = claims.classify_deductions(policy, remote.get("settlement") or {})
+    draft = {
+        "state": "DRAFTED", "deductions": deductions,
+        "text": ("Please review the cited policy wording and the listed settlement deductions. "
+                 "This draft does not state that the insurer is wrong or that any payment is due."),
+        "owner_note": body.note,
+    }
+    repository.set_query_draft(scope, claim_id, draft)
+    return {"claim_id": claim_id, "draft": draft, "synthetic": True}
+
+
+@app.post("/api/claims/{claim_id}/query/send")
+def claim_query_send_prepare(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    if claim["state"] != "QUERY_OPEN":
+        raise HTTPException(409, "A signed synthetic insurer query is required before a reply can be sent.")
+    reply_text = _query_reply_text(claim)
+    return _agent_runtime().prepare(
+        scope, tool_name="claim.reply", payload={
+            "claim_id": claim_id,
+            "reply_text": reply_text,
+            "reply_sha256": _text_sha256(reply_text),
+        })
+
+
+def _claim_escalation_gate(scope: persistence.TenantScope, claim: Mapping[str, object]) -> dict:
+    """Compare the cited deadline with the separate sandbox clock and ladder evidence."""
+    policy = _claim_policy(scope, str(claim["policy_id"]))
+    clock = _sandbox_connector().clock()
+    return claims.escalation_gate(policy, claim, now_at=str(clock.get("current_at") or ""))
+
+
+@app.get("/api/claims/{claim_id}/sla")
+def claim_sla(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    deadline = claim.get("deadline") if isinstance(claim.get("deadline"), dict) else {}
+    return {
+        "claim_id": claim_id, "deadline": deadline, "state": claim["state"],
+        "escalation": _claim_escalation_gate(scope, claim),
+        "notice": ("VERIS quotes a sourced policy timing and prepares an escalation only when "
+                   "the cited overdue and complaint-ladder prerequisites are established."),
+    }
+
+
+@app.post("/api/claims/{claim_id}/escalation")
+def claim_escalation_prepare(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    gate = _claim_escalation_gate(scope, claim)
+    entry = gate.get("entry") if isinstance(gate.get("entry"), Mapping) else {}
+    if gate.get("eligible") is not True or not entry.get("entry_id"):
+        raise HTTPException(409, str(gate.get("notice") or "A cited overdue-claim escalation is not available."))
+    return _agent_runtime().prepare_escalation(
+        scope, payload={"claim_id": claim_id, "ladder_entry_id": str(entry["entry_id"]),
+                        "deadline_due_at": str(gate["deadline_due_at"])})
+
+
+class HealthWhatIfIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    policy_id: str = Field(min_length=1, max_length=160)
+    loss: Optional[str] = Field(default=None, max_length=80)
+    room_charge_per_day: Optional[str] = Field(default=None, max_length=80)
+    days: Optional[str] = Field(default=None, max_length=40)
+    deductible: Optional[str] = Field(default=None, max_length=80)
+    proportionate_factor: Optional[str] = Field(default=None, max_length=80)
+    coinsurance_percent: Optional[str] = Field(default=None, max_length=80)
+    proration_factor: Optional[str] = Field(default=None, max_length=80)
+    rider_copayment_percent: Optional[str] = Field(default=None, max_length=80)
+
+
+@app.post("/api/health/what-if")
+def health_what_if(body: HealthWhatIfIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    if not _agent_store().has_consent(scope.tenant_id, "agent:read"):
+        raise agent.AgentPolicyError("Agent consent for read-only health illustrations is not active.")
+    policy = _claim_policy(scope, body.policy_id)
+    inputs = body.model_dump(exclude={"policy_id"})
+    result = health_whatif.simulate(policy, inputs=inputs, order_basis="MARKET_CONVENTION")
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="HEALTH_WHAT_IF", actor=f"agent:veris on behalf of user:{principal.id} under mandate:none",
+        detail={"policy_id": body.policy_id, "output_state": result["output_state"],
+                "illustration": result["illustration"]},
+    )
+    return {"policy_id": body.policy_id, "mode": "DETERMINISTIC", **result}
+
+
+class MotorWhatIfIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    part_material: str = Field(min_length=1, max_length=40)
+    repair_cost: str = Field(min_length=1, max_length=80)
+
+
+@app.get("/api/motor/{policy_id}/alert")
+def motor_alert(policy_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    policy = _claim_policy(scope, policy_id)
+    if str(policy.get("line_of_business") or "").upper() != "MOTOR":
+        raise HTTPException(422, "The selected policy is not a motor policy.")
+    return {"policy_id": policy_id, "alert": policy.get("motor_alert"), "synthetic": True}
+
+
+@app.post("/api/motor/{policy_id}/depreciation-what-if")
+def motor_depreciation_what_if(policy_id: str, body: MotorWhatIfIn,
+                               session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    if not _agent_store().has_consent(scope.tenant_id, "agent:read"):
+        raise agent.AgentPolicyError("Agent consent for the read-only motor illustration is not active.")
+    policy = _claim_policy(scope, policy_id)
+    if str(policy.get("line_of_business") or "").upper() != "MOTOR":
+        raise HTTPException(422, "The selected policy is not a motor policy.")
+    result = motor.depreciation_what_if(policy, part_material=body.part_material,
+                                        repair_cost=body.repair_cost)
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="MOTOR_DEPRECIATION_WHAT_IF",
+        actor=f"agent:veris on behalf of user:{principal.id} under mandate:none",
+        detail={"policy_id": policy_id, "output_state": result["output_state"]},
+    )
+    return {"policy_id": policy_id, "mode": "DETERMINISTIC", **result}
+
+
+class ProtectionEventIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    code: str = Field(min_length=1, max_length=80)
+
+
+def _mapped_portfolio(scope: persistence.TenantScope) -> dict:
+    from . import health
+    return motor.enrich_portfolio(health.enrich_portfolio(_portfolio_repository().portfolio(scope)))
+
+
+@app.get("/api/protection-map")
+def portfolio_protection_map(scenario_loss: Optional[str] = None,
+                             session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return protection_map.build(_mapped_portfolio(scope), scenario_loss=scenario_loss)
+
+
+@app.get("/api/protection-map/events")
+def protection_map_events(session: Session = Depends(_session)):
+    _scope, _principal = _agent_scope(session)
+    return {"events": [protection_map.life_event(code) for code in protection_map.LIFE_EVENTS]}
+
+
+@app.post("/api/protection-map/events")
+def protection_map_event(body: ProtectionEventIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    try:
+        event = protection_map.life_event(body.code)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="LIFE_EVENT_FOREGROUNDED", actor=f"user:{principal.id}",
+        detail={"code": event["code"], "evidence_class": "DECLARED"},
+    )
+    return event
+
+
+class SettlementCheckIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    loss: Optional[str] = Field(default=None, max_length=80)
+    room_charge_per_day: Optional[str] = Field(default=None, max_length=80)
+    days: Optional[str] = Field(default=None, max_length=40)
+    deductible: Optional[str] = Field(default=None, max_length=80)
+    proportionate_factor: Optional[str] = Field(default=None, max_length=80)
+    coinsurance_percent: Optional[str] = Field(default=None, max_length=80)
+    proration_factor: Optional[str] = Field(default=None, max_length=80)
+    rider_copayment_percent: Optional[str] = Field(default=None, max_length=80)
+
+
+@app.post("/api/claims/{claim_id}/settlement/check")
+def settlement_check(claim_id: str, body: SettlementCheckIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    if not _agent_store().has_consent(scope.tenant_id, "agent:read"):
+        raise agent.AgentPolicyError("Agent consent for the read-only settlement check is not active.")
+    repository = _claims_repository()
+    claim = repository.get(scope, claim_id)
+    if not claim.get("sandbox_claim_id"):
+        raise HTTPException(409, "A synthetic insurer claim number is required before settlement can be checked.")
+    policy = _claim_policy(scope, claim["policy_id"])
+    remote = _sandbox_connector().claim_status(str(claim["sandbox_claim_id"]), tenant_id=scope.tenant_id)
+    check = settlement.check(policy, scenario_inputs=body.model_dump(),
+                             sandbox_settlement=remote.get("settlement") or {})
+    repository.set_settlement_check(scope, claim_id, check)
+    _agent_store().append_ledger(
+        scope.tenant_id, kind="SETTLEMENT_CHECK", actor=f"agent:veris on behalf of user:{principal.id} under mandate:none",
+        detail={"claim_id": claim_id, "state": check["state"],
+                "deduction_classes": [row["classification"] for row in check.get("deductions", [])]},
+    )
+    return {"claim_id": claim_id, "check": check, "synthetic": True}
+
+
+@app.post("/api/claims/{claim_id}/settlement/dispute")
+def settlement_dispute_prepare(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    if claim["state"] != "DECIDED":
+        raise HTTPException(409, "A decided settlement is required before a dispute can be prepared.")
+    try:
+        deduction_ids, dispute_text = _settlement_dispute_terms(claim)
+    except claims.ClaimTransitionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _agent_runtime().prepare(
+        scope, tool_name="settlement.dispute", payload={
+            "claim_id": claim_id,
+            "deduction_ids": deduction_ids,
+            "dispute_text": dispute_text,
+            "dispute_sha256": _text_sha256(dispute_text),
+        })
+
+
+@app.get("/api/claims/{claim_id}/settlement/reconcile")
+def settlement_reconcile(claim_id: str, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    check = claim.get("settlement_check") if isinstance(claim.get("settlement_check"), dict) else None
+    expected = check.get("expected_illustration") if isinstance(check, Mapping) else None
+    if not expected or not claim.get("sandbox_claim_id"):
+        raise HTTPException(409, "Run a complete deterministic settlement check before reconciliation.")
+    remote = _sandbox_connector().claim_status(str(claim["sandbox_claim_id"]), tenant_id=scope.tenant_id)
+    settlement_record = remote.get("settlement") if isinstance(remote.get("settlement"), Mapping) else {}
+    transfer_id = str(settlement_record.get("bank_transfer_id") or "")
+    if not transfer_id:
+        return {"claim_id": claim_id, "state": "INFORMATION_MISSING", "received": None,
+                "notice": "No corrected synthetic bank-transfer receipt is available yet."}
+    connector = _sandbox_connector()
+    try:
+        receipt = connector.bank_transfer_receipt(transfer_id, tenant_id=scope.tenant_id)
+    except sandbox.SandboxNotFound:
+        return {"claim_id": claim_id, "state": "INFORMATION_MISSING", "received": None,
+                "transfer_id": transfer_id,
+                "notice": "The corrected synthetic transfer is not present in this tenant's bank receipt."}
+    expected_reference = f"corrected-settlement:{claim['sandbox_claim_id']}"
+    expected_account = sandbox.beneficiary_account_id(scope.tenant_id)
+    result = settlement.reconcile(expected, receipt.get("amount"))
+    receipt_matches = (
+        receipt.get("transfer_id") == transfer_id
+        and receipt.get("reference") == expected_reference
+        and receipt.get("to_account") == expected_account
+    )
+    if not receipt_matches:
+        result = {
+            **result,
+            "state": "REQUIRES_AUTHORISED_REVIEW",
+            "notice": ("The tenant-bound synthetic bank receipt does not match the corrected "
+                       "claim transfer reference or destination; no conclusion is drawn."),
+        }
+    return {"claim_id": claim_id, "synthetic": True, "receipt": receipt, **result}
+
+
+@app.get("/api/agent/status")
+def agent_status(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    store = _agent_store()
+    return {
+        "mode": "DETERMINISTIC",
+        "consent": store.consent(scope.tenant_id),
+        "tools": agent.AgentRuntime.tool_catalogue(),
+        "tiers": {
+            "0": "Observe — read, cite and deterministic compute inside VERIS.",
+            "1": "Prepare — reversible drafts visible to the owner.",
+            "2": "Act — exact payload confirmation plus step-up authentication.",
+            "3": "Never — no tool exists for decisions, premiums, recommendations or signatures.",
+        },
+        "guardrails": [
+            "No model chooses a consequential outcome.",
+            "Document text cannot originate a tool call.",
+            "Tier-2 confirmation hashes the exact payload and is single use.",
+        ],
+    }
+
+
+@app.post("/api/agent/consent")
+def grant_agent_consent(body: AgentConsentIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    store = _agent_store()
+    result = store.grant_consent(scope.tenant_id, body.scopes)
+    store.append_ledger(
+        scope.tenant_id, kind="CONSENT_GRANTED",
+        actor=f"user:{principal.id}", detail={"scopes": result["scopes"]},
+    )
+    return result
+
+
+@app.post("/api/agent/consent/revoke")
+def revoke_agent_consent(session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    store = _agent_store()
+    result = store.revoke_consent(scope.tenant_id)
+    store.append_ledger(
+        scope.tenant_id, kind="CONSENT_REVOKED", actor=f"user:{principal.id}",
+        detail={"revoked": result["revoked"]},
+    )
+    return result
+
+
+@app.post("/api/agent/plan")
+def agent_plan(body: AgentPlanIn, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return _agent_runtime().plan(scope, intent=body.intent, origin=body.origin)
+
+
+@app.post("/api/agent/prepare")
+def agent_prepare(body: AgentPrepareIn, session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    runtime = _agent_runtime()
+    if body.tool_name != "invoice.pay":
+        return runtime.prepare(scope, tool_name=body.tool_name, payload=body.payload)
+    if not runtime.store.has_consent(scope.tenant_id, "agent:act"):
+        # Keep the normal permission refusal ahead of any invoice lookup.
+        return runtime.prepare(scope, tool_name=body.tool_name, payload=body.payload)
+    if set(body.payload) != {"invoice_id"}:
+        raise HTTPException(422, "Invoice payment accepts only an invoice id; payee and amount are resolved by the sandbox.")
+    invoice_id = str(body.payload.get("invoice_id") or "").strip()
+    if not invoice_id:
+        raise HTTPException(422, "A sandbox invoice id is required.")
+    invoice = _sandbox_connector().get_invoice(invoice_id, tenant_id=scope.tenant_id)
+    snapshot = {
+        "invoice_id": str(invoice["invoice_id"]),
+        "invoice_payee": str(invoice["payee"]),
+        "invoice_amount": str(invoice["amount"]),
+        "invoice_tenant_id": scope.tenant_id,
+    }
+    return runtime.prepare(scope, tool_name=body.tool_name, payload=snapshot)
+
+
+@app.get("/api/agent/confirmations")
+def agent_confirmations(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return {"confirmations": _agent_runtime().confirmation_inbox(scope)}
+
+
+@app.post("/api/agent/confirm")
+def agent_confirm(body: AgentConfirmIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    runtime = _agent_runtime()
+    if not _agent_step_up(runtime.store, principal, body):
+        raise HTTPException(403, "Step-up authentication did not verify this confirmation.")
+
+    return runtime.confirm(
+        scope, action_id=body.action_id, payload_hash=body.payload_hash,
+        step_up_verified=True, executor=_agent_sandbox_executor)
+
+
+@app.post("/api/agent/totp/enrol")
+def agent_totp_enrol(body: AgentStepUpIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    store = _agent_store()
+    if not _agent_step_up(store, principal, body):
+        raise HTTPException(403, "Password re-entry or an existing TOTP code is required.")
+    enrolled = store.enrol_totp(scope.tenant_id)
+    store.append_ledger(
+        scope.tenant_id, kind="TOTP_ENROLLED", actor=f"user:{principal.id}",
+        detail={"method": "TOTP"},
+    )
+    # The owner sees the secret exactly once to add it to their authenticator. It is never
+    # written to the ledger, logs or a browser-visible status response afterwards.
+    return {"secret": enrolled["secret"], "enrolled_at": enrolled["enrolled_at"]}
+
+
+@app.get("/api/agent/mandates")
+def agent_mandates(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return {"mandates": _agent_store().list_mandates(scope.tenant_id)}
+
+
+@app.post("/api/agent/mandates")
+def create_agent_mandate(body: AgentMandateIn, session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    store = _agent_store()
+    if not _agent_step_up(store, principal, body):
+        raise HTTPException(403, "Step-up authentication is required to change a mandate.")
+    mandate = store.create_mandate(
+        scope.tenant_id, scopes=body.scopes, per_payment_cap=body.per_payment_cap,
+        payee_allowlist=body.payee_allowlist, valid_from=body.valid_from,
+        valid_until=body.valid_until, advance_notice_required=body.advance_notice_required)
+    store.append_ledger(
+        scope.tenant_id, kind="MANDATE_CREATED", actor=f"user:{principal.id}",
+        detail={"mandate_id": mandate["id"], "scopes": mandate["scopes"],
+                "cap": mandate["per_payment_cap"]},
+    )
+    return {"mandate": mandate}
+
+
+@app.delete("/api/agent/mandates/{mandate_id}")
+def revoke_agent_mandate(mandate_id: str, body: AgentStepUpIn,
+                          session: Session = Depends(_session)):
+    scope, principal = _agent_scope(session)
+    store = _agent_store()
+    if not _agent_step_up(store, principal, body):
+        raise HTTPException(403, "Step-up authentication is required to change a mandate.")
+    result = store.revoke_mandate(scope.tenant_id, mandate_id)
+    store.append_ledger(
+        scope.tenant_id, kind="MANDATE_REVOKED", actor=f"user:{principal.id}",
+        detail={"mandate_id": mandate_id},
+    )
+    return result
+
+
+@app.get("/api/agent/ledger")
+def agent_ledger(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    store = _agent_store()
+    return {"records": store.ledger(scope.tenant_id), "verification": store.verify_ledger(scope.tenant_id)}
+
+
+@app.get("/api/agent/ledger/export")
+def agent_ledger_export(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    store = _agent_store()
+    return {"tenant_id": scope.tenant_id, "records": store.ledger(scope.tenant_id),
+            "verification": store.verify_ledger(scope.tenant_id)}
+
+
+@app.get("/api/agent/ledger/verify")
+def agent_ledger_verify(session: Session = Depends(_session)):
+    scope, _principal = _agent_scope(session)
+    return _agent_store().verify_ledger(scope.tenant_id)
+
+
+class ReviewerQueueIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    reviewer_organisation_id: str = Field(min_length=1, max_length=160)
+    rule_id: str = Field(min_length=1, max_length=160)
+
+
+class ReviewerDecisionIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    decision: str = Field(min_length=1, max_length=16)
+    severity: str = Field(min_length=1, max_length=16)
+    comment: str = Field(default="", max_length=2_000)
+
+
+def _review_store() -> reviewer.ReviewerStore:
+    return reviewer.store_from_environment()
+
+
+def _review_finding_payload(finding: Mapping[str, object]) -> dict:
+    evidence = []
+    for span in list(finding.get("spans") or [])[:16]:
+        if not isinstance(span, Mapping):
+            continue
+        evidence.append({
+            "document_id": str(span.get("document_id") or "")[:160],
+            "page": span.get("page_no"),
+            "quote": str(span.get("quote") or "")[:1_200],
+        })
+    return {
+        "rule_id": str(finding.get("rule_id") or ""),
+        "output_state": str(finding.get("state") or ""),
+        "evidence_class": str(finding.get("class") or ""),
+        "headline": str(finding.get("headline") or finding.get("summary") or "")[:800],
+        "evidence": evidence,
+    }
+
+
+@app.post("/api/reviewer/queue")
+def reviewer_queue_finding(body: ReviewerQueueIn, session: Session = Depends(_session)):
+    """Queue one owner-selected, server-derived finding for an assigned reviewer."""
+    with session.lock:
+        principal = _require_role(session, auth.SME)
+        st = _state(session)
+        finding = next((item for item in st["brief"].get("findings", [])
+                        if item.get("rule_id") == body.rule_id), None)
+        if finding is None:
+            raise HTTPException(404, "No current finding matches that reviewer request.")
+        payload = _review_finding_payload(finding)
+    return {"finding": _review_store().enqueue(
+        tenant_id=principal.organisation_id,
+        reviewer_org_id=body.reviewer_organisation_id,
+        finding=payload,
+    ), "notice": "Queued server-derived evidence for the assigned reviewer; no label has been created yet."}
+
+
+@app.get("/api/reviewer/queue")
+def reviewer_queue(session: Session = Depends(_session)):
+    """The REVIEWER role sees only records assigned to its organisation identifier."""
+    principal = _require_role(session, auth.REVIEWER)
+    rows = _review_store().queue(principal.organisation_id)
+    return {"reviewer": principal.as_dict(), "findings": rows,
+            "count": len(rows),
+            "notice": "Review labels remain human statements. The application records them but does not infer them."}
+
+
+@app.post("/api/reviewer/findings/{finding_id}/review")
+def reviewer_record_decision(finding_id: str, body: ReviewerDecisionIn,
+                             session: Session = Depends(_session)):
+    """Record a reviewer decision, severity and comment under the authenticated reviewer."""
+    principal = _require_role(session, auth.REVIEWER)
+    credentials = (principal.job_title.removeprefix("Reviewer:").strip()
+                   if principal.job_title.startswith("Reviewer:") else "")
+    return {"review": _review_store().record_review(
+        reviewer_org_id=principal.organisation_id, reviewer_id=principal.id,
+        reviewer_name=principal.name, credentials=credentials, finding_id=finding_id,
+        decision=body.decision, severity=body.severity, comment=body.comment,
+    )}
+
+
+@app.get("/api/reviewer/export")
+def reviewer_export_labels(session: Session = Depends(_session)):
+    """Export only genuinely human-reviewed, credential-bearing label records."""
+    principal = _require_role(session, auth.REVIEWER)
+    return _review_store().export_labels(principal.organisation_id)
+
+
 def _state(session: Session) -> dict:
     """The session's analysis state, built on first use from the demo bundle."""
     return SESSIONS.ensure_state(session, _demo_state)
@@ -509,6 +1523,22 @@ def _deny_foreign_role(session: Session) -> None:
     raise HTTPException(
         403, f"A {auth.ROLE_LABELS[principal.role].lower()} may not read a business's "
              f"own case. Use {where}.")
+
+
+def _require_consent_owner(session: Session) -> None:
+    """Restrict disclosure changes to the signed-in owner in hosted mode.
+
+    Local mode retains anonymous consent controls only for the pre-existing offline
+    demo. A logged-in non-owner is refused in both modes, so changing a browser's role
+    can never create or revoke another party's disclosure.
+    """
+    principal = _principal(session)
+    if principal is None:
+        if security.hosted_mode():
+            raise HTTPException(401, "Sign in as the portfolio owner to change disclosure consent.")
+        return
+    if principal.role != auth.SME:
+        raise HTTPException(403, "Only the portfolio owner can change disclosure consent.")
 
 
 def _retriever(session: Session) -> Retriever:
@@ -749,35 +1779,88 @@ def _stop_scheduler():
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    """Baseline hardening. The CSP matters specifically because this product renders
-    verbatim text from documents authored by somebody else: if an escaping bug ever
-    slips through, the policy is the second line of defence.
+    """Apply transport controls before a route can observe a hosted request.
 
-    SCRIPT AND STYLE ARE TREATED DIFFERENTLY, ON PURPOSE.
-
-    `script-src 'self'` stays strict with no 'unsafe-inline'. That is the control that
-    actually stops injected document text from executing, and it is not negotiable. It
-    also means inline `onclick=` attributes do not run, which is why `web/app.js` uses a
-    single delegated listener over `data-act` attributes rather than inline handlers. If a
-    button ever stops responding, that is the reason — add the action to the delegation
-    table, do not weaken this header.
-
-    `style-src` allows 'unsafe-inline' because the interface sets colours and layout on
-    generated elements. An injected style can deface a page; it cannot execute code. That
-    is a materially smaller risk than the one script-src defends against, and paying for it
-    with a broken interface would be the wrong trade.
+    Hosted mode deliberately treats every non-public API and workspace path as an
+    authenticated surface. Local mode retains the offline demonstration flow, but still
+    receives the baseline browser headers so the UI is exercised under its CSP.
     """
+    path = request.url.path
+    hosted = security.hosted_mode()
+
+    if hosted and path in _HOSTED_DOC_PATHS:
+        return JSONResponse(status_code=404, content={"detail": "Not found."})
+
+    declared_length = request.headers.get("content-length")
+    if declared_length:
+        try:
+            too_large = int(declared_length) > security.max_request_bytes()
+        except ValueError:
+            too_large = True
+        if too_large:
+            return JSONResponse(status_code=413, content={
+                "detail": "The request exceeds the configured hosted request-size limit."})
+
+    if hosted and not _hosted_request_is_public(path):
+        session = SESSIONS.get(request.cookies.get(SESSION_COOKIE))
+        principal = session.state.get("_principal") if session is not None else None
+        if not isinstance(principal, auth.Principal):
+            return JSONResponse(status_code=401, content={
+                "detail": "Sign in to use this hosted workspace."})
+
+    if hosted and request.method.upper() in _CSRF_UNSAFE_METHODS:
+        supplied = request.headers.get(security.CSRF_HEADER, "")
+        cookie = request.cookies.get(security.CSRF_COOKIE, "")
+        if not cookie or not supplied or not secrets.compare_digest(cookie, supplied):
+            response = JSONResponse(status_code=403, content={
+                "detail": "A matching CSRF token is required for this change."})
+            response.set_cookie(
+                security.CSRF_COOKIE, secrets.token_urlsafe(32), httponly=False,
+                secure=True, samesite="lax", max_age=SESSIONS.ttl_seconds, path="/")
+            return response
+
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
     response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Cache-Control", "no-store")
     response.headers.setdefault(
         "Content-Security-Policy",
         "default-src 'self'; img-src 'self' data:; "
         "style-src 'self' 'unsafe-inline'; "
         "script-src 'self'; object-src 'none'; base-uri 'none'; "
         "form-action 'self'; frame-ancestors 'none'")
+    if hosted:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if not request.cookies.get(security.CSRF_COOKIE) and _should_issue_csrf_cookie(path):
+        response.set_cookie(
+            security.CSRF_COOKIE, secrets.token_urlsafe(32), httponly=False,
+            secure=hosted, samesite="lax", max_age=SESSIONS.ttl_seconds, path="/")
     return response
+
+
+@app.exception_handler(security.SecurityConfigurationError)
+async def security_configuration_error_handler(_request: Request,
+                                                 exc: security.SecurityConfigurationError):
+    return JSONResponse(status_code=503, content={"error": "HOSTED_CONFIGURATION", "message": str(exc)})
+
+
+@app.exception_handler(corpus.CorpusMissing)
+async def corpus_missing_error_handler(_request: Request, exc: corpus.CorpusMissing):
+    name = exc.document_id or "the required document"
+    return JSONResponse(status_code=503, content={
+        "error": "CORPUS_MISSING",
+        "message": f"The local corpus does not contain {name}. Fetch the corpus before retrying.",
+    })
+
+
+@app.exception_handler(corpus.CorpusDrifted)
+async def corpus_drifted_error_handler(_request: Request, exc: corpus.CorpusDrifted):
+    return JSONResponse(status_code=503, content={
+        "error": "CORPUS_DRIFTED",
+        "message": "The local corpus copy no longer matches its manifest. Re-fetch it before retrying.",
+    })
 
 
 @app.exception_handler(ProvenError)
@@ -794,25 +1877,24 @@ def health():
     return {
         "ok": True,
         "version": app.version,
-        # Still False, and deliberately so: there is a credential check and a
-        # server-side role boundary, but no wall in front of the business workspace.
-        # Reporting True here would overstate the posture, and this field is what
-        # somebody reads when deciding whether to deploy it.
-        "authenticated": False,
+        "authenticated": security.hosted_mode(),
         "auth_notice": (
-            "This build has THREE SEEDED ACCOUNTS with salted PBKDF2 password hashes "
-            "and a role boundary enforced server-side: an adviser cannot read a "
-            "business's own case, and a carrier cannot read either. What it does NOT "
-            "have is a login wall in front of the business workspace — an "
-            "unauthenticated session still gets one, because that is the local demo "
-            "surface. There is no signup, no reset and no rotation. Do not expose this "
-            "port to a network."),
+            "Hosted mode requires an authenticated account on every workspace route, uses "
+            "invite-code signup, login rate limits, account lockout and 600000-round "
+            "PBKDF2-SHA256. Local mode deliberately keeps the offline seeded-demo "
+            "conveniences and must not be exposed to a network."
+            if security.hosted_mode() else
+            "Local mode keeps seeded demonstration accounts and an anonymous workspace "
+            "for offline evaluation. It has role boundaries but no signup or hosted login wall; "
+            "do not expose this port to a network."),
         "auth": {
-            "seeded_accounts": len(auth.ACCOUNTS),
+            "seeded_accounts": 0 if security.hosted_mode() else len(auth.ACCOUNTS),
             "roles": list(auth.ROLES),
             "role_boundary_enforced": True,
-            "login_required_for_business_workspace": False,
-            "password_hashing": "pbkdf2_sha256, 200000 iterations, per-account salt",
+            "login_required_for_business_workspace": security.hosted_mode(),
+            "password_hashing": "pbkdf2_sha256, 600000 iterations, per-account salt",
+            "invite_signup": security.hosted_mode(),
+            "csrf_required_for_changes": security.hosted_mode(),
         },
         "active_sessions": SESSIONS.count(),
         "upload_limits": {
@@ -859,49 +1941,83 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=200)
 
 
+class SignupIn(LoginIn):
+    invite_code: str = Field(min_length=1, max_length=300)
+    name: str = Field(min_length=1, max_length=160)
+    credentials: str = Field(default="", max_length=160)
+
+
+@app.get("/api/auth/csrf")
+def auth_csrf():
+    """Issue the readable half of the hosted double-submit CSRF pair via middleware."""
+    return {"csrf_cookie": security.CSRF_COOKIE, "header": security.CSRF_HEADER}
+
+
 @app.get("/api/auth/accounts")
 def auth_accounts():
-    """The seeded demo accounts, so a viewer can sign in without being told a password
-    out of band. Never serves a password hash."""
+    """Local-only account catalogue; hosted deployments never advertise credentials."""
+    if security.hosted_mode():
+        raise HTTPException(404, "Hosted accounts are invite-only.")
     return auth.catalogue()
 
 
-@app.post("/api/auth/login")
-def auth_login(body: LoginIn, session: Session = Depends(_session)):
-    """Bind a principal to this session.
+@app.post("/api/auth/signup")
+def auth_signup(body: SignupIn):
+    """Consume one hosted judge or reviewer invitation without exposing its value."""
+    if not security.hosted_mode():
+        raise HTTPException(404, "Invite signup is available only in hosted mode.")
+    try:
+        principal = auth.hosted_store_from_environment().signup(
+            email=body.email, password=body.password, invite_code=body.invite_code,
+            name=body.name, credentials=body.credentials)
+    except auth.AuthConfigurationError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except auth.InviteError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"ok": True, "user": principal.as_dict(),
+            "notice": "Invitation accepted. Sign in with the account you just created."}
 
-    The session is rotated on success. Without that, a session id captured before login
-    would still be valid after it — which is session fixation, and it is cheap to
-    prevent here because the session store already knows how to move state.
-    """
-    principal = auth.authenticate(body.email, body.password)
+
+@app.post("/api/auth/login")
+def auth_login(body: LoginIn, request: Request, response: Response,
+               session: Session = Depends(_session)):
+    """Authenticate, rate-limit hosted attempts, and rotate the session identifier."""
+    if security.hosted_mode():
+        caller = request.client.host if request.client is not None else "unknown"
+        if not auth.LOGIN_RATE_LIMITER.allow(*auth.login_rate_limit_keys(body.email, caller)):
+            raise HTTPException(429, "Too many sign-in attempts. Retry shortly.")
+        try:
+            result = auth.hosted_store_from_environment().authenticate(body.email, body.password)
+        except auth.AuthConfigurationError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        if result.locked:
+            raise HTTPException(429, "Too many sign-in attempts. Retry after the lockout period.")
+        principal = result.principal
+    else:
+        principal = auth.authenticate(body.email, body.password)
     if principal is None:
-        # One message for both failure modes, so this cannot be used to enumerate
-        # which email addresses exist.
+        # One message for unknown and invalid local or hosted credentials.
         raise HTTPException(401, "That email and password combination is not valid.")
+
+    session = SESSIONS.rotate(session.id)
     with session.lock:
         session.state["_principal"] = principal
+    _set_session_cookie(response, session.id)
     return {
         "ok": True,
         "user": principal.as_dict(),
-        "notice": ("Signed in. Your role decides which workspace you can open, and "
-                   "that is enforced by the server rather than by which screen is "
-                   "showing."),
+        "notice": ("Signed in to the hosted workspace." if security.hosted_mode() else
+                   "Signed in to the local demonstration workspace."),
     }
 
 
 @app.post("/api/auth/logout")
-def auth_logout(session: Session = Depends(_session)):
-    """Sign out and drop the case with it.
-
-    Discarding the analysis is the point rather than a side effect: leaving one user's
-    findings in a session the next person signs into would undo the isolation the whole
-    consent model rests on.
-    """
-    with session.lock:
-        session.close()
-    return {"ok": True, "notice": ("Signed out. The case in this session was "
-                                   "discarded, not merely hidden.")}
+def auth_logout(response: Response, session: Session = Depends(_session)):
+    """Sign out and destroy both the identity and case held by this browser session."""
+    SESSIONS.drop(session.id)
+    response.delete_cookie(SESSION_COOKIE, path="/", secure=security.hosted_mode(), httponly=True)
+    response.delete_cookie(security.CSRF_COOKIE, path="/", secure=security.hosted_mode())
+    return {"ok": True, "notice": "Signed out. The case in this session was discarded."}
 
 
 @app.get("/api/auth/me")
@@ -910,12 +2026,11 @@ def auth_me(session: Session = Depends(_session)):
     return {
         "authenticated": principal is not None,
         "user": principal.as_dict() if principal else None,
-        "notice": ("No one is signed in. The business workspace is still open because "
-                   "this is a local demo surface; the adviser and carrier workspaces "
-                   "are not."
+        "notice": ("No one is signed in. Hosted workspaces require login."
+                   if security.hosted_mode() and principal is None else
+                   "No one is signed in. The local business workspace remains available for the offline demo."
                    if principal is None else
-                   f"Signed in as {principal.name}, "
-                   f"{auth.ROLE_LABELS[principal.role].lower()}."),
+                   f"Signed in as {principal.name}, {auth.ROLE_LABELS[principal.role].lower()}."),
     }
 
 
@@ -1678,6 +2793,7 @@ class RevokeIn(BaseModel):
 @app.post("/api/consent")
 def consent(body: ConsentIn, session: Session = Depends(_session)):
     with session.lock:
+        _require_consent_owner(session)
         st = _state(session)
         did = pipeline.grant_disclosure(
             st["conn"], st["case_id"], body.recipient, body.fields)
@@ -1692,6 +2808,7 @@ def consent_revoke(body: RevokeIn, session: Session = Depends(_session)):
     """Revocation is what makes consent consent. A grant that cannot be withdrawn is
     a transfer."""
     with session.lock:
+        _require_consent_owner(session)
         st = _state(session)
         revoked = pipeline.revoke_disclosure(
             st["conn"], st["case_id"], body.recipient)
@@ -1789,15 +2906,17 @@ def consent_status(session: Session = Depends(_session)):
 @app.get("/api/disclosure/brief")
 def disclosed_brief(recipient: str = "Licensed adviser",
                     session: Session = Depends(_session)):
-    """The adviser's view, and the actual consent gate.
-
-    403 unless a live disclosure names this recipient. Findings evidenced by
-    documents that were not disclosed are withheld and COUNTED, so the adviser can
-    ask for what they need rather than being handed a silently shortened list. Every
-    read writes an audit row: a pull, logged.
-    """
+    """Return only a disclosure bound to the authenticated recipient in hosted mode."""
     with session.lock:
         st = _state(session)
+        if security.hosted_mode():
+            principal = _require_role(session, auth.ADVISER)
+            named, _fields = _resolve_grant(
+                st["conn"], st["case_id"], _recipient_candidates(principal))
+            if named is None:
+                raise HTTPException(
+                    403, "This portfolio has not granted disclosure to your authenticated organisation.")
+            return pipeline.disclosed_brief(st["conn"], st["case_id"], st["brief"], named)
         return pipeline.disclosed_brief(
             st["conn"], st["case_id"], st["brief"], recipient.strip()[:200])
 
@@ -2386,20 +3505,39 @@ class PresentationIn(BaseModel):
     verified_context: dict = Field(default_factory=dict)
 
 
+def _server_presentation_context(session: Session, purpose: str) -> dict:
+    """Build hosted presentation inputs from server-held deterministic output only."""
+    st = _state(session)
+    brief_now = _brief_with_events(session)
+    findings = list(brief_now.get("findings") or [])
+    by_state: dict[str, int] = {}
+    for finding in findings:
+        state = str(finding.get("state") or "UNKNOWN")
+        by_state[state] = by_state.get(state, 0) + 1
+    return {
+        "purpose": purpose,
+        "business": str(brief_now.get("business") or "portfolio"),
+        "finding_count": len(findings),
+        "findings_by_state": by_state,
+        "source": "SERVER_DERIVED_DETERMINISTIC_CONTEXT",
+    }
+
+
 @app.post("/api/presentation/compose")
 def presentation_compose(body: PresentationIn,
                          session: Session = Depends(_session)):
-    """Turn a verified finding into one plain sentence and a chart choice.
-
-    Session-scoped so credentials never leave the server and an anonymous caller cannot
-    burn model quota. The response always succeeds: if the model is absent, slow, or says
-    something it should not, a written template answers instead and `mode` says which.
-    """
-    # This client-supplied context carries no source-document classification.  Treat it
-    # as health-restricted rather than infer sensitivity from whichever words it contains.
-    permission = _ai_model_permission(session, health_context=True)
-    return presenter.compose(body.purpose, body.verified_context,
-                             model_allowed=permission["allowed"],
+    """Compose from server-held context in hosted mode, never a caller-provided fact map."""
+    if security.hosted_mode():
+        with session.lock:
+            _deny_foreign_role(session)
+            context = _server_presentation_context(session, body.purpose)
+            permission = _ai_model_permission(session, health_context=True)
+    else:
+        # Local compatibility keeps the deterministic presenter harness and existing
+        # offline demo payloads working. It is never exposed as a hosted authority path.
+        context = body.verified_context
+        permission = _ai_model_permission(session, health_context=True)
+    return presenter.compose(body.purpose, context, model_allowed=permission["allowed"],
                              tenant_id=permission["tenant_id"]).as_dict()
 
 
@@ -3348,13 +4486,16 @@ MAX_HISTORY = 200  # re-declared for the endpoint's limit guard
 # and "check now" asks the scheduler to look rather than looking itself.
 
 def _watched_business_id() -> str:
-    """The business the scheduler is watching.
-
-    One business in this build, keyed by UEN. The point of routing every caller through one
-    function is that the reader and the writer cannot drift apart — if this returned
-    something else, the inbox would be permanently empty and nothing would say why.
-    """
+    """The synthetic business identifier used by the local demonstration scheduler."""
     return str(discovery.demo_business().get("uen") or "unknown")
+
+
+def _notification_business_id(session: Session) -> str:
+    """Scope hosted notification state to the authenticated tenant, never a global demo id."""
+    if not security.hosted_mode():
+        return _watched_business_id()
+    principal = _require_role(session, auth.SME)
+    return f"{principal.organisation_id}:{_watched_business_id()}"
 
 
 class NotificationPrefsIn(BaseModel):
@@ -3370,7 +4511,7 @@ def notifications_list(unread_only: bool = False, limit: int = 50,
     """What we noticed since the last check, newest first."""
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     store = notifications.NOTIFICATIONS
     return {
         "business_id": bid,
@@ -3393,7 +4534,7 @@ def notification_mark_read(notification_id: str,
                            session: Session = Depends(_session)):
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     found = notifications.NOTIFICATIONS.mark_read(bid, notification_id)
     if not found:
         raise HTTPException(404, "No such notification.")
@@ -3404,7 +4545,7 @@ def notification_mark_read(notification_id: str,
 def notifications_mark_all_read(session: Session = Depends(_session)):
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     changed = notifications.NOTIFICATIONS.mark_all_read(bid)
     return {"ok": True, "marked_read": changed, "unread": 0}
 
@@ -3414,7 +4555,7 @@ def notifications_preferences(session: Session = Depends(_session)):
     """What we may email about, and the vocabulary of what can be changed."""
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     return {
         "preferences": notifications.NOTIFICATIONS.preferences(bid),
         "available_codes": [
@@ -3435,7 +4576,7 @@ def notifications_set_preferences(body: NotificationPrefsIn,
                                   session: Session = Depends(_session)):
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     changes = {k: v for k, v in body.model_dump().items() if v is not None}
     saved = notifications.NOTIFICATIONS.set_preferences(bid, changes)
     return {"ok": True, "preferences": saved}
@@ -3451,7 +4592,7 @@ def notifications_outbox(limit: int = 25, session: Session = Depends(_session)):
     """
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     return {
         "messages": mailer.OUTBOX.list(bid, limit=min(max(limit, 1), 50)),
         "count": mailer.OUTBOX.count(bid),
@@ -3462,11 +4603,12 @@ def notifications_outbox(limit: int = 25, session: Session = Depends(_session)):
 @app.get("/api/notifications/outbox/{message_id}")
 def notifications_outbox_message(message_id: str,
                                  session: Session = Depends(_session)):
-    """One composed message in full, for previewing exactly what the owner receives."""
+    """One composed message, scoped to the same tenant-bound inbox as its listing."""
     with session.lock:
         _deny_foreign_role(session)
+    bid = _notification_business_id(session)
     entry = mailer.OUTBOX.get(message_id)
-    if entry is None:
+    if entry is None or entry.business_id != bid:
         raise HTTPException(404, "No such message.")
     return entry.as_dict()
 
@@ -3480,8 +4622,9 @@ def notifications_check_now(session: Session = Depends(_session)):
     """
     with session.lock:
         _deny_foreign_role(session)
-    run = scheduler.SCHEDULER.run_discovery_now()
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
+    run = scheduler.SCHEDULER.run_discovery_now(
+        business_id=bid, business_name=str(discovery.demo_business().get("name") or "your business"))
     watch = (run.get("detail") or {}).get("watch") or {}
     return {
         "ok": True,
@@ -3520,7 +4663,7 @@ def notifications_restart_watch(session: Session = Depends(_session)):
     """
     with session.lock:
         _deny_foreign_role(session)
-    bid = _watched_business_id()
+    bid = _notification_business_id(session)
     watchlist.WATCHLIST.forget(bid)
     notifications.NOTIFICATIONS.forget(bid)
     # The mail log goes too. Leaving it would show emails describing notifications the user
@@ -3543,9 +4686,25 @@ def notifications_watch_status(session: Session = Depends(_session)):
     """What is being watched, and how the memory behaves across a restart."""
     with session.lock:
         _deny_foreign_role(session)
+    bid = _notification_business_id(session)
+    scoped_watch = (watchlist.WATCHLIST.stats() if not security.hosted_mode() else {
+        "businesses_watched": int(watchlist.WATCHLIST.last_seen(bid) is not None),
+        "watching": ([{"business_id": bid,
+                       "observed_at": watchlist.WATCHLIST.last_seen(bid),
+                       "facts_tracked": watchlist.WATCHLIST.tracked_count(bid)}]
+                     if watchlist.WATCHLIST.last_seen(bid) else []),
+        "alertable_types": list(watchlist.ALERTABLE_TYPES),
+        "notice": "Hosted status is scoped to the authenticated tenant.",
+    })
+    scoped_notifications = (notifications.NOTIFICATIONS.stats() if not security.hosted_mode() else {
+        "businesses": int(notifications.NOTIFICATIONS.counts(bid)["total"] > 0),
+        "total_notifications": notifications.NOTIFICATIONS.counts(bid)["total"],
+        "notifiable_codes": list(notifications.NOTIFIABLE_CODES),
+        "notice": "Hosted status is scoped to the authenticated tenant.",
+    })
     return {
-        "watchlist": watchlist.WATCHLIST.stats(),
-        "notifications": notifications.NOTIFICATIONS.stats(),
+        "watchlist": scoped_watch,
+        "notifications": scoped_notifications,
         "mail": mailer.status(),
         "checks_every_seconds": scheduler.DISCOVERY_INTERVAL,
         "website_watched": discovery.demo_business().get("website"),
@@ -4636,6 +5795,9 @@ def carrier_notify(body: CarrierNotifyIn, session: Session = Depends(_session)):
     existing preferences — including turning it off — govern it like everything else.
     """
     principal = _require_role(session, auth.CARRIER)
+    if security.hosted_mode():
+        raise HTTPException(
+            403, "Hosted carrier notifications are disabled until an owner-bound recipient assignment exists.")
     row = _carrier_account(body.account_id, session, principal.organisation_name)
     template = body.template.strip().upper()
     if template not in _CARRIER_TEMPLATES:
@@ -4883,9 +6045,9 @@ def carrier_premium_at_risk(session: Session = Depends(_session)):
     function whose comment promised the winning number and whose body declined to produce
     it. A reviewer who opens this file is exactly the reader that contradiction misleads.
 
-    What it does now: report which operand is missing. See the comment in the body for the
-    two that are, and `_unused_premium_at_risk` below for the version that is kept only as
-    a record of what was removed.
+    What it does now: report which operand is missing. The illustrative calculator was
+    removed rather than kept as dormant source code, so no future route can accidentally
+    revive an invented premium figure.
     """
     principal = _require_role(session, auth.CARRIER)
     rows = _book_rows(session, principal.organisation_name)
@@ -4927,12 +6089,6 @@ def carrier_premium_at_risk(session: Session = Depends(_session)):
         "produces a figure that looks like revenue and traces to nothing, which is the "
         "one number that would discredit every other number in this product.")
     return refusal
-
-
-def _unused_premium_at_risk() -> dict:  # pragma: no cover
-    """Retained for reference only; not routed. See _no_book_yet above."""
-    result = premium_at_risk.compute_premium_at_risk(premium_at_risk.DEMO_PORTFOLIO)
-    return result
 
 
 _CARRIER_DEMO_ACCOUNTS: tuple[dict, ...] = (
@@ -5031,16 +6187,11 @@ def record(session: Session = Depends(_session)):
 
 @app.get("/api/record/export")
 def record_export(session: Session = Depends(_session)):
-    """Download the record as a self-verifying document.
-
-    This is what makes "portable" true rather than aspirational: every field needed
-    to recompute the hash chain travels with the export, plus each basis document's
-    filename and sha256, so a recipient with no access to this process can verify it
-    via `POST /api/record/verify` or their own sha256 implementation.
-    """
+    """Download a portable chain with a hosted server-HMAC when configured."""
     with session.lock:
         st = _state(session)
-        doc = pipeline.export_record(st["conn"], st["business_id"])
+        key = security.record_hmac_key(required=security.hosted_mode())
+        doc = pipeline.export_record(st["conn"], st["business_id"], hmac_key=key)
     return JSONResponse(
         content=doc,
         headers={"Content-Disposition":
@@ -5049,12 +6200,15 @@ def record_export(session: Session = Depends(_session)):
 
 @app.post("/api/record/verify")
 def record_verify(exported: dict):
-    """Re-verify an exported record. Stateless by design — it reads nothing from this
-    server, which is the point: a third party can check the chain independently."""
+    """Verify portable SHA-256 links and a server HMAC when this host owns it."""
     if not isinstance(exported, dict) or "facts" not in exported:
         raise HTTPException(
             400, "Expected an exported record document with a `facts` array.")
-    return pipeline.verify_record(exported)
+    key = security.record_hmac_key(required=security.hosted_mode())
+    result = pipeline.verify_record(exported, hmac_key=key)
+    if security.hosted_mode() and not result["hmac_present"]:
+        raise HTTPException(422, "Hosted portable records require the issuing server HMAC.")
+    return result
 
 
 # ── book view ───────────────────────────────────────────────────────────────
@@ -5436,6 +6590,8 @@ ROLE_ENTRY: dict[str, dict] = {
                  "purpose": "The review queue, the evidence, and the requests to action."},
     "/carrier": {"role": auth.CARRIER, "view": "carrier",
                  "purpose": "Portfolio attention, aggregated over documents already held."},
+    "/reviewer": {"role": auth.REVIEWER, "view": "reviewer",
+                  "purpose": "Assigned evidence review and human label export."},
 }
 
 
@@ -5599,6 +6755,15 @@ def carrier_entry():
 @app.get("/carrier/{_path:path}")
 def carrier_entry_deep(_path: str = ""):
     return _spa()
+
+
+@app.get("/reviewer")
+def reviewer_entry():
+    """Standalone keyboard-navigable reviewer console; API roles remain the boundary."""
+    page = WEB_DIR / "reviewer.html"
+    if not page.is_file():
+        raise HTTPException(404, "web/reviewer.html not found")
+    return FileResponse(str(page))
 
 
 @app.get("/api/entrypoints")

@@ -54,6 +54,20 @@ class DocumentTooLarge(IngestError):
     code = "DOCUMENT_TOO_LARGE"
 
 
+class PdfParseTimeout(IngestError):
+    """An isolated PDF parser exceeded its wall-clock budget."""
+
+    http_status = 422
+    code = "PDF_PARSE_TIMEOUT"
+
+
+class PdfParseResourceError(IngestError):
+    """An isolated PDF parser exited without a safe extraction result."""
+
+    http_status = 422
+    code = "PDF_PARSE_RESOURCE_LIMIT"
+
+
 class EmptyDocument(IngestError):
     http_status = 400
     code = "EMPTY_DOCUMENT"

@@ -45,7 +45,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from . import config
+from . import config, security
 
 # ── claim scope: the structural ceiling on what Sentinel may assert ──────────
 
@@ -310,8 +310,9 @@ def _http_json(url: str, *, browser: bool = False) -> tuple[Optional[dict], str]
         headers["Accept-Language"] = "en-US,en;q=0.9"
         headers["Referer"] = "https://tablebuilder.singstat.gov.sg/"
     try:
+        security.require_outbound_url(url, purpose="sentinel fetch")
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=FETCH_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=FETCH_TIMEOUT) as resp:  # nosec B310
             raw = resp.read(2_000_000)
             return json.loads(raw.decode("utf-8", errors="replace")), ""
     except urllib.error.HTTPError as e:

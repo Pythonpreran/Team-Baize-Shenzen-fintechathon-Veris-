@@ -33,6 +33,7 @@ too, in `constraints.txt`, which `requirements.txt` applies to every install.
 | **pytesseract** | Apache-2.0 | **Optional.** Wrapper that calls the Tesseract binary for OCR of scanned pages. OCR confidence is extraction metadata, never evidence confidence: a page read poorly caps any finding resting on it at UNESTABLISHED. |
 | **Pillow** | MIT-CMU. The wheel also bundles FreeType, libjpeg-turbo, libpng, libtiff, libwebp, OpenJPEG and other permissively licensed libraries; its licence file, reproduced in THIRD_PARTY_NOTICES.md, carries each one's terms, and NOTICE carries the credits FreeType and the IJG terms ask for. | **Optional, with OCR.** Image decoding and the pre-OCR conditioning (deskew, denoise, upscale). |
 | **cryptography** | Apache-2.0 OR BSD-3-Clause | AES-GCM encryption for the durable portfolio store. Each tenant has a random data key wrapped by the deployment master key. Local tenant-key removal uses secure delete, WAL truncation and VACUUM, then verifies the database artifacts no longer retain that wrapped key; backup retention and physical-media destruction remain hosting operations. |
+| **pyotp** | MIT | Generates and verifies time-based one-time passwords for the explicit step-up check on agent confirmations and mandate changes. It is local-only; no TOTP secret leaves the tenant-scoped store. |
 | **holidays** | MIT | Deterministic public-holiday calendars for India and Singapore. The jurisdiction layer uses the policy's selected pack and its configured country calendar for working-day arithmetic; it never substitutes a calendar from another country. |
 | **SQLite** (`sqlite3`, Python standard library) | Public domain | The source / accounting / computation / case / record stores and the separate durable portfolio store. There is deliberately no breach, violation, deficiency or score column anywhere in the schema. |
 
@@ -57,6 +58,8 @@ Not part of a deployment.
 | **hypothesis** | MPL-2.0 | Property-based tests for the settlement arithmetic (an illustration never exceeds the loss; a null threshold is never silently defaulted). |
 | **httpx** | BSD-3-Clause | The transport behind `fastapi.testclient`. (Also a runtime dependency of the openai SDK.) |
 | **pip-licenses** | MIT | Generates THIRD_PARTY_NOTICES.md. |
+| **pip-audit** | MIT | Audits the installed, fully pinned dependency closure for published advisories in CI and before delivery. |
+| **bandit** | Apache-2.0 | Static security analysis of `src/` in CI; reviewed transport boundaries are exercised separately by red-team tests. |
 
 ## External services
 
@@ -69,6 +72,7 @@ and every test passes, with no network access at all.
 | **Singapore government open-data APIs** — data.gov.sg real-time rainfall and 24-hour forecast; the SingStat Table Builder (construction cost index M211251); the ACRA company register via the data.gov.sg datastore; OneMap geocoding | Only when `PROVEN_LIVE_SOURCES=1` | The monitoring and discovery agents and the drift index. Each call has a timeout and falls back to a labelled fixture, and a fixture is never rendered as live. | Each publisher's open-data terms. |
 | **An SMTP relay** | Only when `PROVEN_SMTP_HOST` and `PROVEN_SMTP_FROM` are set | Delivers notifications. Unset, every notification is still composed in full and shown in an in-app outbox, marked as not sent. | Whichever relay the deployer configures. |
 | **The example business's website** (`demo-site/site.py`, a local process) | Only when discovery runs against it | A stand-in website for the fictional example business, so discovery makes a genuine HTTP request and parse. | Ours; synthetic content. |
+| **Synthetic insurer and bank sandbox** (`sandbox/app.py`) | Only in the local demo composition or in-process contract tests | A separate FastAPI counterparty with deterministic claims, invoices, transfers, signed webhooks and signed JSONL operation records. It is explicitly synthetic: it makes no external insurer or bank call, creates no real transaction, and is the execution-evidence seam for the demo. | Ours; synthetic content. |
 
 **Accounting systems.** A live accounting integration is a **documented seam, not a
 built feature.** The "accounting feed" in the business workspace is fixed demonstration

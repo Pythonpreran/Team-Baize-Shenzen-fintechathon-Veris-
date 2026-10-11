@@ -21,7 +21,7 @@ from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from typing import Any, Mapping, Optional, Sequence
 
-from . import redact
+from . import redact, security
 from .lang.lexicons import en as english_lexicon
 
 
@@ -688,6 +688,18 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
     headers = {"Content-Type": "application/json", "User-Agent": "VERIS/2.0"}
     if current.api_key:
         headers["Authorization"] = f"Bearer {current.api_key}"
+    try:
+        security.require_outbound_url(current.endpoint or "", purpose="model transport")
+    except security.SecurityConfigurationError as exc:
+        intent_hash = sha256(intent.encode("utf-8")).hexdigest() if intent else None
+        log_id = _append_prompt_log(
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=current.model_version, purpose=purpose,
+            messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
+            result="OUTBOUND_REFUSED")
+        return ChatResult(False, error=str(exc), profile=current.profile.name,
+                          model=current.model, model_version=current.model_version,
+                          prompt_log_id=log_id, input_tokens=estimated, _redactor=vault)
     request = urllib.request.Request(
         current.endpoint or "", data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers=headers)
@@ -695,7 +707,7 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
     body: Optional[dict] = None
     for attempt in range(current.retries + 1):
         try:
-            with urllib.request.urlopen(request, timeout=current.timeout_seconds) as response:
+            with urllib.request.urlopen(request, timeout=current.timeout_seconds) as response:  # nosec B310
                 parsed = json.loads(response.read().decode("utf-8"))
             if not isinstance(parsed, dict):
                 raise ValueError("Response was not a JSON object")

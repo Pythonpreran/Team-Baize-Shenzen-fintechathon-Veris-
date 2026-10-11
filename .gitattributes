@@ -9,3 +9,9 @@
 # and checks out the exact bytes the generator wrote, on every platform.
 # tests/test_licensing_and_branding.py holds this in place.
 *.pdf binary
+
+# Evidence artefacts are hash-verified byte-for-byte. Do not let line-ending conversion
+# mutate JSON, JSONL, or manifests after their digest was written.
+evidence/**/*.json -text
+evidence/**/*.jsonl -text
+evidence/**/*.md -text

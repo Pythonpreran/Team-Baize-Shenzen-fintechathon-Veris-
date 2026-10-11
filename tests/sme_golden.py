@@ -77,7 +77,7 @@ DATE_DEPENDENT_KEYS: frozenset[str] = frozenset({"orchestration"})
 
 _ID = re.compile(r"\b[0-9a-f]{32}\b")
 _TS = re.compile(r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?")
-_UPLOADED_BUSINESS = re.compile(r"\buploaded-[A-Za-z0-9_\-]{8}\b")
+_UPLOADED_BUSINESS = re.compile(r"\buploaded-[A-Za-z0-9_-]{8}(?![A-Za-z0-9_-])")
 
 #: The derived screens each scenario records, in addition to the Brief.
 DERIVED_ROUTES: tuple[str, ...] = (

@@ -20,8 +20,8 @@ fastapi==0.136.3
 uvicorn==0.34.0
 pydantic==2.12.4
 PyYAML==6.0.3
-pypdf==6.10.2
-python-multipart==0.0.22
+pypdf==6.20.0
+python-multipart==0.0.32
 
 # PDF page rendering for the evidence viewer and for OCR of pages drawn as vectors.
 # PDFium (BSD-3-Clause / Apache-2.0) through its pypdfium2 binding (Apache-2.0 /
@@ -34,6 +34,10 @@ pypdfium2==5.14.0
 # AES-GCM encryption for the tenant-scoped portfolio store. Each tenant data key is
 # wrapped by VERIS_MASTER_KEY; the cffi and pycparser closure is pinned in constraints.
 cryptography==50.0.2
+
+# Time-based one-time passwords for the explicit step-up boundary on agent confirmations
+# and mandate changes. Password re-entry remains available for local demonstrations.
+pyotp==2.10.0
 
 # Country public-holiday calendars for deterministic working-day arithmetic in jurisdiction
 # packs. Its python-dateutil and six closure is pinned in constraints.txt.
@@ -69,3 +73,9 @@ hypothesis==6.155.6
 httpx==0.28.1
 # Generates THIRD_PARTY_NOTICES.md (licence texts of everything installed). Dev only.
 pip-licenses==5.5.5
+# Audits the fully pinned installed environment for known published advisories. Dev only.
+pip-audit==2.10.1
+# pip-audit's file cache extra; listed directly so every transitive install path is pinned.
+filelock==4.1.0
+# Static security analysis in CI. Dev only.
+bandit==1.9.4

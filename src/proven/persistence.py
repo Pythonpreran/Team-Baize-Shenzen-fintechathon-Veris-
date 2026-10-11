@@ -689,8 +689,20 @@ class PortfolioRepository:
     @staticmethod
     def _row_for_tenant(conn: sqlite3.Connection, table: str, record_id: str,
                         tenant_id: str) -> sqlite3.Row:
-        row = conn.execute(
-            f"SELECT * FROM {table} WHERE id=? AND tenant_id=?", (record_id, tenant_id)).fetchone()
+        # SQLite placeholders cannot bind identifiers. Selecting from an explicit map
+        # keeps this tenant lookup structural rather than caller-controlled.
+        statements = {
+            "household": "SELECT * FROM household WHERE id=? AND tenant_id=?",
+            "member": "SELECT * FROM member WHERE id=? AND tenant_id=?",
+            "asset": "SELECT * FROM asset WHERE id=? AND tenant_id=?",
+            "business": "SELECT * FROM business WHERE id=? AND tenant_id=?",
+            "policy": "SELECT * FROM policy WHERE id=? AND tenant_id=?",
+            "document": "SELECT * FROM document WHERE id=? AND tenant_id=?",
+        }
+        statement = statements.get(table)
+        if statement is None:
+            raise PortfolioValidationError("Unknown tenant-scoped portfolio table.")
+        row = conn.execute(statement, (record_id, tenant_id)).fetchone()
         if row is None:
             # One message whether the id never existed or belongs to another tenant.
             raise PortfolioNotFound("No portfolio record is available for this tenant.")

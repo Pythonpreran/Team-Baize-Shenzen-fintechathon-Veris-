@@ -1,0 +1,37 @@
+services:
+  veris:
+    build: .
+    command: python -m uvicorn proven.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      VERIS_MODE: local
+      VERIS_PORTFOLIO_DB_PATH: /data/portfolio.sqlite
+      VERIS_CORPUS_DIR: /corpus
+      VERIS_SANDBOX_URL: http://sandbox:8200
+      VERIS_SANDBOX_CLIENT_ID: ${VERIS_SANDBOX_CLIENT_ID:?Set a generated local sandbox client id.}
+      VERIS_SANDBOX_CLIENT_SECRET: ${VERIS_SANDBOX_CLIENT_SECRET:?Set a generated 32-byte local sandbox client secret.}
+    volumes:
+      - veris_data:/data
+      - ${VERIS_LOCAL_CORPUS_DIR:?Set the host path to the seeded local corpus.}:/corpus:ro
+    depends_on:
+      - sandbox
+
+  sandbox:
+    build: .
+    command: python -m uvicorn sandbox.app:app --host 0.0.0.0 --port 8200
+    expose:
+      - "8200"
+    environment:
+      VERIS_MODE: local
+      VERIS_SANDBOX_DB_PATH: /data/sandbox.sqlite
+      VERIS_SANDBOX_LOG_PATH: /data/operations.jsonl
+      VERIS_SANDBOX_CLIENT_ID: ${VERIS_SANDBOX_CLIENT_ID:?Set a generated local sandbox client id.}
+      VERIS_SANDBOX_CLIENT_SECRET: ${VERIS_SANDBOX_CLIENT_SECRET:?Set a generated 32-byte local sandbox client secret.}
+      VERIS_LOCAL_SANDBOX_ADMIN_TOKEN: ${VERIS_LOCAL_SANDBOX_ADMIN_TOKEN:?Set a local-only sandbox administrator token.}
+    volumes:
+      - sandbox_data:/data
+
+volumes:
+  veris_data:
+  sandbox_data:

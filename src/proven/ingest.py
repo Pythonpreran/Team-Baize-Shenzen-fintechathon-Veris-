@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import multiprocessing
 import re
 import sqlite3
 from datetime import datetime, timezone
@@ -32,6 +33,9 @@ from .errors import (
     EncryptedDocument,
     IngestError,
     NoTextLayer,
+    PdfParseResourceError,
+    PdfParseTimeout,
+    ProvenError,
     UnsupportedDocument,
 )
 from .models import Span
@@ -134,17 +138,8 @@ def safe_filename(name: str) -> str:
     return base[:120]
 
 
-def extract_pdf_pages(data: bytes, filename: str = "document.pdf") -> list[str]:
-    """Validate and extract a PDF held in memory. Returns per-page text.
-
-    Every failure mode a real bundle produces is named:
-      zero bytes, not a PDF, encrypted, over the page cap, unparseable, no text
-      layer. None of them may reach the caller as an unhandled exception, because
-      "whatever documents a small business holds" includes all six.
-    """
-    from pypdf import PdfReader           # lazy: engine tests need no PDF
-    from pypdf.errors import PdfReadError
-
+def _validate_pdf_bytes(data: bytes, filename: str) -> None:
+    """Apply cheap bounds before any parser process receives caller bytes."""
     if not data:
         raise EmptyDocument(f"{filename} is empty (0 bytes). Re-export and retry.")
     if len(data) > MAX_FILE_BYTES:
@@ -154,10 +149,16 @@ def extract_pdf_pages(data: bytes, filename: str = "document.pdf") -> list[str]:
     if not data.lstrip()[:1024].startswith(PDF_MAGIC):
         raise UnsupportedDocument(
             f"{filename} is not a PDF. Only native PDFs are read — a photo or a "
-            f"scan has no text layer, and this build does not guess with OCR.")
+            f"scan has no text layer, and this build does not guess at it.")
 
+
+def _extract_pdf_pages_direct(data: bytes, filename: str = "document.pdf") -> list[str]:
+    """The deterministic parser implementation, run in an isolated child when hosted."""
+    from pypdf import PdfReader           # lazy: engine tests need no PDF
+    from pypdf.errors import PdfReadError
     import io
 
+    _validate_pdf_bytes(data, filename)
     try:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted:
@@ -182,8 +183,7 @@ def extract_pdf_pages(data: bytes, filename: str = "document.pdf") -> list[str]:
             f"{filename} could not be parsed as a PDF (the file looks corrupt). "
             f"Re-download it from your insurer's portal.", detail=str(exc)) from exc
     except Exception as exc:                          # defensive: pypdf is broad
-        raise IngestError(
-            f"{filename} could not be read.", detail=str(exc)) from exc
+        raise IngestError(f"{filename} could not be read.", detail=str(exc)) from exc
 
     if page_count == 0:
         raise EmptyDocument(f"{filename} contains no pages.")
@@ -197,16 +197,103 @@ def extract_pdf_pages(data: bytes, filename: str = "document.pdf") -> list[str]:
         try:
             pages.append(page.extract_text() or "")
         except Exception:
-            # One unreadable page must not lose the other 27. The empty page is
-            # visible downstream as an unsearched page rather than as a silent gap.
+            # One unreadable page must not lose the other pages. The empty page is
+            # visible downstream as unsearched rather than as a silent gap.
             pages.append("")
 
-    if not any(p.strip() for p in pages):
+    if not any(page.strip() for page in pages):
         raise NoTextLayer(
             f"{filename} has no text layer — it is almost certainly a scan. This "
             f"build reads native PDFs only and will not guess at a scan's "
             f"contents. Ask your insurer for the digital original.")
     return pages
+
+
+def _set_child_memory_limit(limit: int) -> bool:
+    """Apply a hard address-space cap where the operating system exposes one."""
+    try:
+        import resource  # Unix only; the hosted container runs Linux.
+    except ImportError:
+        return False
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _pdf_parse_worker(data: bytes, filename: str, connection, memory_limit: int) -> None:
+    """Top-level target so Windows' spawn start method can import it safely."""
+    try:
+        memory_limited = _set_child_memory_limit(memory_limit)
+        pages = _extract_pdf_pages_direct(data, filename)
+        connection.send({"ok": True, "pages": pages, "memory_limited": memory_limited})
+    except ProvenError as exc:
+        connection.send({"ok": False, "code": exc.code, "message": exc.message,
+                         "detail": exc.detail})
+    except BaseException as exc:  # child boundaries must never leak a parser traceback
+        connection.send({"ok": False, "code": "PDF_PARSE_RESOURCE_LIMIT",
+                         "message": f"{filename} could not be parsed safely.",
+                         "detail": type(exc).__name__})
+    finally:
+        connection.close()
+
+
+_PARSE_ERRORS = {
+    "EMPTY_DOCUMENT": EmptyDocument,
+    "DOCUMENT_TOO_LARGE": DocumentTooLarge,
+    "ENCRYPTED_DOCUMENT": EncryptedDocument,
+    "UNSUPPORTED_DOCUMENT": UnsupportedDocument,
+    "NO_TEXT_LAYER": NoTextLayer,
+    "PDF_PARSE_TIMEOUT": PdfParseTimeout,
+    "PDF_PARSE_RESOURCE_LIMIT": PdfParseResourceError,
+}
+
+
+def extract_pdf_pages_isolated(data: bytes, filename: str = "document.pdf") -> list[str]:
+    """Parse hostile PDF bytes in a bounded child process for hosted deployments."""
+    from . import security
+
+    _validate_pdf_bytes(data, filename)
+    context = multiprocessing.get_context("spawn")
+    receive, send = context.Pipe(duplex=False)
+    process = context.Process(
+        target=_pdf_parse_worker,
+        args=(data, filename, send, security.pdf_parse_memory_bytes()),
+        daemon=True,
+    )
+    process.start()
+    send.close()
+    process.join(security.pdf_parse_timeout_seconds())
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=1)
+        receive.close()
+        raise PdfParseTimeout(
+            f"{filename} took too long to parse safely. Re-export a smaller native PDF.")
+    try:
+        payload = receive.recv() if receive.poll(0.2) else None
+    except (EOFError, OSError):
+        payload = None
+    finally:
+        receive.close()
+    if not isinstance(payload, dict):
+        raise PdfParseResourceError(
+            f"{filename} could not be parsed within the hosted resource limits.")
+    if payload.get("ok") is True and isinstance(payload.get("pages"), list):
+        return [str(page) for page in payload["pages"]]
+    error_type = _PARSE_ERRORS.get(str(payload.get("code") or ""), PdfParseResourceError)
+    raise error_type(str(payload.get("message") or f"{filename} could not be parsed safely."),
+                     detail=str(payload.get("detail") or "") or None)
+
+
+def extract_pdf_pages(data: bytes, filename: str = "document.pdf") -> list[str]:
+    """Validate and extract per-page PDF text, isolating hostile parsing when hosted."""
+    from . import security
+
+    if security.hosted_mode():
+        return extract_pdf_pages_isolated(data, filename)
+    return _extract_pdf_pages_direct(data, filename)
 
 
 def extract_pdf_pages_cached(data: bytes, filename: str = "document.pdf"

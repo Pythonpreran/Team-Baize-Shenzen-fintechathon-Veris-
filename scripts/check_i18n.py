@@ -37,15 +37,20 @@ def _flatten(value: Any, prefix: str = "") -> dict[str, str]:
 def check(root: Path) -> CheckResult:
     root = Path(root)
     catalogue_path = root / "web" / "i18n" / "en.json"
-    app_path = root / "web" / "app.js"
+    web_dir = root / "web"
     try:
         catalogue = _flatten(json.loads(catalogue_path.read_text(encoding="utf-8")))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read {catalogue_path}: {exc}") from exc
     try:
-        calls = {match.group(2) for match in CALL.finditer(app_path.read_text(encoding="utf-8"))}
+        sources = sorted(web_dir.rglob("*.js"))
+        calls = {
+            match.group(2)
+            for path in sources
+            for match in CALL.finditer(path.read_text(encoding="utf-8"))
+        }
     except OSError as exc:
-        raise ValueError(f"cannot read {app_path}: {exc}") from exc
+        raise ValueError(f"cannot read JavaScript under {web_dir}: {exc}") from exc
     keys = set(catalogue)
     return CheckResult(tuple(sorted(calls - keys)), tuple(sorted(keys - calls)))
 

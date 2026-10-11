@@ -126,6 +126,22 @@ class SessionStore:
             return session, False
         return self.create(), True
 
+    def rotate(self, sid: str) -> Session:
+        """Replace a pre-authentication session id without losing its locked state.
+
+        Authentication must not turn a session id obtained before login into a durable
+        credential. Moving the same Session object preserves its lock and any upload
+        state while making the old bearer token immediately unknown to the store.
+        """
+        with self._lock:
+            session = self._sessions.pop(sid, None)
+            if session is None:
+                return self.create()
+            session.id = self.new_id()
+            session.touch()
+            self._sessions[session.id] = session
+            return session
+
     def drop(self, sid: str) -> None:
         with self._lock:
             session = self._sessions.pop(sid, None)

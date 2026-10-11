@@ -1,3 +1,4 @@
+import base64
 import os
 import sys
 from pathlib import Path
@@ -50,8 +51,30 @@ for _model_key_env in _model_key_names():
     os.environ.pop(_model_key_env, None)
 
 import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
-from proven import corpus  # noqa: E402
+from proven import api, corpus, sandbox  # noqa: E402
+from proven.sandbox_transport import SandboxHttpConnector  # noqa: E402
+from sandbox.app import app as sandbox_app  # noqa: E402
+
+
+@pytest.fixture()
+def sandbox_counterparty(monkeypatch):
+    """Exercise the sandbox public contract with a per-test generated service credential."""
+    monkeypatch.setenv(sandbox.SANDBOX_CLIENT_ID_ENV, "pytest-veris-service")
+    monkeypatch.setenv(
+        sandbox.SANDBOX_CLIENT_SECRET_ENV,
+        base64.urlsafe_b64encode(os.urandom(32)).decode("ascii").rstrip("="))
+    with TestClient(sandbox_app) as client:
+        yield client
+
+
+@pytest.fixture(autouse=True)
+def _sandbox_http_boundary(monkeypatch, sandbox_counterparty):
+    """Keep API tests offline while forbidding a direct sandbox service dependency."""
+    connector = SandboxHttpConnector(client=sandbox_counterparty)
+    monkeypatch.setattr(api, "_sandbox_connector", lambda: connector)
+    yield
 
 
 @pytest.fixture(autouse=True)
