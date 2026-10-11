@@ -22,6 +22,10 @@ TEMPORAL_SCHEDULE_QUOTE = (
     "Portability or migration credit: 0 months.\n"
     "Sum-insured enhancement: none."
 )
+CONTINUITY_EXCEPTION_SENTENCE = (
+    "This exclusion shall not, however, apply if the Insured Person has "
+    "Continuous Coverage for more than twelve months."
+)
 
 
 def _india_policy(*, start: str | None = "2026-04-01") -> dict:
@@ -164,6 +168,7 @@ def test_documented_continuity_exception_has_no_initial_waiting_date():
     assert initial["display"] == "CONDITION"
     assert initial["value"] is None
     assert initial["operand_citations"][0]["quote"] == exception_quote
+    assert CONTINUITY_EXCEPTION_SENTENCE in " ".join(initial["citation"]["quote"].split())
     for code in ("WAITING.PED", "CONDITION.MORATORIUM"):
         assert by_code[code]["state"] == "INFORMATION_MISSING"
         assert by_code[code]["value"] is None

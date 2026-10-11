@@ -20,7 +20,7 @@ profiles:
         label_key: health.item.initial_waiting
         display: DAYS_END_DATE
         requires_policy_start: true
-        pattern: '(?is)first\s+(?P<days>thirty|\d+)\s+days\s+waiting\s+period.*?within\s+\d+\s+days\s+from\s+the\s+first\s+policy\s+commencement\s+date'
+        pattern: '(?is)first\s+(?P<days>thirty|\d+)\s+days\s+waiting\s+period.*?within\s+\d+\s+days\s+from\s+the\s+first\s+policy\s+commencement\s+date.*?This\s+exclusion\s+shall\s+not,\s+however,\s+apply\s+if\s+the\s+Insured\s+Person\s+has\s+Continuous\s+Coverage\s+for\s+more\s+than\s+twelve\s+months\.'
       - mechanism_code: WAITING.SPECIFIC
         label_key: health.item.specific_waiting
         display: CONDITION
