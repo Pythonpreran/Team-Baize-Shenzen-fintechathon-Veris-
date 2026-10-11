@@ -619,7 +619,11 @@ tryRun("Ask VERIS renders an evidence-bound policy answer", () => {
   if (!html.includes(g.humanState("DOCUMENTED")) || !html.includes("PROVEN"))
     throw new Error("answer state and evidence class are absent");
 });
-tryRun("Ask VERIS preserves the navigator vocabulary for navigation requests", () => {
+tryRun("Ask VERIS preserves navigator commands without hiding policy questions", () => {
+  vm.runInContext(`ASK.dests = [
+    { id: "sme-docs-hub", label: "Documents", trail: ["Portfolio", "Documents"] },
+    { id: "sme-claims", label: "Claims", trail: ["Claims"] },
+  ];`, ctx);
   for (const question of [
     "Take me to Portfolio",
     "Show me the documents screen",
@@ -630,6 +634,8 @@ tryRun("Ask VERIS preserves the navigator vocabulary for navigation requests", (
   for (const question of [
     "When does Mum's waiting period end?",
     "Where does Mum's policy state the waiting-period end?",
+    "Where is Mum's claim deadline stated?",
+    "Show me the documents I need for Mum's claim",
   ]) {
     if (g.askNavigationIntent(question)) throw new Error(`policy question was sent to the navigator: ${question}`);
   }
@@ -655,12 +661,18 @@ await (async () => {
       throw new Error(`unexpected request: ${path}`);
     };
     await g.askSend("Where does Mum's policy state the waiting-period end?");
+    await g.askSend("Where is Mum's claim deadline stated?");
+    await g.askSend("Show me the documents I need for Mum's claim");
     await g.askSend("Show me the documents screen");
     if (requests[0] !== "/api/ai/ask")
       throw new Error(`policy wording question used ${requests[0]} instead of cited Q&A`);
-    if (requests[1] !== "/api/assistant")
-      throw new Error(`screen request used ${requests[1]} instead of navigation`);
-    results.push(["ok  ", "Ask VERIS dispatches policy wording questions to cited Q&A"]);
+    if (requests[1] !== "/api/ai/ask")
+      throw new Error(`claim deadline question used ${requests[1]} instead of cited Q&A`);
+    if (requests[2] !== "/api/ai/ask")
+      throw new Error(`documents-needed question used ${requests[2]} instead of cited Q&A`);
+    if (requests[3] !== "/api/assistant")
+      throw new Error(`screen request used ${requests[3]} instead of navigation`);
+    results.push(["ok  ", "Ask VERIS dispatches policy questions containing destination nouns to cited Q&A"]);
   } catch (e) {
     results.push(["FAIL", `Ask VERIS dispatches policy wording questions to cited Q&A :: ${e.message}`]);
   } finally {

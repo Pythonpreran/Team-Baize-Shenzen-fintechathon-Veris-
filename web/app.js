@@ -1425,16 +1425,21 @@ function askPaint() {
 
 const ASK_DIRECT_NAVIGATION_COMMAND = /^\s*(?:(?:go|goto|navigate|nav|jump)\s+(?:to\s+)?|(?:take|bring|lead|direct|send|get)\s+(?:me\s+)?to\s+)/i;
 const ASK_EXPLICIT_NAVIGATION_REQUEST = /^\s*(?:(?:show|open|find|locate)\s+(?:me\s+)?|where\s+(?:is|are)\s+(?:the\s+)?)/i;
-const ASK_SCREEN_REFERENCE = /\b(?:screen|page|tab|workspace|portfolio|overview|documents?|claims?|alerts?|business|record)\b/i;
+const ASK_SCREEN_REFERENCE = /\b(?:screen|page|tab|workspace)\b/i;
 
 function askNamesDestination(question) {
-  const text = ` ${String(question || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  /* A destination must be the complete requested target. Matching a destination noun
+   * inside a longer policy question would hide the cited answer behind navigation. */
+  const text = String(question || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const requested = text.replace(ASK_EXPLICIT_NAVIGATION_REQUEST, "")
+    .replace(/^(?:my|our|the)\s+/, "").trim();
+  if (!requested) return false;
   return ASK.dests.some(destination => {
-    const names = [destination && destination.label,
-      ...(Array.isArray(destination && destination.trail) ? destination.trail : [])];
+    const trail = Array.isArray(destination && destination.trail) ? destination.trail : [];
+    const names = [destination && destination.label, ...trail, trail.join(" ")];
     return names.some(name => {
       const phrase = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      return phrase.length >= 3 && text.includes(` ${phrase} `);
+      return phrase.length >= 3 && requested === phrase;
     });
   });
 }
