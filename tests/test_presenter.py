@@ -83,6 +83,35 @@ def test_structural_numbers_must_be_explicitly_present():
     assert ok is True
 
 
+def test_signed_numbers_remain_distinct_in_presentation_grounding():
+    allowed = presenter._numbers_in({"adjustment": "-100"})
+    ok, _ = presenter.numbers_are_grounded("The adjustment is -100", allowed)
+    assert ok is True
+    ok, _ = presenter.numbers_are_grounded("The adjustment is 100", allowed)
+    assert ok is False
+
+
+def test_model_call_accepts_template_numbers_supplied_to_both_grounding_gates(monkeypatch):
+    context = {"overall": 62, "action_count": 4}
+    base = presenter.build_fallback(
+        "home_overview", context, presenter.detect_semantic_category("home_overview", context))
+    response = (
+        '{"headline":"62 things are worth a look",'
+        '"subheadline":"Your protection score is 62 out of 100",'
+        '"primary_visual":{"type":"progress_ring"}}')
+    monkeypatch.setattr(presenter, "enabled", lambda: True)
+    monkeypatch.setattr(
+        presenter.llm, "chat",
+        lambda *_args, **_kwargs: presenter.llm.ChatResult(available=True, content=response))
+
+    parsed, error = presenter._call_model(
+        "home_overview", context, "protection_status", base)
+
+    assert error is None
+    assert parsed is not None
+    assert parsed["subheadline"] == "Your protection score is 62 out of 100"
+
+
 def test_numbers_are_found_through_nested_structures():
     found = presenter._numbers_in(
         {"counts": {"BREACHED": 2}, "items": [{"gap": 130000}], "note": "18 months"})

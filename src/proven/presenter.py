@@ -222,7 +222,7 @@ def clear_cache() -> None:
 
 # ── validation ───────────────────────────────────────────────────────────────
 
-_NUM_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_NUM_RE = re.compile(r"(?<![A-Za-z0-9_+-])[-+]?\d[\d,]*(?:\.\d+)?")
 
 
 def _normalise_number(value: str) -> str | None:
@@ -521,16 +521,19 @@ def _call_model(purpose: str, context: dict, category: str,
         return None, "response was not JSON"
 
     # The model may restate any number that was in its input or already on the template.
-    # Anything else it wrote, it made up.
-    allowed = _numbers_in(context) | _numbers_in(
-        {k: base.get(k) for k in _MODEL_OWNS} if base else {})
+    # Anything else it wrote, it made up. The exact same template values travel to the
+    # shared final gate below, so a deterministic number cannot pass one gate and fail
+    # the next merely because it was supplied as baseline wording.
+    template_values = {k: base.get(k) for k in _MODEL_OWNS} if base else {}
+    allowed = _numbers_in(context) | _numbers_in(template_values)
     ok, why = validate(parsed, allowed_numbers=allowed)
     if not ok:
         # A rejected response is not silently swallowed; the reason travels so the
         # interface can show that the gate fired.
         return None, f"rejected by validation: {why}"
     prose = " ".join(str(parsed.get(field, "")) for field in _MODEL_OWNS)
-    safe, why = llm.guard_user_visible(prose, context)
+    safe, why = llm.guard_user_visible(
+        prose, context, trusted_evidence=template_values)
     if not safe:
         return None, f"rejected by grounding: {why}"
     return parsed, None

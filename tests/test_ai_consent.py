@@ -15,6 +15,9 @@ OWNER = {"email": "owner@hockleefoods.demo", "password": "Demo@123"}
 
 
 class _Response:
+    def __init__(self, content: str = "The cited policy wording describes the stated average clause."):
+        self._content = content
+
     def __enter__(self):
         return self
 
@@ -22,8 +25,8 @@ class _Response:
         return False
 
     def read(self) -> bytes:
-        return json.dumps({"choices": [{"message": {
-            "content": "The cited policy wording describes the stated average clause."}}]}).encode("utf-8")
+        return json.dumps({"model": "mock-provider-2026-10", "choices": [{"message": {
+            "content": self._content}}]}).encode("utf-8")
 
 
 @pytest.fixture()
@@ -100,7 +103,30 @@ def test_model_calls_need_consent_and_health_needs_its_own_flag(client, monkeypa
     audit = client.get("/api/ai/prompt-log").json()["entries"]
     assert audit and audit[-1]["purpose"] == "evidence_question_answer"
     assert audit[-1]["token_summary"] is not None
-    assert audit[-1]["model_version"]
+    assert audit[-1]["model_version"] == "mock-provider-2026-10"
+
+
+def test_ask_route_rejects_claim_payment_assertions(client, monkeypatch):
+    """The common outcome gate must protect the actual cited-answer endpoint."""
+    monkeypatch.setenv("VERIS_LLM_PROFILE", "openai")
+    monkeypatch.setenv("VERIS_LLM_API_KEY", "test-provider-token")
+    calls: list[object] = []
+
+    def fake_urlopen(request, **_kwargs):
+        calls.append(request)
+        return _Response("The claim is payable.")
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", fake_urlopen)
+    client.post("/api/auth/login", json=OWNER)
+    client.get("/api/brief")
+    client.post("/api/ai/consent", json={"health_documents": True})
+
+    answer = client.post(
+        "/api/ai/ask", json={"question": "What does the average clause say?"}).json()
+
+    assert calls
+    assert answer["source"] == "DETERMINISTIC_AFTER_REJECTION"
+    assert "outcome" in (answer["error"] or "").lower()
 
 
 def test_health_document_metadata_blocks_provider_without_keyword_matches(client, monkeypatch):

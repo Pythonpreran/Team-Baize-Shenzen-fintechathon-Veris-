@@ -181,7 +181,7 @@ def test_prompt_log_keeps_tokens_while_display_rehydrates(monkeypatch):
     assert "asha.rao@example.invalid" not in logged
 
 
-def test_redactor_keeps_single_names_and_numeric_identifiers_out_of_transport(monkeypatch):
+def test_redactor_keeps_lowercase_identity_contexts_and_numeric_identifiers_out_of_transport(monkeypatch):
     monkeypatch.setenv("VERIS_LLM_PROFILE", "openai")
     monkeypatch.setenv("VERIS_LLM_API_KEY", "test-provider-token")
     captured: list[str] = []
@@ -195,15 +195,15 @@ def test_redactor_keeps_single_names_and_numeric_identifiers_out_of_transport(mo
     result = llm.chat(
         [{"role": "user", "content": {
             "account_identifier": account_identifier,
-            "question": "What does Maya's policy say?",
+            "question": "What does maya's policy say? name: maya",
         }}],
         tenant_id="tenant-sensitive", purpose="test", user_intent="Ask about my policy")
 
     assert result.available is True
     logged = json.dumps(llm.prompt_log("tenant-sensitive"))
-    for raw in ("Maya", str(account_identifier)):
-        assert raw not in captured[0]
-        assert raw not in logged
+    for raw in ("maya", str(account_identifier)):
+        assert raw not in captured[0].lower()
+        assert raw not in logged.lower()
     assert "[VERIS_PERSON_" in captured[0]
     assert "[VERIS_SENSITIVE_FIELD_" in captured[0]
 
@@ -228,10 +228,22 @@ def test_grounding_requires_exact_normalised_values_and_blocks_advice():
     assert "advice" in (why or "").lower()
 
 
+def test_grounding_keeps_signed_values_distinct():
+    ok, why = llm.guard_user_visible("The adjustment is -100.", "The adjustment is -100.")
+    assert ok is True, why
+
+    ok, why = llm.guard_user_visible("The adjustment is 100.", "The adjustment is -100.")
+    assert ok is False
+    assert "number" in (why or "").lower()
+
+
 @pytest.mark.parametrize("text", [
     "This policy covers this treatment.",
     "This treatment is covered under the plan.",
     "The insurer will pay this claim.",
+    "The claim is payable.",
+    "The claim has been approved.",
+    "Payment is approved.",
     "The term was breached.",
 ])
 def test_outcome_guard_blocks_cover_payment_and_breach_formulations(text):
@@ -290,6 +302,88 @@ def test_tool_calls_require_server_bound_intent_and_exact_arguments(monkeypatch)
     assert call.arguments == {"topic": "claim"}
     assert call.origin == "SERVER_BOUND_EXPLICIT_USER_INTENT"
     assert call.intent_hash == binding.hash_for("Prepare a draft letter about my claim")
+
+
+def test_tool_intents_must_satisfy_nested_advertised_schemas(monkeypatch):
+    monkeypatch.setenv("VERIS_LLM_PROFILE", "openai")
+    monkeypatch.setenv("VERIS_LLM_API_KEY", "test-provider-token")
+    tools = [{"name": "draft_letter", "description": "Prepare a draft", "parameters": {
+        "type": "object",
+        "properties": {
+            "topic": {"type": "string", "enum": ["claim"]},
+            "details": {
+                "type": "object",
+                "properties": {"urgent": {"type": "boolean"}},
+                "required": ["urgent"],
+                "additionalProperties": False,
+            },
+            "reference_ids": {"type": "array", "items": {"type": "integer"}},
+        },
+        "required": ["topic", "details", "reference_ids"],
+        "additionalProperties": False,
+    }}]
+    valid_arguments = {
+        "topic": "claim", "details": {"urgent": True}, "reference_ids": [1, 2],
+    }
+    invalid_arguments = (
+        {**valid_arguments, "topic": 7},
+        {**valid_arguments, "topic": "payment"},
+        {**valid_arguments, "details": {"urgent": "yes"}},
+        {**valid_arguments, "reference_ids": [1, "2"]},
+        {**valid_arguments, "details": {"urgent": True, "unexpected": True}},
+    )
+    captured: list[object] = []
+
+    def fake_urlopen(request, **_kwargs):
+        captured.append(request)
+        return _Response({"choices": [{"message": {"content": "", "tool_calls": [{
+            "id": "call-1", "function": {
+                "name": "draft_letter", "arguments": json.dumps(valid_arguments)},
+        }]}}]})
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", fake_urlopen)
+    for arguments in invalid_arguments:
+        result = llm.chat(
+            [{"role": "user", "content": "Prepare a claim letter."}], tools=tools,
+            tool_intents=(llm.ToolIntent("draft_letter", arguments),),
+            tenant_id="tenant-schema", user_intent="Prepare a claim letter")
+        assert result.available is False
+        assert "schema" in (result.error or "").lower()
+    assert captured == []
+
+    accepted = llm.chat(
+        [{"role": "user", "content": "Prepare a claim letter."}], tools=tools,
+        tool_intents=(llm.ToolIntent("draft_letter", valid_arguments),),
+        tenant_id="tenant-schema", user_intent="Prepare a claim letter")
+    assert accepted.available is True
+    assert len(captured) == 1
+    assert accepted.tool_calls[0].arguments == valid_arguments
+
+
+def test_model_version_never_falls_back_to_a_configured_alias(monkeypatch):
+    monkeypatch.setenv("VERIS_LLM_PROFILE", "openai")
+    monkeypatch.setenv("VERIS_LLM_API_KEY", "test-provider-token")
+    monkeypatch.setenv("VERIS_LLM_MODEL", "floating-alias")
+
+    def fake_urlopen(_request, **_kwargs):
+        return _Response({"choices": [{"message": {"content": "Acknowledged."}}]})
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", fake_urlopen)
+    unavailable = llm.chat(
+        [{"role": "user", "content": "Explain the evidence."}],
+        tenant_id="tenant-version", user_intent="Explain the evidence")
+    assert unavailable.model == "floating-alias"
+    assert unavailable.model_version is None
+    assert llm.prompt_log("tenant-version")[-1]["model_version"] is None
+    assert llm.status()["model_version"] is None
+
+    monkeypatch.setenv("VERIS_LLM_MODEL_VERSION", "provider-release-2026-10-01")
+    pinned = llm.chat(
+        [{"role": "user", "content": "Explain the evidence."}],
+        tenant_id="tenant-version-pinned", user_intent="Explain the evidence")
+    assert pinned.model_version == "provider-release-2026-10-01"
+    assert llm.prompt_log("tenant-version-pinned")[-1]["model_version"] == \
+        "provider-release-2026-10-01"
 
 
 def test_budget_exhaustion_degrades_without_transport(monkeypatch):

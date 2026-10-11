@@ -221,7 +221,10 @@ def settings() -> Settings:
     base_url = (os.getenv("VERIS_LLM_BASE_URL") or profile.base_url or "").strip() or None
     model = ((os.getenv("VERIS_LLM_MODEL") or os.getenv("PROVEN_CHAT_MODEL") or profile.model
               or "").strip() or None)
-    model_version = ((os.getenv("VERIS_LLM_MODEL_VERSION") or model or "").strip() or None)
+    # A configured model name is often a mutable alias, not a reproducible version.
+    # Keep it separate from an explicit immutable deployment pin; when neither that pin
+    # nor a provider response is available, audit records report the version as unknown.
+    model_version = (os.getenv("VERIS_LLM_MODEL_VERSION") or "").strip() or None
     configured = bool(base_url and model and (api_key or not profile.needs_key))
     reason = None
     if not configured:
@@ -301,20 +304,185 @@ def _redact_messages(messages: Sequence[Mapping[str, Any]], vault: redact.Redact
     return safe
 
 
+def _json_equal(left: object, right: object) -> bool:
+    """Compare JSON values without treating booleans as integer values."""
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, Mapping):
+        return (set(left) == set(right)
+                and all(_json_equal(left[key], right[key]) for key in left))
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _json_equal(item, other) for item, other in zip(left, right))
+    return left == right
+
+
+def _json_type_matches(value: object, expected: str) -> bool:
+    if expected == "object":
+        return isinstance(value, Mapping)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "null":
+        return value is None
+    return False
+
+
+def _schema_accepts(value: object, schema: Mapping[str, Any]) -> bool:
+    """Validate a JSON value against the advertised tool-schema subset.
+
+    Tool intents originate on the server, but they are still rejected before being sent
+    when their type, enum, nested object or array shape disagrees with the schema offered
+    to the provider.  Unknown object keys are denied unless the schema explicitly permits
+    them, preserving this boundary's existing allowlist behaviour.
+    """
+    if not isinstance(schema, Mapping):
+        return False
+
+    for keyword, predicate in (("allOf", all), ("anyOf", any)):
+        branches = schema.get(keyword)
+        if branches is None:
+            continue
+        if not isinstance(branches, Sequence) or isinstance(branches, (str, bytes, bytearray)):
+            return False
+        matches = [_schema_accepts(value, branch) for branch in branches
+                   if isinstance(branch, Mapping)]
+        if len(matches) != len(branches) or not predicate(matches):
+            return False
+    one_of = schema.get("oneOf")
+    if one_of is not None:
+        if not isinstance(one_of, Sequence) or isinstance(one_of, (str, bytes, bytearray)):
+            return False
+        matches = [_schema_accepts(value, branch) for branch in one_of
+                   if isinstance(branch, Mapping)]
+        if len(matches) != len(one_of) or sum(matches) != 1:
+            return False
+    forbidden = schema.get("not")
+    if forbidden is not None:
+        if not isinstance(forbidden, Mapping) or _schema_accepts(value, forbidden):
+            return False
+
+    expected = schema.get("type")
+    if expected is not None:
+        types = [expected] if isinstance(expected, str) else expected
+        if (not isinstance(types, Sequence) or isinstance(types, (str, bytes, bytearray))
+                or not any(isinstance(kind, str) and _json_type_matches(value, kind)
+                           for kind in types)):
+            return False
+
+    if "const" in schema and not _json_equal(value, schema["const"]):
+        return False
+    enum = schema.get("enum")
+    if enum is not None:
+        if (not isinstance(enum, Sequence) or isinstance(enum, (str, bytes, bytearray))
+                or not any(_json_equal(value, option) for option in enum)):
+            return False
+
+    if isinstance(value, Mapping):
+        properties = schema.get("properties", {})
+        required = schema.get("required", ())
+        if not isinstance(properties, Mapping):
+            return False
+        if (not isinstance(required, Sequence)
+                or isinstance(required, (str, bytes, bytearray))):
+            return False
+        required_names = {str(name) for name in required}
+        if not required_names <= set(value):
+            return False
+        minimum = schema.get("minProperties")
+        maximum = schema.get("maxProperties")
+        if ((minimum is not None and (not isinstance(minimum, int) or len(value) < minimum))
+                or (maximum is not None and (not isinstance(maximum, int) or len(value) > maximum))):
+            return False
+        additional = schema.get("additionalProperties", False)
+        for key, item in value.items():
+            child = properties.get(key)
+            if child is None:
+                if additional is True:
+                    continue
+                if isinstance(additional, Mapping) and _schema_accepts(item, additional):
+                    continue
+                return False
+            if not isinstance(child, Mapping) or not _schema_accepts(item, child):
+                return False
+
+    if isinstance(value, list):
+        minimum = schema.get("minItems")
+        maximum = schema.get("maxItems")
+        if ((minimum is not None and (not isinstance(minimum, int) or len(value) < minimum))
+                or (maximum is not None and (not isinstance(maximum, int) or len(value) > maximum))):
+            return False
+        if schema.get("uniqueItems"):
+            encoded = [_canonical_json(item) for item in value]
+            if len(encoded) != len(set(encoded)):
+                return False
+        items = schema.get("items")
+        if items is not None:
+            if isinstance(items, Mapping):
+                if not all(_schema_accepts(item, items) for item in value):
+                    return False
+            elif isinstance(items, Sequence) and not isinstance(items, (str, bytes, bytearray)):
+                if len(value) > len(items) and schema.get("additionalItems", False) is not True:
+                    return False
+                if any(not isinstance(child, Mapping) or not _schema_accepts(item, child)
+                       for item, child in zip(value, items)):
+                    return False
+            else:
+                return False
+
+    if isinstance(value, str):
+        minimum = schema.get("minLength")
+        maximum = schema.get("maxLength")
+        if ((minimum is not None and (not isinstance(minimum, int) or len(value) < minimum))
+                or (maximum is not None and (not isinstance(maximum, int) or len(value) > maximum))):
+            return False
+        pattern = schema.get("pattern")
+        if pattern is not None:
+            if not isinstance(pattern, str):
+                return False
+            try:
+                if re.search(pattern, value) is None:
+                    return False
+            except re.error:
+                return False
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        for key, inclusive, comparison in (
+                ("minimum", True, lambda actual, limit: actual >= limit),
+                ("maximum", True, lambda actual, limit: actual <= limit),
+                ("exclusiveMinimum", False, lambda actual, limit: actual > limit),
+                ("exclusiveMaximum", False, lambda actual, limit: actual < limit)):
+            limit = schema.get(key)
+            if limit is None:
+                continue
+            if not isinstance(limit, (int, float)) or isinstance(limit, bool):
+                return False
+            if not comparison(value, limit):
+                return False
+        multiple = schema.get("multipleOf")
+        if multiple is not None:
+            if not isinstance(multiple, (int, float)) or isinstance(multiple, bool) or multiple <= 0:
+                return False
+            try:
+                if Decimal(str(value)) % Decimal(str(multiple)) != 0:
+                    return False
+            except (InvalidOperation, ValueError):
+                return False
+    return True
+
+
 def _tool_arguments_fit_schema(arguments: Mapping[str, Any], parameters: Mapping[str, Any]) -> bool:
-    """Accept only server-bound arguments described by the advertised schema."""
-    if str(parameters.get("type") or "object") != "object":
-        return False
-    properties = parameters.get("properties") or {}
-    if not isinstance(properties, Mapping):
-        return False
-    property_names = {str(name) for name in properties}
-    required = parameters.get("required") or ()
-    if (not isinstance(required, Sequence)
-            or isinstance(required, (str, bytes, bytearray))):
-        return False
-    required_names = {str(name) for name in required}
-    return set(arguments) <= property_names and required_names <= set(arguments)
+    """Accept only server-bound arguments that fully satisfy the advertised schema."""
+    schema = dict(parameters)
+    schema.setdefault("type", "object")
+    return _schema_accepts(arguments, schema)
 
 
 def _bound_tool_intents(intents: Sequence[ToolIntent]) -> dict[str, ToolIntent]:
@@ -327,8 +495,10 @@ def _bound_tool_intents(intents: Sequence[ToolIntent]) -> dict[str, ToolIntent]:
 
 
 def _tool_payload(tools: Sequence[Mapping[str, Any]],
-                  bindings: Mapping[str, ToolIntent]) -> list[dict]:
+                  bindings: Mapping[str, ToolIntent]) -> tuple[list[dict], dict[str, ToolIntent]]:
+    """Return advertised tools and only bindings whose complete schema is satisfied."""
     payload: list[dict] = []
+    offered: dict[str, ToolIntent] = {}
     for tool in tools:
         name = str(tool.get("name") or "").strip()
         parameters = tool.get("parameters")
@@ -336,6 +506,7 @@ def _tool_payload(tools: Sequence[Mapping[str, Any]],
         if (not name or not isinstance(parameters, Mapping) or binding is None
                 or not _tool_arguments_fit_schema(binding.arguments, parameters)):
             continue
+        offered[name] = binding
         payload.append({
             "type": "function",
             "function": {
@@ -344,7 +515,7 @@ def _tool_payload(tools: Sequence[Mapping[str, Any]],
                 "parameters": dict(parameters),
             },
         })
-    return payload
+    return payload, offered
 
 
 def _parse_tool_calls(message: Mapping[str, Any], bindings: Mapping[str, ToolIntent],
@@ -449,7 +620,7 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
     safe_messages = _redact_messages(messages, vault)
     intent = " ".join(str(user_intent or "").split())[:1_000]
     bindings = _bound_tool_intents(tool_intents)
-    tool_payload = _tool_payload(tools, bindings)
+    tool_payload, offered_bindings = _tool_payload(tools, bindings)
     tool_refusal: Optional[tuple[str, str]] = None
     if tools and not intent:
         tool_refusal = ("TOOL_CALL_REFUSED_NO_EXPLICIT_INTENT",
@@ -569,7 +740,7 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
     content = str(message.get("content") or "").strip()
     usage = body.get("usage") if isinstance(body.get("usage"), Mapping) else {}
     output_tokens = int(usage.get("completion_tokens") or _estimate_tokens(content))
-    calls = _parse_tool_calls(message, bindings, intent)
+    calls = _parse_tool_calls(message, offered_bindings, intent)
     log_id = _append_prompt_log(
         tenant, profile=current.profile.name, model=current.model,
         model_version=provider_model_version, purpose=purpose,
@@ -591,7 +762,7 @@ def _provider_model_version(body: Mapping[str, Any], current: Settings) -> Optio
     return current.model_version
 
 
-_NUMBER_RE = re.compile(r"(?<![A-Za-z_])\d[\d,]*(?:\.\d+)?")
+_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_+-])[-+]?\d[\d,]*(?:\.\d+)?")
 _TOKEN_RE = re.compile(r"\[VERIS_[A-Z_]+_\d+\]")
 _DATE_RE = re.compile(
     r"\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|"
@@ -641,8 +812,14 @@ def _tokens_in_evidence(evidence: object) -> tuple[set[str], set[str]]:
 
 
 def guard_user_visible(text: object, evidence: object, *, citations: Sequence[object] = (),
-                       require_citations: bool = False) -> tuple[bool, Optional[str]]:
-    """Reject model prose that is unsupported, advisory or outcome-asserting."""
+                       require_citations: bool = False,
+                       trusted_evidence: object = None) -> tuple[bool, Optional[str]]:
+    """Reject model prose that is unsupported, advisory or outcome-asserting.
+
+    `trusted_evidence` is deterministic, server-created wording that was supplied to
+    the model alongside the verified context. It expands only the grounding allowance;
+    it never relaxes the outcome, advice or citation gates.
+    """
     value = str(text or "")
     if english_lexicon.OUTCOME_PATTERN.search(value):
         return False, "Model output asserted an insurance outcome."
@@ -653,7 +830,8 @@ def guard_user_visible(text: object, evidence: object, *, citations: Sequence[ob
     if _DOCUMENT_WORDS.search(value) and not citations:
         return False, "A statement about a document lacked a citation."
 
-    allowed_numbers, allowed_dates = _tokens_in_evidence(evidence)
+    grounding_evidence = (evidence, trusted_evidence) if trusted_evidence is not None else evidence
+    allowed_numbers, allowed_dates = _tokens_in_evidence(grounding_evidence)
     without_redaction_tokens = _TOKEN_RE.sub("", value)
     for match in _NUMBER_RE.findall(without_redaction_tokens):
         normalized = _normalise_number(match)

@@ -34,15 +34,16 @@ _ADDRESS_RE = re.compile(
     re.IGNORECASE)
 _LABELLED_PERSON_RE = re.compile(
     r"\b(?:name|insured|patient|member|policyholder)\s*:\s*"
-    r"([A-Z][A-Za-z' -]{1,100})")
+    r"([A-Za-z][A-Za-z' -]{1,100})", re.IGNORECASE)
 _PERSON_RE = re.compile(
     r"\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*"
     r"((?:[A-Z][a-z]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z]+|[A-Z]{2,})){1,3})\b")
 # A possessive single name in an identity-bearing context is a common way someone asks
-# about their own policy (for example, "Maya's policy").  Requiring that context avoids
-# mistaking ordinary sentence openings such as "What's" for an identity.
+# about their own policy (for example, "Maya's policy").  The surrounding context makes
+# this safe for lowercase input too, without mistaking ordinary sentence openings such as
+# "What's" for an identity.
 _POSSESSIVE_PERSON_RE = re.compile(
-    r"\b([A-Z][a-z]{1,50}|[A-Z]{2,})(?='s\s+(?:policy|plan|claim|cover(?:age)?|"
+    r"\b([A-Za-z][A-Za-z]{1,50})(?='s\s+(?:policy|plan|claim|cover(?:age)?|"
     r"schedule|account|case|address)\b)")
 
 # Headings and organisation labels are often title-cased in wording.  Redacting them is
