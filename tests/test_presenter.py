@@ -73,10 +73,13 @@ def test_decimal_values_license_their_whole_part():
     assert ok is True
 
 
-def test_structural_numbers_are_permitted():
-    """"62 out of 100" must not be rejected because 100 is not a data field."""
+def test_structural_numbers_must_be_explicitly_present():
+    """A model may repeat a deterministic scale only when that scale is supplied."""
     ok, _ = presenter.numbers_are_grounded(
         "Your protection score is 62 out of 100", allowed={"62"})
+    assert ok is False
+    ok, _ = presenter.numbers_are_grounded(
+        "Your protection score is 62 out of 100", allowed={"62", "100"})
     assert ok is True
 
 
@@ -235,7 +238,7 @@ def test_every_purpose_has_a_template():
 
 
 def test_every_template_passes_its_own_guardrails():
-    """A template that would be rejected as model output is a template with a bug in it."""
+    """A template may supply deterministic facts to the model-output gate itself."""
     samples = {
         "home_overview": {"overall": 62, "action_count": 4, "finding_count": 15},
         "protection_overview": {"overall": 62, "assessed_dimensions": 4,
@@ -255,7 +258,11 @@ def test_every_template_passes_its_own_guardrails():
     for purpose, ctx in samples.items():
         out = presenter.build_fallback(purpose, ctx,
                                         presenter.detect_semantic_category(purpose, ctx))
-        allowed = presenter._numbers_in(ctx)
+        # `_call_model` permits the model to repeat deterministic template wording, so
+        # exercise the same bound rather than treating the template as untrusted prose.
+        allowed = (presenter._numbers_in(ctx)
+                   | presenter._numbers_in({field: out.get(field)
+                                            for field in presenter._MODEL_OWNS}))
         ok, why = presenter.validate(out, allowed_numbers=allowed)
         assert ok, f"{purpose}: {why}"
 

@@ -38,6 +38,12 @@ _LABELLED_PERSON_RE = re.compile(
 _PERSON_RE = re.compile(
     r"\b(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?)?\s*"
     r"((?:[A-Z][a-z]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z]+|[A-Z]{2,})){1,3})\b")
+# A possessive single name in an identity-bearing context is a common way someone asks
+# about their own policy (for example, "Maya's policy").  Requiring that context avoids
+# mistaking ordinary sentence openings such as "What's" for an identity.
+_POSSESSIVE_PERSON_RE = re.compile(
+    r"\b([A-Z][a-z]{1,50}|[A-Z]{2,})(?='s\s+(?:policy|plan|claim|cover(?:age)?|"
+    r"schedule|account|case|address)\b)")
 
 # Headings and organisation labels are often title-cased in wording.  Redacting them is
 # safe but needlessly degrades retrieval, so keep this intentionally small exception list.
@@ -154,6 +160,8 @@ class Redactor:
         text = _LABELLED_PERSON_RE.sub(
             lambda match: match.group(0).replace(match.group(1), self.token("PERSON", match.group(1))),
             text)
+        text = _POSSESSIVE_PERSON_RE.sub(
+            lambda match: self.token("PERSON", match.group(1)), text)
 
         def redact_phone(match: re.Match[str]) -> str:
             candidate = match.group(0)
@@ -179,9 +187,13 @@ class Redactor:
                     for key, item in value.items()}
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
             return [self.redact_value(item, field_name=field_name) for item in value]
+        if value is None:
+            return None
+        if _SENSITIVE_FIELD.search(field_name):
+            # JSON identifiers are commonly numbers.  Treat the field classification,
+            # not Python's scalar type, as the privacy boundary.
+            return self.token("SENSITIVE_FIELD", value)
         if isinstance(value, str):
-            if _SENSITIVE_FIELD.search(field_name):
-                return self.token("SENSITIVE_FIELD", value)
             return self.redact_text(value)
         return value
 

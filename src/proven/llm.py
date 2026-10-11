@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from typing import Any, Mapping, Optional, Sequence
 
@@ -45,6 +46,9 @@ class Settings:
     global_budget: int
     configured: bool
     disabled_reason: Optional[str]
+    # Prefer an immutable deployment pin; a provider-returned identifier supersedes it
+    # for successful calls and is retained in the prompt audit record.
+    model_version: Optional[str] = None
 
     @property
     def enabled(self) -> bool:
@@ -82,15 +86,60 @@ _CIRCUIT_UNTIL: dict[str, float] = {}
 _PROMPT_LOGS: dict[str, list[dict]] = {}
 
 
+def _canonical_json(value: object) -> str:
+    """Return one stable JSON representation or reject an unsafe tool payload."""
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                          separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Tool intent arguments must be JSON values.") from exc
+
+
+def _canonical_json_object(value: object) -> tuple[dict[str, Any], str]:
+    encoded = _canonical_json(value)
+    decoded = json.loads(encoded)
+    if not isinstance(decoded, dict):
+        raise ValueError("Tool intent arguments must be a JSON object.")
+    return decoded, encoded
+
+
+@dataclass(frozen=True)
+class ToolIntent:
+    """A server-derived action and exact arguments for one explicit request.
+
+    The model can choose whether to propose this already selected action, but cannot
+    choose its name or argument values.  A future caller must derive this object from
+    the authenticated user's request before it reaches the provider boundary.
+    """
+
+    action: str
+    arguments: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        action = str(self.action or "").strip()
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,79}", action):
+            raise ValueError("Tool intent action has an invalid name.")
+        arguments, _ = _canonical_json_object(self.arguments)
+        object.__setattr__(self, "action", action)
+        object.__setattr__(self, "arguments", arguments)
+
+    def hash_for(self, user_intent: str) -> str:
+        return sha256(_canonical_json({
+            "user_intent": " ".join(str(user_intent or "").split()),
+            "action": self.action,
+            "arguments": self.arguments,
+        }).encode("utf-8")).hexdigest()
+
+
 @dataclass(frozen=True)
 class ToolCall:
-    """A proposed tool call, bound to an explicit user request and not executed here."""
+    """A server-bound proposal that is not executed by this model boundary."""
 
     id: str
     name: str
     arguments: dict[str, Any]
     intent_hash: str
-    origin: str = "EXPLICIT_USER_INTENT"
+    origin: str = "SERVER_BOUND_EXPLICIT_USER_INTENT"
 
 
 @dataclass
@@ -100,6 +149,7 @@ class ChatResult:
     error: Optional[str] = None
     profile: str = "none"
     model: Optional[str] = None
+    model_version: Optional[str] = None
     prompt_log_id: Optional[str] = None
     tool_calls: tuple[ToolCall, ...] = ()
     input_tokens: int = 0
@@ -115,6 +165,7 @@ class ChatResult:
             "available": self.available,
             "profile": self.profile,
             "model": self.model,
+            "model_version": self.model_version,
             "error": self.error,
             "prompt_log_id": self.prompt_log_id,
             "tool_calls": [{
@@ -170,6 +221,7 @@ def settings() -> Settings:
     base_url = (os.getenv("VERIS_LLM_BASE_URL") or profile.base_url or "").strip() or None
     model = ((os.getenv("VERIS_LLM_MODEL") or os.getenv("PROVEN_CHAT_MODEL") or profile.model
               or "").strip() or None)
+    model_version = ((os.getenv("VERIS_LLM_MODEL_VERSION") or model or "").strip() or None)
     configured = bool(base_url and model and (api_key or not profile.needs_key))
     reason = None
     if not configured:
@@ -182,7 +234,7 @@ def settings() -> Settings:
         _bounded_int("VERIS_LLM_RETRIES", _DEFAULT_RETRIES, maximum=3),
         _bounded_int("VERIS_LLM_TENANT_TOKEN_BUDGET", _DEFAULT_TENANT_BUDGET, minimum=1),
         _bounded_int("VERIS_LLM_GLOBAL_TOKEN_BUDGET", _DEFAULT_GLOBAL_BUDGET, minimum=1),
-        configured, reason,
+        configured, reason, model_version,
     )
 
 
@@ -249,12 +301,40 @@ def _redact_messages(messages: Sequence[Mapping[str, Any]], vault: redact.Redact
     return safe
 
 
-def _tool_payload(tools: Sequence[Mapping[str, Any]]) -> list[dict]:
+def _tool_arguments_fit_schema(arguments: Mapping[str, Any], parameters: Mapping[str, Any]) -> bool:
+    """Accept only server-bound arguments described by the advertised schema."""
+    if str(parameters.get("type") or "object") != "object":
+        return False
+    properties = parameters.get("properties") or {}
+    if not isinstance(properties, Mapping):
+        return False
+    property_names = {str(name) for name in properties}
+    required = parameters.get("required") or ()
+    if (not isinstance(required, Sequence)
+            or isinstance(required, (str, bytes, bytearray))):
+        return False
+    required_names = {str(name) for name in required}
+    return set(arguments) <= property_names and required_names <= set(arguments)
+
+
+def _bound_tool_intents(intents: Sequence[ToolIntent]) -> dict[str, ToolIntent]:
+    bindings: dict[str, ToolIntent] = {}
+    for binding in intents:
+        if not isinstance(binding, ToolIntent) or binding.action in bindings:
+            return {}
+        bindings[binding.action] = binding
+    return bindings
+
+
+def _tool_payload(tools: Sequence[Mapping[str, Any]],
+                  bindings: Mapping[str, ToolIntent]) -> list[dict]:
     payload: list[dict] = []
     for tool in tools:
         name = str(tool.get("name") or "").strip()
         parameters = tool.get("parameters")
-        if not name or not isinstance(parameters, Mapping):
+        binding = bindings.get(name)
+        if (not name or not isinstance(parameters, Mapping) or binding is None
+                or not _tool_arguments_fit_schema(binding.arguments, parameters)):
             continue
         payload.append({
             "type": "function",
@@ -267,11 +347,11 @@ def _tool_payload(tools: Sequence[Mapping[str, Any]]) -> list[dict]:
     return payload
 
 
-def _parse_tool_calls(message: Mapping[str, Any], allowed: set[str], intent: str) -> tuple[ToolCall, ...]:
-    if not intent or not allowed:
+def _parse_tool_calls(message: Mapping[str, Any], bindings: Mapping[str, ToolIntent],
+                      intent: str) -> tuple[ToolCall, ...]:
+    if not intent or not bindings:
         return ()
     calls: list[ToolCall] = []
-    intent_hash = sha256(intent.encode("utf-8")).hexdigest()
     for index, raw in enumerate(message.get("tool_calls") or []):
         if not isinstance(raw, Mapping):
             continue
@@ -279,32 +359,37 @@ def _parse_tool_calls(message: Mapping[str, Any], allowed: set[str], intent: str
         if not isinstance(function, Mapping):
             continue
         name = str(function.get("name") or "").strip()
-        if name not in allowed:
+        binding = bindings.get(name)
+        if binding is None:
             continue
         raw_arguments = function.get("arguments") or "{}"
         try:
             arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(arguments, dict):
+            if not isinstance(arguments, dict):
+                continue
+            if _canonical_json(arguments) != _canonical_json(binding.arguments):
+                continue
+        except (TypeError, ValueError, json.JSONDecodeError):
             continue
         calls.append(ToolCall(
             id=str(raw.get("id") or f"call-{index + 1}"), name=name,
-            arguments=arguments, intent_hash=intent_hash,
+            arguments=dict(binding.arguments), intent_hash=binding.hash_for(intent),
         ))
     return tuple(calls)
 
 
-def _append_prompt_log(tenant: str, *, profile: str, model: Optional[str], purpose: str,
+def _append_prompt_log(tenant: str, *, profile: str, model: Optional[str],
+                       model_version: Optional[str], purpose: str,
                        messages: list[dict], token_summary: dict[str, int],
                        intent_hash: Optional[str], result: str) -> str:
     entry_id = sha256(
-        f"{tenant}|{profile}|{model}|{purpose}|{time.time_ns()}".encode("utf-8")).hexdigest()[:20]
+        f"{tenant}|{profile}|{model}|{model_version}|{purpose}|{time.time_ns()}".encode("utf-8")).hexdigest()[:20]
     entry = {
         "id": entry_id,
         "at": int(time.time()),
         "profile": profile,
         "model": model,
+        "model_version": model_version,
         "purpose": str(purpose or "")[:80],
         "messages": messages,
         "token_summary": token_summary,
@@ -349,54 +434,73 @@ def untrusted_document(source_name: object, text: object) -> str:
 
 
 def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
-         tools: Sequence[Mapping[str, Any]] = (), user_intent: Optional[str] = None,
-         tenant_id: object = "unscoped", purpose: str = "", max_tokens: int = 700
-         ) -> ChatResult:
+         tools: Sequence[Mapping[str, Any]] = (), tool_intents: Sequence[ToolIntent] = (),
+         user_intent: Optional[str] = None, tenant_id: object = "unscoped",
+         purpose: str = "", max_tokens: int = 700) -> ChatResult:
     """Call one compatible chat endpoint, or return a bounded deterministic-safe error.
 
-    Tool calls are returned as proposals only.  A caller must pass an explicit user
-    intent before tools are even offered, so text in an untrusted document cannot create
-    an actionable call by itself.
+    Tool calls are proposals only.  A tool is offered only when the server has bound its
+    action and exact JSON arguments to an explicit user request; untrusted document text
+    can neither choose an action nor supply an argument.
     """
     current = settings()
     tenant = _normalise_tenant(tenant_id)
     vault = redact.Redactor()
     safe_messages = _redact_messages(messages, vault)
     intent = " ".join(str(user_intent or "").split())[:1_000]
-    tool_payload = _tool_payload(tools)
+    bindings = _bound_tool_intents(tool_intents)
+    tool_payload = _tool_payload(tools, bindings)
+    tool_refusal: Optional[tuple[str, str]] = None
     if tools and not intent:
+        tool_refusal = ("TOOL_CALL_REFUSED_NO_EXPLICIT_INTENT",
+                        "Tool calls require explicit user intent.")
+    elif tools and not bindings:
+        tool_refusal = ("TOOL_CALL_REFUSED_NO_SERVER_BINDING",
+                        "Tool calls require a server-bound action and arguments.")
+    elif tools and not tool_payload:
+        tool_refusal = ("TOOL_CALL_REFUSED_INVALID_SERVER_BINDING",
+                        "Tool calls require arguments that match the server-selected schema.")
+    if tool_refusal is not None:
+        result, error = tool_refusal
         log_id = _append_prompt_log(
-            tenant, profile=current.profile.name, model=current.model, purpose=purpose,
-            messages=safe_messages, token_summary=vault.token_summary(), intent_hash=None,
-            result="TOOL_CALL_REFUSED_NO_EXPLICIT_INTENT")
-        return ChatResult(False, error="Tool calls require explicit user intent.",
-                          profile=current.profile.name, model=current.model,
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=current.model_version, purpose=purpose,
+            messages=safe_messages, token_summary=vault.token_summary(),
+            intent_hash=sha256(intent.encode("utf-8")).hexdigest() if intent else None,
+            result=result)
+        return ChatResult(False, error=error, profile=current.profile.name,
+                          model=current.model, model_version=current.model_version,
                           prompt_log_id=log_id, _redactor=vault)
     if not current.enabled:
         log_id = _append_prompt_log(
-            tenant, profile=current.profile.name, model=current.model, purpose=purpose,
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=current.model_version, purpose=purpose,
             messages=safe_messages, token_summary=vault.token_summary(),
             intent_hash=sha256(intent.encode("utf-8")).hexdigest() if intent else None,
             result="DISABLED")
         return ChatResult(False, error=current.disabled_reason, profile=current.profile.name,
-                          model=current.model, prompt_log_id=log_id, _redactor=vault)
+                          model=current.model, model_version=current.model_version,
+                          prompt_log_id=log_id, _redactor=vault)
 
     circuit = _circuit_error(current.profile.name)
     if circuit:
         return ChatResult(False, error=circuit, profile=current.profile.name,
-                          model=current.model, _redactor=vault)
+                          model=current.model, model_version=current.model_version,
+                          _redactor=vault)
 
     requested_tokens = min(max(int(max_tokens), 1), 4_000)
     estimated = _estimate_tokens(json.dumps(safe_messages, ensure_ascii=False)) + requested_tokens
     budget_error = _reserve_budget(tenant, estimated, current)
     if budget_error:
         log_id = _append_prompt_log(
-            tenant, profile=current.profile.name, model=current.model, purpose=purpose,
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=current.model_version, purpose=purpose,
             messages=safe_messages, token_summary=vault.token_summary(),
             intent_hash=sha256(intent.encode("utf-8")).hexdigest() if intent else None,
             result="BUDGET_REFUSED")
         return ChatResult(False, error=budget_error, profile=current.profile.name,
-                          model=current.model, prompt_log_id=log_id, _redactor=vault)
+                          model=current.model, model_version=current.model_version,
+                          prompt_log_id=log_id, _redactor=vault)
 
     payload: dict[str, Any] = {
         "model": current.model,
@@ -439,37 +543,52 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
     if body is None:
         _record_failure(current.profile.name)
         log_id = _append_prompt_log(
-            tenant, profile=current.profile.name, model=current.model, purpose=purpose,
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=current.model_version, purpose=purpose,
             messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
             result="TRANSPORT_ERROR")
         return ChatResult(False, error=last_error, profile=current.profile.name,
-                          model=current.model, prompt_log_id=log_id,
-                          input_tokens=estimated, _redactor=vault)
+                          model=current.model, model_version=current.model_version,
+                          prompt_log_id=log_id, input_tokens=estimated, _redactor=vault)
 
     choices = body.get("choices") or []
     message = choices[0].get("message") if choices and isinstance(choices[0], Mapping) else None
+    provider_model_version = _provider_model_version(body, current)
     if not isinstance(message, Mapping):
         _record_failure(current.profile.name)
         log_id = _append_prompt_log(
-            tenant, profile=current.profile.name, model=current.model, purpose=purpose,
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=provider_model_version, purpose=purpose,
             messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
             result="EMPTY_RESPONSE")
         return ChatResult(False, error="Model response had no message.", profile=current.profile.name,
-                          model=current.model, prompt_log_id=log_id,
-                          input_tokens=estimated, _redactor=vault)
+                          model=current.model, model_version=provider_model_version,
+                          prompt_log_id=log_id, input_tokens=estimated, _redactor=vault)
 
     _record_success(current.profile.name)
     content = str(message.get("content") or "").strip()
     usage = body.get("usage") if isinstance(body.get("usage"), Mapping) else {}
     output_tokens = int(usage.get("completion_tokens") or _estimate_tokens(content))
-    calls = _parse_tool_calls(message, {str(tool.get("name")) for tool in tools}, intent)
+    calls = _parse_tool_calls(message, bindings, intent)
     log_id = _append_prompt_log(
-        tenant, profile=current.profile.name, model=current.model, purpose=purpose,
+        tenant, profile=current.profile.name, model=current.model,
+        model_version=provider_model_version, purpose=purpose,
         messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
         result="OK")
     return ChatResult(True, content=content, profile=current.profile.name, model=current.model,
-                      prompt_log_id=log_id, tool_calls=calls, input_tokens=estimated,
-                      output_tokens=output_tokens, _redactor=vault)
+                      model_version=provider_model_version, prompt_log_id=log_id,
+                      tool_calls=calls, input_tokens=estimated, output_tokens=output_tokens,
+                      _redactor=vault)
+
+
+def _provider_model_version(body: Mapping[str, Any], current: Settings) -> Optional[str]:
+    """Keep the provider's concrete response identifier when it supplies one."""
+    reported = body.get("model")
+    if isinstance(reported, str):
+        value = " ".join(reported.split())[:200]
+        if value:
+            return value
+    return current.model_version
 
 
 _NUMBER_RE = re.compile(r"(?<![A-Za-z_])\d[\d,]*(?:\.\d+)?")
@@ -477,10 +596,22 @@ _TOKEN_RE = re.compile(r"\[VERIS_[A-Z_]+_\d+\]")
 _DATE_RE = re.compile(
     r"\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|"
     r"\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4}|"
-    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4})\b",
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4}|"
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})\b",
     re.IGNORECASE)
-_STRUCTURAL_NUMBERS = frozenset({"0", "1", "2", "3", "10", "12", "100", "2025", "2026", "2027"})
 _DOCUMENT_WORDS = re.compile(r"\b(policy|wording|document|schedule|clause|page)\b", re.IGNORECASE)
+
+
+def _normalise_number(value: str) -> Optional[str]:
+    """Normalise only equivalent decimal representations, never a numeric prefix."""
+    try:
+        return format(Decimal(value.replace(",", "")).normalize(), "f")
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _normalise_date(value: str) -> str:
+    return " ".join(value.lower().split())
 
 
 def _flatten(value: object) -> list[str]:
@@ -502,11 +633,10 @@ def _tokens_in_evidence(evidence: object) -> tuple[set[str], set[str]]:
     dates: set[str] = set()
     for part in _flatten(evidence):
         for match in _NUMBER_RE.findall(part):
-            normalized = match.replace(",", "").rstrip(".")
-            numbers.add(normalized)
-            if "." in normalized:
-                numbers.add(normalized.split(".")[0])
-        dates.update(match.lower() for match in _DATE_RE.findall(part))
+            normalized = _normalise_number(match)
+            if normalized is not None:
+                numbers.add(normalized)
+        dates.update(_normalise_date(match) for match in _DATE_RE.findall(part))
     return numbers, dates
 
 
@@ -526,14 +656,11 @@ def guard_user_visible(text: object, evidence: object, *, citations: Sequence[ob
     allowed_numbers, allowed_dates = _tokens_in_evidence(evidence)
     without_redaction_tokens = _TOKEN_RE.sub("", value)
     for match in _NUMBER_RE.findall(without_redaction_tokens):
-        normalized = match.replace(",", "").rstrip(".")
-        if normalized in _STRUCTURAL_NUMBERS or normalized in allowed_numbers:
-            continue
-        if "." in normalized and normalized.split(".")[0] in allowed_numbers:
-            continue
-        return False, f"Model output introduced unsupported number {match}."
+        normalized = _normalise_number(match)
+        if normalized is None or normalized not in allowed_numbers:
+            return False, f"Model output introduced unsupported number {match}."
     for match in _DATE_RE.findall(without_redaction_tokens):
-        if match.lower() not in allowed_dates:
+        if _normalise_date(match) not in allowed_dates:
             return False, f"Model output introduced unsupported date {match}."
     return True, None
 
@@ -549,6 +676,7 @@ def status() -> dict:
         "enabled": current.enabled,
         "profile": current.profile.name,
         "model": current.model if current.enabled else None,
+        "model_version": current.model_version if current.enabled else None,
         "base_url_configured": bool(current.base_url) if current.enabled else False,
         "mode": "LLM_ASSISTED" if current.enabled else "DETERMINISTIC_ONLY",
         "token_budgets": {
@@ -564,7 +692,9 @@ def status() -> dict:
             "outcome_and_advice_gate": True,
             "citations_required_for_document_statements": True,
             "tool_calls_require_explicit_user_intent": True,
+            "tool_calls_require_server_bound_intent": True,
             "prompt_logs_redacted": True,
+            "prompt_logs_record_model_version": True,
         },
         "notice": ("The selected profile is disabled; deterministic processing remains available."
                    if not current.enabled else

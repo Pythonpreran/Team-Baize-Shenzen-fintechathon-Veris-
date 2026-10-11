@@ -224,9 +224,12 @@ def clear_cache() -> None:
 
 _NUM_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
-# Numbers that are structural rather than factual: percentages out of 100, "one of two",
-# a year. Allowing these avoids rejecting "62 out of 100" because 100 is not a data field.
-_STRUCTURAL_NUMBERS = {"0", "1", "2", "3", "10", "12", "100", "2025", "2026", "2027"}
+
+def _normalise_number(value: str) -> str | None:
+    try:
+        return format(Decimal(value.replace(",", "")).normalize(), "f")
+    except (InvalidOperation, ValueError):
+        return None
 
 
 def _numbers_in(value) -> set[str]:
@@ -240,10 +243,9 @@ def _numbers_in(value) -> set[str]:
             found |= _numbers_in(v)
     elif value is not None:
         for m in _NUM_RE.findall(str(value)):
-            norm = m.replace(",", "").rstrip(".")
-            found.add(norm)
-            if "." in norm:                      # 238300.00 also licenses 238300
-                found.add(norm.split(".")[0])
+            norm = _normalise_number(m)
+            if norm is not None:
+                found.add(norm)
     return found
 
 
@@ -262,12 +264,9 @@ def numbers_are_grounded(prose: str, allowed: set[str]) -> tuple[bool, Optional[
     response and the deterministic template answers instead.
     """
     for m in _NUM_RE.findall(prose or ""):
-        norm = m.replace(",", "").rstrip(".")
-        if norm in _STRUCTURAL_NUMBERS or norm in allowed:
-            continue
-        if "." in norm and norm.split(".")[0] in allowed:
-            continue
-        return False, f"invented number: {m}"
+        norm = _normalise_number(m)
+        if norm is None or norm not in allowed:
+            return False, f"invented number: {m}"
     return True, None
 
 

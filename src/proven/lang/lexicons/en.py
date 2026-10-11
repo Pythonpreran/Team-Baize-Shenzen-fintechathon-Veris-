@@ -9,9 +9,20 @@ from __future__ import annotations
 import re
 
 OUTCOME_PATTERN = re.compile(
-    r"\b(is in breach|has breached|breaches the|void(?:ed)?|will not be paid|"
-    r"claim will fail|is not covered|not covered by|forfeits? cover|denied|"
-    r"you are covered|are covered for|will be paid)\b", re.IGNORECASE)
+    r"\b(?:"
+    r"(?:is|are|was|were)\s+(?:not\s+)?covered(?:\s+(?:under|by))?|"
+    r"(?:this|the|your|a)\s+(?:policy|plan|cover(?:age)?)\s+"
+    r"(?:covers?|provides?|includes?|will\s+cover|does(?:\s+not|n't)\s+cover)|"
+    r"(?:no\s+cover|coverage\s+(?:exists|applies|does\s+not\s+apply|is\s+available))|"
+    r"(?:the\s+)?(?:insurer|carrier)\s+(?:will|would|won't|will\s+not)\s+pay|"
+    r"(?:the\s+)?claim\s+(?:will|would|won't|will\s+not)\s+(?:be\s+)?paid|"
+    r"(?:will|would|won't|will\s+not)\s+be\s+paid|"
+    r"(?:is|are|was|were|has\s+been|have\s+been)\s+breached|"
+    r"(?:is|are|was|were)\s+in\s+breach|"
+    r"(?:you|the\s+insured|the\s+policyholder)\s+(?:have|has)\s+breached|"
+    r"(?:has|have)\s+breached\s+(?:the|a)\s+(?:term|condition|warranty)|"
+    r"void(?:ed)?|claim\s+will\s+fail|forfeits?\s+cover|denied"
+    r")\b", re.IGNORECASE)
 
 ADVICE_PATTERN = re.compile(
     r"\b(surrender|switch|cancel|buy|recommend(?:ation|ed|s)?)\b", re.IGNORECASE)

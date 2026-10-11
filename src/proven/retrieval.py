@@ -56,6 +56,9 @@ class Chunk:
     char_end: int
     text: str
     tokens: tuple[str, ...] = field(default_factory=tuple)
+    # A corpus manifest hash is immutable source metadata.  An empty value means a
+    # caller-uploaded or otherwise unclassified document and is health-restricted.
+    document_sha256: str = ""
 
     def as_citation(self) -> dict:
         return {
@@ -92,7 +95,7 @@ def _tokenise_query(text: str) -> tuple[str, ...]:
 
 
 def chunk_page(text: str, *, page_no: int, document_id: str, document_kind: str,
-               filename: str, start_id: int) -> list[Chunk]:
+               filename: str, start_id: int, document_sha256: str = "") -> list[Chunk]:
     """Split one page into overlapping chunks, preserving real character offsets.
 
     Offsets are into the stored page text, so a chunk is a verifiable span. Splitting
@@ -119,7 +122,8 @@ def chunk_page(text: str, *, page_no: int, document_id: str, document_kind: str,
             chunks.append(Chunk(
                 id=next_id, document_id=document_id, document_kind=document_kind,
                 filename=filename, page_no=page_no, char_start=cursor,
-                char_end=end, text=body.strip(), tokens=_tokenise(body)))
+                char_end=end, text=body.strip(), tokens=_tokenise(body),
+                document_sha256=document_sha256))
             next_id += 1
         if end >= length:
             break
@@ -131,7 +135,7 @@ def build_chunks(conn: sqlite3.Connection) -> list[Chunk]:
     """Chunk every stored page of every ingested document in this case."""
     rows = conn.execute(
         "SELECT p.document_id AS document_id, p.page_no AS page_no, p.text AS text, "
-        "d.kind AS kind, d.filename AS filename "
+        "d.kind AS kind, d.filename AS filename, d.sha256 AS sha256 "
         "FROM page_text p JOIN document d ON d.id = p.document_id "
         "ORDER BY d.kind, p.document_id, p.page_no").fetchall()
     chunks: list[Chunk] = []
@@ -139,7 +143,7 @@ def build_chunks(conn: sqlite3.Connection) -> list[Chunk]:
         chunks.extend(chunk_page(
             row["text"], page_no=row["page_no"], document_id=row["document_id"],
             document_kind=row["kind"], filename=row["filename"],
-            start_id=len(chunks)))
+            start_id=len(chunks), document_sha256=row["sha256"]))
         if len(chunks) >= config.MAX_CHUNKS_TO_EMBED * 2:
             break
     return chunks

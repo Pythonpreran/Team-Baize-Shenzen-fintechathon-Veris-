@@ -604,18 +604,31 @@ def _ai_scope(session: Session) -> tuple[dict, Optional[set[str]]]:
     raise HTTPException(403, "This surface is not available to your role.")
 
 
-_HEALTH_MODEL_TERMS = re.compile(
-    r"\b(health|hospitali[sz]ation|medical|diagnos(?:is|ed)|diabetes|treatment|patient|"
-    r"pre-existing disease|room rent|co-pay)\b", re.IGNORECASE)
+def _document_requires_health_consent(filename: object, sha256: object) -> bool:
+    """Classify source material from immutable metadata, failing closed when unknown.
 
-
-def _contains_health_data(value: object) -> bool:
-    """Conservatively identify health material before it could reach a provider."""
+    Text is not a safe classifier: an unrecognised clinical term must never make a health
+    schedule provider-eligible.  A corpus manifest match requires both its published
+    filename and its verified byte hash; every upload or mismatch is health-restricted
+    until a later intake flow can classify it explicitly.
+    """
     try:
-        text = json.dumps(value, default=str)
-    except (TypeError, ValueError):
-        text = str(value)
-    return bool(_HEALTH_MODEL_TERMS.search(text))
+        document = corpus.resolve(str(filename or ""))
+    except corpus.ManifestError:
+        return True
+    if str(sha256 or "").strip().lower() != document.sha256:
+        return True
+    return document.line_of_business == "HEALTH"
+
+
+def _chunks_require_health_consent(chunks: object) -> bool:
+    """Whether any model-bound document chunk is health or lacks trusted metadata."""
+    try:
+        return any(_document_requires_health_consent(
+            getattr(chunk, "filename", ""), getattr(chunk, "document_sha256", ""))
+            for chunk in chunks)
+    except TypeError:
+        return True
 
 
 def _ai_model_permission(session: Session, *, health_context: bool = False) -> dict:
@@ -624,7 +637,7 @@ def _ai_model_permission(session: Session, *, health_context: bool = False) -> d
     Anonymous local demonstration sessions, advisers and carriers retain deterministic
     functionality but never send case material to a provider.  Only the authenticated
     owner can grant this tenant-scoped processing permission; a separate health-data
-    flag is required when the candidate context contains health material.
+    flag is required for health documents and any document lacking verified classification.
     """
     principal = _principal(session)
     if principal is None:
@@ -2333,8 +2346,9 @@ def presentation_compose(body: PresentationIn,
     burn model quota. The response always succeeds: if the model is absent, slow, or says
     something it should not, a written template answers instead and `mode` says which.
     """
-    permission = _ai_model_permission(
-        session, health_context=_contains_health_data(body.verified_context))
+    # This client-supplied context carries no source-document classification.  Treat it
+    # as health-restricted rather than infer sensitivity from whichever words it contains.
+    permission = _ai_model_permission(session, health_context=True)
     return presenter.compose(body.purpose, body.verified_context,
                              model_allowed=permission["allowed"],
                              tenant_id=permission["tenant_id"]).as_dict()
@@ -2461,7 +2475,7 @@ def ai_propose(session: Session = Depends(_session)):
         _, allowed = _ai_scope(session)
         retriever = _scoped_retriever(session, allowed)
         permission = _ai_model_permission(
-            session, health_context=_contains_health_data([chunk.text for chunk in retriever.chunks]))
+            session, health_context=_chunks_require_health_consent(retriever.chunks))
         result = ai.propose_mechanisms(
             st["conn"], retriever, model_allowed=permission["allowed"],
             tenant_id=permission["tenant_id"])
@@ -2493,8 +2507,7 @@ def ai_explain(body: ExplainIn, session: Session = Depends(_session)):
                 404, f"No finding with rule_id {body.rule_id!r} in this case.")
         retriever = _scoped_retriever(session, allowed)
         permission = _ai_model_permission(
-            session, health_context=_contains_health_data(
-                [finding] + [chunk.text for chunk in retriever.chunks]))
+            session, health_context=_chunks_require_health_consent(retriever.chunks))
         result = ai.explain_finding(
             st["conn"], retriever, finding,
             model_allowed=permission["allowed"], tenant_id=permission["tenant_id"])
@@ -2519,8 +2532,8 @@ def ai_ask(body: AskIn, session: Session = Depends(_session)):
         retriever = _scoped_retriever(session, allowed)
         candidate_hits = retriever.search(body.question, top_k=config.MAX_CONTEXT_CHUNKS)
         permission = _ai_model_permission(
-            session, health_context=_contains_health_data([body.question] +
-                                                           [hit.chunk.text for hit in candidate_hits]))
+            session, health_context=_chunks_require_health_consent(
+                [hit.chunk for hit in candidate_hits]))
         result = ai.answer_question(
             st["conn"], retriever, body.question,
             the_brief, score.compute_score(the_brief),
@@ -5255,7 +5268,9 @@ def assistant_ask(body: AssistIn, session: Session = Depends(_session)):
     if principal is None:
         raise HTTPException(401, "Sign in first — this helper answers about your own "
                                  "workspace, so it needs to know which one that is.")
-    permission = _ai_model_permission(session, health_context=_contains_health_data(body.question))
+    # Navigation receives no document data.  Its question is redacted at the shared
+    # boundary, but it is not classified as a health document.
+    permission = _ai_model_permission(session)
     return assistant.answer(body.question, principal.role,
                             model_allowed=permission["allowed"],
                             tenant_id=permission["tenant_id"])

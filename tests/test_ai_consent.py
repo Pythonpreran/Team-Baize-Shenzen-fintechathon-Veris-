@@ -8,8 +8,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from proven import api, llm, persistence
-from proven.retrieval import Retriever
+from proven import api, corpus, llm, persistence
+from proven.retrieval import Chunk, Retriever
 
 OWNER = {"email": "owner@hockleefoods.demo", "password": "Demo@123"}
 
@@ -84,11 +84,13 @@ def test_model_calls_need_consent_and_health_needs_its_own_flag(client, monkeypa
     assert calls == []
 
     client.post("/api/ai/consent", json={"health_documents": False})
-    health = client.post("/api/presentation/compose", json={
-        "purpose": "home_overview", "verified_context": {"health": "hospital admission"},
+    # The client body has no source-document metadata.  It must be restricted even
+    # when it contains none of the old health-keyword heuristic's vocabulary.
+    unknown_context = client.post("/api/presentation/compose", json={
+        "purpose": "home_overview", "verified_context": {"source": "Orchid ledger"},
     }).json()
-    assert health["mode"] == "DETERMINISTIC_FALLBACK"
-    assert "consent" in (health["error"] or "").lower()
+    assert unknown_context["mode"] == "DETERMINISTIC_FALLBACK"
+    assert "consent" in (unknown_context["error"] or "").lower()
     assert calls == []
 
     client.post("/api/ai/consent", json={"health_documents": True})
@@ -98,6 +100,51 @@ def test_model_calls_need_consent_and_health_needs_its_own_flag(client, monkeypa
     audit = client.get("/api/ai/prompt-log").json()["entries"]
     assert audit and audit[-1]["purpose"] == "evidence_question_answer"
     assert audit[-1]["token_summary"] is not None
+    assert audit[-1]["model_version"]
+
+
+def test_health_document_metadata_blocks_provider_without_keyword_matches(client, monkeypatch):
+    """A health source with no clinical vocabulary remains health-restricted."""
+    monkeypatch.setenv("VERIS_LLM_PROFILE", "openai")
+    monkeypatch.setenv("VERIS_LLM_API_KEY", "test-provider-token")
+    calls: list[object] = []
+
+    def fake_urlopen(request, **_kwargs):
+        calls.append(request)
+        return _Response()
+
+    monkeypatch.setattr(llm.urllib.request, "urlopen", fake_urlopen)
+    health_document = next(d for d in corpus.documents() if d.line_of_business == "HEALTH")
+    non_health_document = next(d for d in corpus.documents() if d.line_of_business != "HEALTH")
+    assert api._document_requires_health_consent(
+        health_document.seed_name, health_document.sha256) is True
+    assert api._document_requires_health_consent("unclassified.pdf", "a" * 64) is True
+
+    def retriever_for(filename: str, sha256: str) -> Retriever:
+        return Retriever([Chunk(
+            id=1, document_id="metadata-test", document_kind="BASE_WORDING",
+            filename=filename, page_no=1, char_start=0, char_end=19,
+            text="Orchid ledger entry.", tokens=("orchid", "ledger", "entry"),
+            document_sha256=sha256,
+        )])
+
+    client.post("/api/auth/login", json=OWNER)
+    client.get("/api/brief")
+    client.post("/api/ai/consent", json={"health_documents": False})
+    monkeypatch.setattr(
+        api, "_scoped_retriever",
+        lambda _session, _allowed: retriever_for(health_document.seed_name, health_document.sha256))
+
+    blocked = client.post("/api/ai/ask", json={"question": "orchid"}).json()
+    assert blocked["source"] == "DETERMINISTIC"
+    assert calls == [], "metadata-classified health text reached the provider"
+
+    monkeypatch.setattr(
+        api, "_scoped_retriever",
+        lambda _session, _allowed: retriever_for(
+            non_health_document.seed_name, non_health_document.sha256))
+    client.post("/api/ai/ask", json={"question": "orchid"})
+    assert calls, "matching non-health corpus metadata should remain eligible"
 
 
 def test_ai_consent_cannot_cross_tenants(tmp_path):
