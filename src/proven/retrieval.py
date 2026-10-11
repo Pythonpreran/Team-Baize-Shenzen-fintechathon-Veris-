@@ -234,56 +234,20 @@ class Retriever:
         """
         if self._embedded:
             return True
-        client = config.openai_client()
-        if client is None or not self.chunks:
-            return False
-        try:
-            import numpy as np
-        except ImportError:
-            self.embed_error = "numpy is not installed; using lexical retrieval."
-            return False
-
-        texts = [c.text for c in self.chunks[:config.MAX_CHUNKS_TO_EMBED]]
-        vectors: list[list[float]] = []
-        try:
-            # Batched: one request per 128 chunks keeps payloads small enough to
-            # avoid provider request-size limits on a long wording.
-            for start in range(0, len(texts), 128):
-                batch = texts[start:start + 128]
-                response = client.embeddings.create(
-                    model=config.EMBED_MODEL, input=batch)
-                vectors.extend(item.embedding for item in response.data)
-        except Exception as exc:
-            self.embed_error = f"{type(exc).__name__}: {exc}"[:200]
-            return False
-
-        if len(vectors) != len(texts):
-            self.embed_error = "embedding count did not match chunk count"
-            return False
-
-        matrix = np.asarray(vectors, dtype="float32")
-        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-        norms[norms == 0] = 1.0
-        self._matrix = matrix / norms          # pre-normalised: cosine == dot product
-        self.chunks = self.chunks[:len(texts)]
-        self._bm25 = _BM25(self.chunks)
-        self._embedded = True
-        return True
+        # Remote embedding calls would transmit complete document chunks.  The shared
+        # model boundary deliberately accepts only redacted prompts, so retrieval stays
+        # lexical until a redaction-preserving embedding representation is implemented.
+        # This is a conservative capability reduction, not a silent fallback: stats()
+        # reports LEXICAL_BM25 and this reason to every caller.
+        self.embed_error = (
+            "Remote embeddings are disabled so raw document text never leaves the "
+            "evidence boundary; using lexical retrieval.")
+        return False
 
     def _embed_query(self, query: str):
-        client = config.openai_client()
-        if client is None:
-            return None
-        try:
-            import numpy as np
-            response = client.embeddings.create(
-                model=config.EMBED_MODEL, input=[query])
-            vector = np.asarray(response.data[0].embedding, dtype="float32")
-            norm = float(np.linalg.norm(vector)) or 1.0
-            return vector / norm
-        except Exception as exc:
-            self.embed_error = f"{type(exc).__name__}: {exc}"[:200]
-            return None
+        """No remote query embedding path: retrieval remains lexical and evidence-local."""
+        _ = query
+        return None
 
     # ── search ─────────────────────────────────────────────────────────────
     def search(self, query: str, top_k: int = config.MAX_CONTEXT_CHUNKS,

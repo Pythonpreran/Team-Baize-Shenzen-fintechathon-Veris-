@@ -91,6 +91,7 @@ ERASURE_FINALIZING = "FINALIZING"
 # field lets a new authenticated session recognise the established bundle without turning
 # ordinary uploaded analyses into one shared record.
 SME_DEMO_SOURCE_CASE_ID = "sme-demo-v1"
+AI_PROCESSING_PURPOSE = "AI_PROCESSING"
 
 
 @dataclass(frozen=True)
@@ -1206,6 +1207,79 @@ class PortfolioRepository:
                  self._seal_json(key, scope.tenant_id, f"consent:{consent_id}", detail), _now()))
             self._audit(conn, scope, "RECORD_CONSENT", "consent", consent_id)
             return {"id": consent_id, **detail}
+
+    def grant_ai_processing_consent(self, scope: TenantScope, *, health_documents: bool = False) -> dict:
+        """Grant one encrypted, tenant-scoped consent for optional model processing.
+
+        The generic consent table deliberately carries this record too: it keeps the
+        recipient, purpose and revocation lifecycle encrypted with the tenant's other
+        sensitive data rather than creating an unprotected AI-settings side table.
+        """
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            now = _now()
+            rows = conn.execute(
+                "SELECT id, details_encrypted FROM consent WHERE tenant_id=? AND revoked_at IS NULL",
+                (scope.tenant_id,)).fetchall()
+            for row in rows:
+                detail = self._open_json(key, scope.tenant_id, f"consent:{row['id']}",
+                                         row["details_encrypted"])
+                if detail.get("purpose") == AI_PROCESSING_PURPOSE:
+                    conn.execute("UPDATE consent SET revoked_at=? WHERE id=? AND tenant_id=?",
+                                 (now, row["id"], scope.tenant_id))
+            consent_id = new_id()
+            detail = {
+                "purpose": AI_PROCESSING_PURPOSE,
+                "data_categories": (["POLICY_TEXT", "HEALTH_DOCUMENTS"]
+                                    if health_documents else ["POLICY_TEXT"]),
+                "recipient": "Configured model provider",
+                "duration": "Until revoked",
+                "health_documents": bool(health_documents),
+            }
+            conn.execute(
+                "INSERT INTO consent (id, tenant_id, details_encrypted, created_at) VALUES (?,?,?,?)",
+                (consent_id, scope.tenant_id,
+                 self._seal_json(key, scope.tenant_id, f"consent:{consent_id}", detail), now))
+            self._audit(conn, scope, "GRANT_AI_PROCESSING_CONSENT", "consent", consent_id)
+            return {"id": consent_id, "granted": True,
+                    "health_documents": bool(health_documents), "created_at": now}
+
+    def ai_processing_consent(self, scope: TenantScope) -> dict:
+        """Return the current tenant's AI-processing permission without exposing PII."""
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            rows = conn.execute(
+                "SELECT id, details_encrypted, created_at FROM consent "
+                "WHERE tenant_id=? AND revoked_at IS NULL ORDER BY created_at DESC, id DESC",
+                (scope.tenant_id,)).fetchall()
+            for row in rows:
+                detail = self._open_json(key, scope.tenant_id, f"consent:{row['id']}",
+                                         row["details_encrypted"])
+                if detail.get("purpose") == AI_PROCESSING_PURPOSE:
+                    return {"granted": True,
+                            "health_documents": bool(detail.get("health_documents")),
+                            "created_at": row["created_at"]}
+            return {"granted": False, "health_documents": False, "created_at": None}
+
+    def revoke_ai_processing_consent(self, scope: TenantScope) -> dict:
+        """Revoke every live tenant AI-processing grant and leave unrelated consent intact."""
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            now = _now()
+            rows = conn.execute(
+                "SELECT id, details_encrypted FROM consent WHERE tenant_id=? AND revoked_at IS NULL",
+                (scope.tenant_id,)).fetchall()
+            revoked = 0
+            for row in rows:
+                detail = self._open_json(key, scope.tenant_id, f"consent:{row['id']}",
+                                         row["details_encrypted"])
+                if detail.get("purpose") == AI_PROCESSING_PURPOSE:
+                    conn.execute("UPDATE consent SET revoked_at=? WHERE id=? AND tenant_id=?",
+                                 (now, row["id"], scope.tenant_id))
+                    revoked += 1
+            if revoked:
+                self._audit(conn, scope, "REVOKE_AI_PROCESSING_CONSENT", "consent", "ai-processing")
+            return {"revoked": revoked, "granted": False, "health_documents": False}
 
     def wrap_sme_analysis(self, scope: TenantScope, state: Mapping[str, object]) -> Optional[dict]:
         """Represent the existing SME analysis as one business policy bundle.

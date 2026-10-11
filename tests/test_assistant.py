@@ -276,9 +276,9 @@ def test_the_model_cannot_move_a_route_the_keywords_already_resolved(monkeypatch
     wrong = "adv-note"
     monkeypatch.setattr(assistant.config, "ai_enabled", lambda: True)
     monkeypatch.setattr(assistant, "_model_pick",
-                        lambda q, allowed: (wrong, "a sentence from the model", None))
+                        lambda q, allowed, **_: (wrong, "a sentence from the model", None))
 
-    a = assistant.answer("how do I mark this bound", auth.ADVISER)
+    a = assistant.answer("how do I mark this bound", auth.ADVISER, model_allowed=True)
     assert a["route"]["id"] == "adv-actions", (
         "the model overrode a route the keywords had already resolved correctly")
     # It still supplied the wording, and the response still says a model was involved.
@@ -290,11 +290,11 @@ def test_the_model_still_decides_where_the_keywords_found_nothing(monkeypatch):
     """The other half of the same rule: it must not be neutered into doing nothing."""
     monkeypatch.setattr(assistant.config, "ai_enabled", lambda: True)
     monkeypatch.setattr(assistant, "_model_pick",
-                        lambda q, allowed: ("cyber", "Model chose this.", None))
+                        lambda q, allowed, **_: ("cyber", "Model chose this.", None))
 
     # A phrasing with no keyword anywhere in the catalogue.
     assert assistant.answer("zzz qqq", auth.SME, allow_model=False)["route"] is None
-    a = assistant.answer("zzz qqq", auth.SME)
+    a = assistant.answer("zzz qqq", auth.SME, model_allowed=True)
     assert a["route"] is not None and a["route"]["id"] == "cyber"
     assert a["mode"] == "LLM_ASSISTED"
 
@@ -303,8 +303,8 @@ def test_an_invented_destination_id_from_the_model_is_discarded(monkeypatch):
     """A model that could emit its own id could navigate somebody nowhere."""
     monkeypatch.setattr(assistant.config, "ai_enabled", lambda: True)
     monkeypatch.setattr(assistant, "_model_pick",
-                        lambda q, allowed: ("sme-does-not-exist", "hello", None))
-    a = assistant.answer("zzz qqq", auth.SME)
+                        lambda q, allowed, **_: ("sme-does-not-exist", "hello", None))
+    a = assistant.answer("zzz qqq", auth.SME, model_allowed=True)
     assert a["route"] is None, "an unknown id was accepted as a destination"
 
 
@@ -313,6 +313,6 @@ def test_the_model_cannot_reach_across_a_role_even_with_a_valid_id(monkeypatch):
     only ever handed its own role's list, and the validation is against that same list."""
     monkeypatch.setattr(assistant.config, "ai_enabled", lambda: True)
     monkeypatch.setattr(assistant, "_model_pick",
-                        lambda q, allowed: ("car-decisions", "hello", None))
-    a = assistant.answer("zzz qqq", auth.SME)
+                        lambda q, allowed, **_: ("car-decisions", "hello", None))
+    a = assistant.answer("zzz qqq", auth.SME, model_allowed=True)
     assert a["route"] is None

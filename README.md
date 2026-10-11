@@ -35,6 +35,23 @@ Then open <http://localhost:8000>.
 pins everything they pull in. So a fresh install gets exactly the versions the suite
 was run against, and exactly the versions `THIRD_PARTY_NOTICES.md` lists.
 
+## Optional model profiles
+
+VERIS runs every consequential flow without a model. Set `VERIS_LLM_PROFILE` only after
+the tenant has granted AI-processing consent in the product: `openai` defaults to
+`https://api.openai.com/v1` with `gpt-4o-mini`; `deepseek` defaults to
+`https://api.deepseek.com/v1` with `deepseek-chat`; `qwen` defaults to
+`https://dashscope.aliyuncs.com/compatible-mode/v1` with `qwen-plus`; and `ollama`
+defaults to `http://localhost:11434/v1` with `llama3.2`. `none` selects deterministic
+operation. `VERIS_LLM_BASE_URL` and `VERIS_LLM_MODEL` are explicit overrides; the key
+variables are listed without values in `.env.example`.
+
+The provider boundary redacts recognised personal data before transport, records only
+redacted prompt logs, applies tenant and global token budgets, and rejects unsupported
+numbers, dates, outcome language and product advice. Document text is delimited as
+untrusted data, and a model-proposed tool call is accepted only when tied to an explicit
+user request. It never receives document images.
+
 ## One-time local demonstration migration
 
 Older local portfolio stores can contain SME demonstration bundles created before VERIS

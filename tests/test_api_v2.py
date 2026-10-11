@@ -684,6 +684,10 @@ COVERED: set[tuple[str, str]] = {
     # which runs every one of them with NO key configured — the state a judge cloning
     # this repo is in, and the state the suite must never need a paid call to escape.
     ("GET", "/api/ai/status"),
+    ("GET", "/api/ai/consent"),
+    ("POST", "/api/ai/consent"),
+    ("POST", "/api/ai/consent/revoke"),
+    ("GET", "/api/ai/prompt-log"),
     ("POST", "/api/ai/propose"),
     ("POST", "/api/ai/explain"),
     ("POST", "/api/ai/ask"),

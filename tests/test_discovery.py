@@ -373,7 +373,7 @@ def test_unknown_fact_type_is_dropped_before_it_reaches_grounding(monkeypatch):
     monkeypatch.setattr(discovery.urllib.request, "urlopen",
                         lambda *a, **k: _Resp())
 
-    proposals, meta = discovery.propose_facts_from_text("page", "ACRA")
+    proposals, meta = discovery.propose_facts_from_text("page", "ACRA", model_allowed=True)
     assert meta["proposed"] == 1
     assert [p["fact_type"] for p in proposals] == ["LOCATION"]
 
@@ -386,9 +386,9 @@ def test_model_transport_failure_degrades_to_patterns(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-key")
     monkeypatch.setattr(discovery.urllib.request, "urlopen", _boom)
 
-    proposals, meta = discovery.propose_facts_from_text("page text", "ACRA")
+    proposals, meta = discovery.propose_facts_from_text("page text", "ACRA", model_allowed=True)
     assert proposals == []
-    assert meta["error"] == "OSError"
+    assert meta["error"] == "Model transport failed"
 
     # and the whole agent still runs
     result = discovery.discover_business()

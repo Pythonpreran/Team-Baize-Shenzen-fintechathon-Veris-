@@ -23,10 +23,10 @@ conclusion, or a fact. Three mechanisms enforce that, and all three run on every
 If the model is unavailable, its output fails validation, or no key is configured, a
 deterministic template answers instead. The screen never depends on the model being up.
 
-PROVIDER. One OpenAI-compatible chat endpoint, used only when OPENAI_API_KEY is set. It is
-not required. The swappable multi-provider layer (with a deterministic `none` profile) is
-separate work; until it lands this module speaks to exactly one provider, and a key for any
-other service is ignored rather than guessed at.
+PROVIDER. Model wording travels through `llm.py`, the one redacting OpenAI-compatible
+transport shared by the product. It is optional, consent-gated and never required for a
+rendered screen: a deterministic template is always the answer when the profile is
+`none`, consent is absent, a budget is exhausted or any output gate fails.
 
 CREDIT. The architecture, the guardrail set and the visual vocabulary are Shreya's design
 from the team's earlier presenter prototype. This version changes the transport and
@@ -36,56 +36,35 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from . import jurisdiction
+from . import jurisdiction, llm
 
-# ── provider configuration ───────────────────────────────────────────────────
-
-OPENAI_KEY_ENV = "OPENAI_API_KEY"
-MODEL_ENV = "PROVEN_PRESENTER_MODEL"
-
-OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-
+# ── provider compatibility names ────────────────────────────────────────────
+# Chat configuration and transport live in llm.py.  This constant remains solely as a
+# stable default name for existing presenter tests and documentation.
 OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
 
-TIMEOUT = float(os.getenv("PROVEN_PRESENTER_TIMEOUT", "12"))
 MAX_TOKENS = 900
-TEMPERATURE = 0.2
-
-
-def _clean_env(name: str) -> Optional[str]:
-    val = (os.getenv(name) or "").strip()
-    if not val or val.lower().startswith(("your-", "sk-your")) or "key-here" in val.lower():
-        return None
-    return val
 
 
 def provider() -> Optional[str]:
-    """Which provider will actually be used: "openai" when its key is set, else None."""
-    if _clean_env(OPENAI_KEY_ENV):
-        return "openai"
-    return None
+    """The configured shared profile, or None for deterministic operation."""
+    current = llm.settings()
+    return current.profile.name if current.enabled else None
 
 
 def model_name() -> Optional[str]:
-    override = _clean_env(MODEL_ENV)
-    if override:
-        return override
-    if provider() == "openai":
-        return OPENAI_DEFAULT_MODEL
-    return None
+    current = llm.settings()
+    return current.model if current.enabled else None
 
 
 def enabled() -> bool:
-    return provider() is not None
+    return llm.enabled()
 
 
 # ── what the front end is able to draw ───────────────────────────────────────
@@ -432,11 +411,21 @@ class PresentationResult:
         }
 
 
-def compose(purpose: str, verified_context: dict) -> PresentationResult:
+def compose(purpose: str, verified_context: dict, *, model_allowed: bool = False,
+            tenant_id: str = "unscoped") -> PresentationResult:
     """Turn verified data into a plain-language visual story."""
     context = verified_context if isinstance(verified_context, dict) else {}
     category = detect_semantic_category(purpose, context)
     key = _cache_key(purpose, context)
+
+    # Build the deterministic floor before consulting a cache. A prior consented model
+    # response may not be replayed to a tenant that has not granted AI processing.
+    base = build_fallback(purpose, context, category)
+    if not model_allowed:
+        return PresentationResult(
+            True, "DETERMINISTIC_FALLBACK", base,
+            error="AI processing needs the tenant's explicit consent.",
+            semantic_category=category)
 
     hit = _cache_get(key)
     if hit is not None:
@@ -444,16 +433,12 @@ def compose(purpose: str, verified_context: dict) -> PresentationResult:
                                   semantic_category=category,
                                   provider_used=provider())
 
-    # The template is built first, always. It is the floor: a correct, specific, plain
-    # screen that needs no network and no model.
-    base = build_fallback(purpose, context, category)
-
     if not enabled():
         return PresentationResult(
             True, "DETERMINISTIC_FALLBACK", base,
             error="No model key configured.", semantic_category=category)
 
-    result, err = _call_model(purpose, context, category, base)
+    result, err = _call_model(purpose, context, category, base, tenant_id=tenant_id)
     if result is not None:
         merged = _merge(base, result)
         _cache_set(key, merged)
@@ -501,12 +486,10 @@ def _merge(base: dict, model: dict) -> dict:
 
 
 def _call_model(purpose: str, context: dict, category: str,
-                base: Optional[dict] = None) -> tuple[Optional[dict], Optional[str]]:
-    prov = provider()
-    if prov == "openai":
-        url, key, model = OPENAI_URL, _clean_env(OPENAI_KEY_ENV), model_name()
-    else:
-        return None, "no provider"
+                base: Optional[dict] = None, *, tenant_id: str = "unscoped"
+                ) -> tuple[Optional[dict], Optional[str]]:
+    if not enabled():
+        return None, llm.settings().disabled_reason or "no provider"
 
     # Showing the model the template it is competing with raises the floor considerably.
     # Without it, the model writes to no standard and produces generic prose. With it, the
@@ -519,29 +502,18 @@ def _call_model(purpose: str, context: dict, category: str,
             k: base.get(k) for k in _MODEL_OWNS if base and base.get(k)
         } if base else None,
     }
-    payload = {
-        "model": model,
-        "messages": [
+    result = llm.chat(
+        [
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps(user_payload, default=str)[:12000]},
         ],
-        "temperature": TEMPERATURE,
-        "max_tokens": MAX_TOKENS,
-        "response_format": {"type": "json_object"},
-    }
-    req = urllib.request.Request(
-        url, data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        return None, f"HTTP {e.code} from {prov}"
-    except Exception as e:
-        return None, f"{type(e).__name__} calling {prov}"
-
-    content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content")
+        json_mode=True, max_tokens=MAX_TOKENS, tenant_id=tenant_id,
+        purpose="presentation_wording",
+        user_intent="Present this already verified insurance information clearly",
+    )
+    if not result.available:
+        return None, result.error or "model call failed"
+    content = result.display_text()
     if not content:
         return None, "empty response"
     try:
@@ -558,6 +530,10 @@ def _call_model(purpose: str, context: dict, category: str,
         # A rejected response is not silently swallowed; the reason travels so the
         # interface can show that the gate fired.
         return None, f"rejected by validation: {why}"
+    prose = " ".join(str(parsed.get(field, "")) for field in _MODEL_OWNS)
+    safe, why = llm.guard_user_visible(prose, context)
+    if not safe:
+        return None, f"rejected by grounding: {why}"
     return parsed, None
 
 

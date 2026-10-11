@@ -52,9 +52,7 @@ def no_key(monkeypatch):
     anything the first time it is green for the wrong reason.
     """
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    config._import_openai.cache_clear()
     yield
-    config._import_openai.cache_clear()
 
 
 # ── the architectural guarantee ──────────────────────────────────────────────
@@ -281,7 +279,7 @@ def test_propose_degrades_to_nothing_rather_than_failing(client, no_key):
     assert body["mode"] == "DETERMINISTIC_ONLY"
     assert body["proposals"] == []
     assert body["verified_count"] == 0 and body["rejected_count"] == 0
-    assert "OPENAI_API_KEY" in (body["error"] or "")
+    assert "consent" in (body["error"] or "").lower()
 
 
 def test_propose_is_refused_on_a_deleted_case(client, no_key):

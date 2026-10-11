@@ -29,6 +29,7 @@ import hashlib
 import io
 import json
 import queue
+import re
 import threading
 import time
 from pathlib import Path
@@ -48,7 +49,7 @@ from . import (actions, advisernote, ai, align, assistant, auth, blindspots, boo
                compounding,
                config, connectors, corpus, cyber, detect, discovery, gapsummary,
                household, household_loader,
-               bi, drift, events, ingest, jurisdiction, mailer, marketmap,
+               bi, drift, events, ingest, jurisdiction, llm, mailer, marketmap,
                notifications, ocr,
                orchestrator, pagequality, persistence, pipeline, premium_at_risk,
                presenter, renewal,
@@ -601,6 +602,50 @@ def _ai_scope(session: Session) -> tuple[dict, Optional[set[str]]]:
         return {**disclosed, "findings": disclosed.get("findings") or []}, allowed
 
     raise HTTPException(403, "This surface is not available to your role.")
+
+
+_HEALTH_MODEL_TERMS = re.compile(
+    r"\b(health|hospitali[sz]ation|medical|diagnos(?:is|ed)|diabetes|treatment|patient|"
+    r"pre-existing disease|room rent|co-pay)\b", re.IGNORECASE)
+
+
+def _contains_health_data(value: object) -> bool:
+    """Conservatively identify health material before it could reach a provider."""
+    try:
+        text = json.dumps(value, default=str)
+    except (TypeError, ValueError):
+        text = str(value)
+    return bool(_HEALTH_MODEL_TERMS.search(text))
+
+
+def _ai_model_permission(session: Session, *, health_context: bool = False) -> dict:
+    """Resolve server-side tenant consent for every optional model path.
+
+    Anonymous local demonstration sessions, advisers and carriers retain deterministic
+    functionality but never send case material to a provider.  Only the authenticated
+    owner can grant this tenant-scoped processing permission; a separate health-data
+    flag is required when the candidate context contains health material.
+    """
+    principal = _principal(session)
+    if principal is None:
+        return {"allowed": False, "tenant_id": "unscoped", "reason": "Sign in and grant AI consent."}
+    if principal.role != auth.SME:
+        return {"allowed": False, "tenant_id": principal.organisation_id,
+                "reason": "Only the portfolio owner may grant AI processing consent."}
+    try:
+        consent = _portfolio_repository().ai_processing_consent(_portfolio_scope(session))
+    except persistence.PortfolioError:
+        return {"allowed": False, "tenant_id": principal.organisation_id,
+                "reason": "Durable portfolio consent storage is not configured."}
+    if not consent["granted"]:
+        return {"allowed": False, "tenant_id": principal.organisation_id,
+                "reason": "AI processing consent has not been granted for this tenant.",
+                "consent": consent}
+    if health_context and not consent["health_documents"]:
+        return {"allowed": False, "tenant_id": principal.organisation_id,
+                "reason": "Health documents are excluded until health-data consent is granted.",
+                "consent": consent}
+    return {"allowed": True, "tenant_id": principal.organisation_id, "consent": consent}
 
 
 def _scoped_retriever(session: Session,
@@ -2288,8 +2333,11 @@ def presentation_compose(body: PresentationIn,
     burn model quota. The response always succeeds: if the model is absent, slow, or says
     something it should not, a written template answers instead and `mode` says which.
     """
-    _ = session
-    return presenter.compose(body.purpose, body.verified_context).as_dict()
+    permission = _ai_model_permission(
+        session, health_context=_contains_health_data(body.verified_context))
+    return presenter.compose(body.purpose, body.verified_context,
+                             model_allowed=permission["allowed"],
+                             tenant_id=permission["tenant_id"]).as_dict()
 
 
 @app.get("/api/presentation/status")
@@ -2315,6 +2363,45 @@ class ExplainIn(BaseModel):
     rule_id: str = Field(min_length=1, max_length=120)
 
 
+class AiProcessingConsentIn(BaseModel):
+    health_documents: bool = False
+
+
+@app.get("/api/ai/consent")
+def ai_processing_consent(session: Session = Depends(_session)):
+    """The authenticated owner's durable consent state for optional model processing."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().ai_processing_consent(scope)
+
+
+@app.post("/api/ai/consent")
+def grant_ai_processing_consent(body: AiProcessingConsentIn,
+                                session: Session = Depends(_session)):
+    """Grant tenant-scoped processing consent; health data remains opt-in."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().grant_ai_processing_consent(
+        scope, health_documents=body.health_documents)
+
+
+@app.post("/api/ai/consent/revoke")
+def revoke_ai_processing_consent(session: Session = Depends(_session)):
+    """Revoke model-processing consent without affecting document-sharing consent."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().revoke_ai_processing_consent(scope)
+
+
+@app.get("/api/ai/prompt-log")
+def ai_prompt_log(session: Session = Depends(_session)):
+    """Owner-only redacted prompt audit records for this tenant."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"entries": llm.prompt_log(scope.tenant_id),
+            "notice": "Prompt entries contain reversible tokens, never raw personal values."}
+
+
 @app.get("/api/ai/status")
 def ai_status(session: Session = Depends(_session)):
     """What the interface is told about the AI layer. Reports key *presence*, never
@@ -2330,6 +2417,8 @@ def ai_status(session: Session = Depends(_session)):
         out["index"] = _retriever(session).stats() if "conn" in st else {
             "chunks": 0, "pages_indexed": 0, "documents_indexed": 0,
             "method": "LEXICAL_BM25", "embedded": False, "embed_error": None}
+    out["processing_consent"] = _ai_model_permission(session)
+    out["guardrails"] = llm.status()["guardrails"]
     out["boundary"] = {
         "model_may": ["propose a candidate mechanism from unfamiliar prose",
                       "rank retrieved passages",
@@ -2370,8 +2459,12 @@ def ai_propose(session: Session = Depends(_session)):
         # route that touches the case. An adviser may only propose over disclosed
         # documents; a carrier may not reach it at all.
         _, allowed = _ai_scope(session)
+        retriever = _scoped_retriever(session, allowed)
+        permission = _ai_model_permission(
+            session, health_context=_contains_health_data([chunk.text for chunk in retriever.chunks]))
         result = ai.propose_mechanisms(
-            st["conn"], _scoped_retriever(session, allowed))
+            st["conn"], retriever, model_allowed=permission["allowed"],
+            tenant_id=permission["tenant_id"])
         return result.as_dict()
 
 
@@ -2398,8 +2491,13 @@ def ai_explain(body: ExplainIn, session: Session = Depends(_session)):
             # "withheld" avoids confirming the existence of something undisclosed.
             raise HTTPException(
                 404, f"No finding with rule_id {body.rule_id!r} in this case.")
+        retriever = _scoped_retriever(session, allowed)
+        permission = _ai_model_permission(
+            session, health_context=_contains_health_data(
+                [finding] + [chunk.text for chunk in retriever.chunks]))
         result = ai.explain_finding(
-            st["conn"], _scoped_retriever(session, allowed), finding)
+            st["conn"], retriever, finding,
+            model_allowed=permission["allowed"], tenant_id=permission["tenant_id"])
         return {"rule_id": body.rule_id, **result.as_dict()}
 
 
@@ -2418,9 +2516,15 @@ def ai_ask(body: AskIn, session: Session = Depends(_session)):
         if _case_deleted(st):
             raise HTTPException(404, _DELETED_NOTICE)
         the_brief, allowed = _ai_scope(session)
+        retriever = _scoped_retriever(session, allowed)
+        candidate_hits = retriever.search(body.question, top_k=config.MAX_CONTEXT_CHUNKS)
+        permission = _ai_model_permission(
+            session, health_context=_contains_health_data([body.question] +
+                                                           [hit.chunk.text for hit in candidate_hits]))
         result = ai.answer_question(
-            st["conn"], _scoped_retriever(session, allowed), body.question,
-            the_brief, score.compute_score(the_brief))
+            st["conn"], retriever, body.question,
+            the_brief, score.compute_score(the_brief),
+            model_allowed=permission["allowed"], tenant_id=permission["tenant_id"])
         return {"question": body.question, **result.as_dict()}
 
 
@@ -2985,8 +3089,10 @@ def discovery_feed(live: Optional[bool] = None, q: Optional[str] = None,
                 or 0),
         }
         use_live = config.live_sources_enabled() if live is None else live
+        permission = _ai_model_permission(session)
         result = discovery.discover_business(
-            policy_state=policy_state, live=use_live, entity_query=q)
+            policy_state=policy_state, live=use_live, entity_query=q,
+            model_allowed=permission["allowed"], tenant_id=permission["tenant_id"])
         result["available"] = True
         return result
 
@@ -5149,7 +5255,10 @@ def assistant_ask(body: AssistIn, session: Session = Depends(_session)):
     if principal is None:
         raise HTTPException(401, "Sign in first — this helper answers about your own "
                                  "workspace, so it needs to know which one that is.")
-    return assistant.answer(body.question, principal.role)
+    permission = _ai_model_permission(session, health_context=_contains_health_data(body.question))
+    return assistant.answer(body.question, principal.role,
+                            model_allowed=permission["allowed"],
+                            tenant_id=permission["tenant_id"])
 
 
 @app.get("/api/assistant/destinations")

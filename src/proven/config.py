@@ -21,24 +21,15 @@ deterministic fallback that is labelled as such in the response.
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from pathlib import Path
+
+from . import llm
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = REPO_ROOT / ".env"
 
-# Model choices. Small and cheap on purpose: the LLM's job here is extraction and
-# phrasing, not reasoning about money. Nothing consequential depends on model
-# capability, so paying for a frontier model would buy nothing.
-CHAT_MODEL = os.getenv("PROVEN_CHAT_MODEL", "gpt-4o-mini")
-EMBED_MODEL = os.getenv("PROVEN_EMBED_MODEL", "text-embedding-3-small")
-EMBED_DIMENSIONS = 1536
-
-# Hard caps. An LLM call in a request path needs a timeout or a slow provider
-# becomes a hung page, and needs a token ceiling or a 400-page upload becomes a
-# surprise invoice.
-AI_TIMEOUT_SECONDS = float(os.getenv("PROVEN_AI_TIMEOUT", "25"))
-AI_MAX_RETRIES = 1
+# Retrieval has a fixed local chunk cap and every model prompt has a separately enforced
+# token budget in llm.py. No raw document embedding request is made from this module.
 MAX_CHUNKS_TO_EMBED = 400
 MAX_CONTEXT_CHUNKS = 6
 
@@ -67,9 +58,8 @@ _load_env_file()
 
 
 def api_key() -> str | None:
-    """The OpenAI key, or None. Never logged, never returned by any endpoint."""
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    return key or None
+    """The selected provider key, or None. Never logged or returned by an endpoint."""
+    return llm.settings().api_key
 
 
 def live_sources_enabled() -> bool:
@@ -140,57 +130,33 @@ def notify_override() -> str:
 
 
 def ai_enabled() -> bool:
-    return api_key() is not None
+    """Whether a configured shared profile may make a model call."""
+    return llm.enabled()
 
-
-@lru_cache(maxsize=1)
-def _import_openai():
-    try:
-        from openai import OpenAI
-        return OpenAI
-    except ImportError:
-        return None
-
-
-def openai_client():
-    """A configured client, or None when unavailable for any reason."""
-    key = api_key()
-    if key is None:
-        return None
-    OpenAI = _import_openai()
-    if OpenAI is None:
-        return None
-    try:
-        return OpenAI(api_key=key, timeout=AI_TIMEOUT_SECONDS,
-                      max_retries=AI_MAX_RETRIES)
-    except Exception:
-        return None
 
 
 def ai_status() -> dict:
-    """What the UI is told about the AI layer. Reports presence, never the key.
-
-    `mode` is surfaced in the interface on purpose. A product that quietly falls back
-    to lexical retrieval while implying it is doing semantic search is making exactly
-    the kind of unstated claim this whole system exists to refuse.
-    """
-    enabled = ai_enabled()
+    """Safe provider metadata for UI status; secrets are never included."""
+    current = llm.settings()
+    shared = llm.status()
+    active = current.enabled
     return {
-        "enabled": enabled,
-        "mode": "LLM_ASSISTED" if enabled else "DETERMINISTIC_ONLY",
-        "chat_model": CHAT_MODEL if enabled else None,
-        "embedding_model": EMBED_MODEL if enabled else None,
-        "retrieval": "SEMANTIC_EMBEDDINGS" if enabled else "LEXICAL_BM25",
+        "enabled": active,
+        "mode": "LLM_ASSISTED" if active else "DETERMINISTIC_ONLY",
+        "profile": current.profile.name,
+        "chat_model": current.model if active else None,
+        "embedding_model": None,
+        "retrieval": "LEXICAL_BM25",
+        "provider_guardrails": shared["guardrails"],
+        "token_budgets": shared["token_budgets"],
         "notice": (
-            "AI proposes and explains. It never decides coverage, never resolves "
-            "precedence and never computes a settlement figure — those stay in the "
-            "deterministic engine and every AI claim is verified against the source "
-            "document before it is shown."
-            if enabled else
-            "No OPENAI_API_KEY is configured, so the AI layer is off. Every finding, "
-            "score and figure on this page is produced by the deterministic engine "
-            "and is unaffected. Retrieval falls back to lexical scoring, which still "
-            "returns real page-anchored evidence."
+            "AI proposes, explains and routes within explicit consent. It never decides "
+            "coverage, resolves precedence or computes a settlement figure; every "
+            "user-visible model statement passes redaction and grounding gates."
+            if active else
+            "No usable model profile is configured, so the AI layer is off. Every finding, "
+            "score and figure is produced by the deterministic engine and retrieval falls "
+            "back to lexical scoring with page-anchored evidence."
         ),
-        "key_source": "environment" if enabled else None,
+        "key_source": "environment" if active and current.api_key else None,
     }

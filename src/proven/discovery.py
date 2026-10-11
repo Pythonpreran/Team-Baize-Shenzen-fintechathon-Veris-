@@ -53,7 +53,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from . import config
+from . import config, llm
 
 # ── claim scope: what the Discovery Agent may assert ─────────────────────────
 #
@@ -524,63 +524,46 @@ JSON only:
             "label": "short plain-English summary under 60 chars"}]}"""
 
 
-def _model_key() -> Optional[str]:
-    """Same provider resolution as the presentation layer, kept local so discovery has no
-    dependency on it and degrades independently. One OpenAI-compatible provider until the
-    swappable provider layer lands; a key for any other service is ignored."""
-    for env in ("OPENAI_API_KEY",):
-        val = (os.getenv(env) or "").strip()
-        if val and "key-here" not in val.lower() and not val.lower().startswith("sk-your"):
-            return env
-    return None
+def extraction_enabled(*, model_allowed: bool = False) -> bool:
+    """Whether optional public-page extraction may use the shared provider boundary."""
+    return model_allowed and llm.enabled()
 
 
-def extraction_enabled() -> bool:
-    return _model_key() is not None
+def propose_facts_from_text(text: str, source_name: str, *, model_allowed: bool = False,
+                            tenant_id: str = "public-discovery") -> tuple[list[dict], dict]:
+    """Ask a model what facts appear on a public page, then return only candidates.
 
-
-def propose_facts_from_text(text: str, source_name: str) -> tuple[list[dict], dict]:
-    """Ask a model what facts appear on this page. Returns (proposals, meta).
-
-    Never raises and never blocks discovery: any failure returns an empty list, and the
-    deterministic patterns below still run. The model is an addition, not a dependency.
+    The caller still grounds and type-checks every candidate.  Page content is delimited
+    as untrusted data before the shared boundary tokenises it, so it cannot act as an
+    instruction or disclose raw identifiers to a provider.
     """
-    meta = {"attempted": False, "model": None, "error": None, "proposed": 0}
-    env = _model_key()
-    if not env or not text:
-        meta["error"] = "no model configured" if not env else "no page text"
+    meta = {"attempted": False, "model": None, "profile": llm.settings().profile.name,
+            "error": None, "proposed": 0}
+    if not model_allowed or not text or not llm.enabled():
+        meta["error"] = ("AI processing consent is absent" if not model_allowed else
+                         "no model configured" if not llm.enabled() else "no page text")
         return [], meta
 
-    url = "https://api.openai.com/v1/chat/completions"
-    model = os.getenv("PROVEN_DISCOVERY_MODEL") or "gpt-4o-mini"
+    current = llm.settings()
     meta["attempted"] = True
-    meta["model"] = model
+    meta["model"] = current.model
 
-    payload = {
-        "model": model,
-        "messages": [
+    result = llm.chat(
+        [
             {"role": "system", "content": _EXTRACT_PROMPT},
-            {"role": "user", "content": (f"Source: {source_name}\n\nPage text:\n"
-                                         + text[:_EXTRACT_MAX_CHARS])},
+            {"role": "user", "content": llm.untrusted_document(source_name, text[:_EXTRACT_MAX_CHARS])},
         ],
-        "temperature": 0,
-        "max_tokens": 800,
-        "response_format": {"type": "json_object"},
-    }
-    req = urllib.request.Request(
-        url, data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {os.getenv(env)}",
-                 "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=_EXTRACT_TIMEOUT) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-        content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content")
-        parsed = json.loads(content or "{}")
-    except urllib.error.HTTPError as e:
-        meta["error"] = f"HTTP {e.code}"
+        json_mode=True, max_tokens=800, tenant_id=tenant_id,
+        purpose="public_fact_proposal",
+        user_intent="Identify factual text on this selected public source",
+    )
+    if not result.available:
+        meta["error"] = (result.error or "model transport unavailable").split(":", 1)[0]
         return [], meta
-    except Exception as e:
-        meta["error"] = type(e).__name__
+    try:
+        parsed = json.loads(result.display_text() or "{}")
+    except json.JSONDecodeError:
+        meta["error"] = "JSONDecodeError"
         return [], meta
 
     raw = parsed.get("facts")
@@ -596,10 +579,12 @@ def propose_facts_from_text(text: str, source_name: str) -> tuple[list[dict], di
         value = str(item.get("value") or "").strip()
         if ftype not in _FACT_TYPES or not value:
             continue
+        label = str(item.get("label") or "").strip()[:80] or ftype.title()
+        safe, _why = llm.guard_user_visible(label, text)
         proposals.append({
             "fact_type": ftype,
             "value": value,
-            "label": str(item.get("label") or "").strip()[:80] or ftype.title(),
+            "label": label if safe else ftype.title(),
         })
     meta["proposed"] = len(proposals)
     return proposals, meta
@@ -989,6 +974,8 @@ def discover_business(
     *,
     live: bool = False,
     entity_query: Optional[str] = None,
+    model_allowed: bool = False,
+    tenant_id: str = "public-discovery",
 ) -> dict:
     """Run the Discovery Agent for one business.
 
@@ -1016,9 +1003,10 @@ def discover_business(
         anticipated; the model catches the prose we did not. Anything it proposes that a
         pattern already found is dropped as a duplicate, so this can only add facts.
         """
-        if not page_text or not extraction_enabled():
+        if not page_text or not extraction_enabled(model_allowed=model_allowed):
             return
-        proposals, meta = propose_facts_from_text(page_text, source.name)
+        proposals, meta = propose_facts_from_text(
+            page_text, source.name, model_allowed=model_allowed, tenant_id=tenant_id)
         meta["source"] = source.name
 
         before = list(facts)
@@ -1275,7 +1263,7 @@ def discover_business(
         "facts": [f.as_dict() for f in facts],
         # How the facts were pulled out, and what was thrown away doing it.
         "extraction": {
-            "model_used": extraction_enabled(),
+            "model_used": extraction_enabled(model_allowed=model_allowed),
             "pattern_facts": sum(1 for f in facts if f.extraction == "PATTERN"),
             "model_facts": sum(1 for f in facts if f.extraction == "MODEL"),
             "discarded_ungrounded": len(rejected),

@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from . import config, jurisdiction
+from . import config, jurisdiction, llm
 from .gates import norm_ws
 from .ingest import page_text
 from .lang.lexicons import en as english_lexicon
@@ -167,34 +167,22 @@ class AIResult:
 
 
 def _chat(messages: list[dict], *, json_mode: bool = False,
-          max_tokens: int = 700) -> tuple[Optional[str], Optional[str]]:
-    """One chat call. Returns (content, error). Never raises."""
-    client = config.openai_client()
-    if client is None:
-        return None, "No OPENAI_API_KEY configured."
-    try:
-        kwargs: dict = {
-            "model": config.CHAT_MODEL,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            # Deterministic-as-possible: this is extraction and phrasing, and a
-            # different explanation on every refresh would undermine the product's
-            # whole claim to be auditable.
-            "temperature": 0,
-        }
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-        response = client.chat.completions.create(**kwargs)
-        return (response.choices[0].message.content or "").strip(), None
-    except Exception as exc:
-        return None, f"{type(exc).__name__}: {exc}"[:240]
+          max_tokens: int = 700, tenant_id: str = "unscoped",
+          purpose: str = "insurance_assistance", user_intent: Optional[str] = None
+          ) -> tuple[Optional[str], Optional[str]]:
+    """One shared, redacting chat call. Never raises."""
+    result = llm.chat(messages, json_mode=json_mode, max_tokens=max_tokens,
+                      tenant_id=tenant_id, purpose=purpose, user_intent=user_intent)
+    if not result.available:
+        return None, result.error or "Model processing is unavailable."
+    return result.display_text(), None
 
 
 # ── 1. PROPOSE + VERIFY ─────────────────────────────────────────────────────
 
 def propose_mechanisms(
     conn: sqlite3.Connection, retriever: Retriever, *, document_kind: str = "BASE_WORDING",
-    max_passages: int = 10,
+    max_passages: int = 10, model_allowed: bool = False, tenant_id: str = "unscoped",
 ) -> AIResult:
     """Ask the model to identify coverage mechanisms, then verify every claim.
 
@@ -202,9 +190,11 @@ def propose_mechanisms(
     has hand-mapped and proposes what the clauses are; deterministic code then throws
     out anything it cannot prove against the source.
     """
-    if not config.ai_enabled():
-        return AIResult(False, "DETERMINISTIC_ONLY",
-                        error="AI layer is off (no OPENAI_API_KEY).",
+    if not model_allowed or not config.ai_enabled():
+        reason = ("AI processing needs the tenant's explicit consent."
+                  if not model_allowed else
+                  (llm.settings().disabled_reason or "AI layer is off."))
+        return AIResult(False, "DETERMINISTIC_ONLY", error=reason,
                         payload={"proposals": [], "verified_count": 0,
                                  "rejected_count": 0})
 
@@ -222,14 +212,17 @@ def propose_mechanisms(
                                  "rejected_count": 0})
 
     passages = "\n\n".join(
-        f"[{i + 1}] (page {h.chunk.page_no})\n{h.chunk.text}"
+        f"[{i + 1}] " + llm.untrusted_document(
+            f"policy page {h.chunk.page_no}", h.chunk.text)
         for i, h in enumerate(hits))
     allowed = ", ".join(sorted(PROPOSABLE_MECHANISMS))
     content, error = _chat([
         {"role": "system", "content": _PROPOSE_SYSTEM},
         {"role": "user", "content":
-            f"Allowed mechanism keys: {allowed}\n\nPassages:\n\n{passages}"},
-    ], json_mode=True, max_tokens=1600)
+            f"Allowed mechanism keys: {allowed}\n\nEvidence:\n\n{passages}"},
+    ], json_mode=True, max_tokens=1600, tenant_id=tenant_id,
+       purpose="mechanism_proposal",
+       user_intent="Identify candidate mechanisms in my selected policy evidence")
 
     if content is None:
         return AIResult(True, "LLM_ASSISTED", error=error,
@@ -272,7 +265,8 @@ def _verify_proposal(conn: sqlite3.Connection, item: dict,
         mechanism=mechanism,
         taxonomy_code=PROPOSABLE_MECHANISMS.get(mechanism),
         quote=quote,
-        reasoning=str(item.get("reasoning", "") or "")[:300],
+        # Model reasoning is not user-facing: only the source-verified quotation is.
+        reasoning="",
         states_formula=bool(item.get("states_formula")),
     )
 
@@ -351,6 +345,7 @@ def _verify_proposal(conn: sqlite3.Connection, item: dict,
     if offset is not None:
         citation["char_start"], citation["char_end"] = offset
     proposal.citation = citation
+    proposal.reasoning = "The proposed quotation was verified against the cited source page."
     proposal.verified = True
     return proposal
 
@@ -384,7 +379,8 @@ def _find_offsets(source: str, quote: str) -> Optional[tuple[int, int]]:
 # ── 2. EXPLAIN a deterministic finding ──────────────────────────────────────
 
 def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
-                    finding: dict) -> AIResult:
+                    finding: dict, *, model_allowed: bool = False,
+                    tenant_id: str = "unscoped") -> AIResult:
     """Plain-language explanation of a finding the engine already produced.
 
     The model explains; it does not decide. The state, class and every figure are
@@ -397,19 +393,22 @@ def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
         "document_id": s.get("document_id"),
     } for s in evidence[:3]]
 
-    if not config.ai_enabled():
+    if not model_allowed or not config.ai_enabled():
         return AIResult(False, "DETERMINISTIC_ONLY",
                         text=_deterministic_explanation(finding),
-                        payload={"citations": citations,
-                                 "source": "TEMPLATE"})
+                        error=("AI processing needs the tenant's explicit consent."
+                               if not model_allowed else llm.settings().disabled_reason),
+                        payload={"citations": citations, "source": "TEMPLATE"})
 
     # Pull extra context for the clause, so the explanation is grounded in more than
     # the one span the finding happened to anchor.
     extra = retriever.search(finding.get("headline", "")[:300], top_k=3)
     passages = "\n\n".join(
-        f"(page {h.chunk.page_no}) {h.chunk.text}" for h in extra)
+        llm.untrusted_document(f"policy page {h.chunk.page_no}", h.chunk.text)
+        for h in extra)
     quoted = "\n\n".join(
-        f"(page {c['page_no']}) {c['quote']}" for c in citations) or "None supplied."
+        llm.untrusted_document(f"cited page {c['page_no']}", c["quote"])
+        for c in citations) or "No supplied evidence."
 
     detail = finding.get("detail") or {}
     facts = {k: detail.get(k) for k in
@@ -427,18 +426,20 @@ def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
             f"{json.dumps(facts, default=str)}\n\n"
             f"Quoted evidence:\n{quoted}\n\n"
             f"Additional retrieved context:\n{passages}"},
-    ], max_tokens=320)
+    ], max_tokens=320, tenant_id=tenant_id, purpose="finding_explanation",
+       user_intent="Explain this evidence-bound finding in plain language")
 
     if content is None:
         return AIResult(True, "LLM_ASSISTED", text=_deterministic_explanation(finding),
                         error=error,
                         payload={"citations": citations, "source": "TEMPLATE"})
 
-    # The renderer's `never` rules apply to model output too. A model that produces an
-    # adjudicating sentence gets its output discarded, not published.
-    if _asserts_outcome(content):
+    safe, rejection = llm.guard_user_visible(
+        content, {"finding": finding, "facts": facts, "quoted": quoted, "passages": passages},
+        citations=citations, require_citations=True)
+    if not safe:
         return AIResult(True, "LLM_ASSISTED", text=_deterministic_explanation(finding),
-                        error="Model output asserted an outcome and was discarded.",
+                        error=rejection,
                         payload={"citations": citations,
                                  "source": "TEMPLATE_AFTER_REJECTION"})
 
@@ -499,7 +500,8 @@ def _deterministic_explanation(finding: dict) -> str:
 # ── 3. ASK PULSE — the copilot ──────────────────────────────────────────────
 
 def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: str,
-                    brief: dict, score: Optional[dict] = None) -> AIResult:
+                    brief: dict, score: Optional[dict] = None, *,
+                    model_allowed: bool = False, tenant_id: str = "unscoped") -> AIResult:
     """Answer a question about THIS case, from this case's evidence only.
 
     Grounded and bounded: the model gets the findings, the score breakdown and
@@ -517,10 +519,12 @@ def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: st
     verified_hits = [h for h in hits if retriever.verify_hit(conn, h)]
     citations = [h.as_dict() for h in verified_hits]
 
-    if not config.ai_enabled():
+    if not model_allowed or not config.ai_enabled():
         return AIResult(
             False, "DETERMINISTIC_ONLY",
             text=_deterministic_answer(question, brief, score, verified_hits),
+            error=("AI processing needs the tenant's explicit consent."
+                   if not model_allowed else llm.settings().disabled_reason),
             payload={"citations": citations, "source": "DETERMINISTIC",
                      "retrieval_method": retriever.method})
 
@@ -533,8 +537,8 @@ def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: st
                        for d in (score or {}).get("dimensions", [])},
     }, default=str) if score else "Not computed."
     passages = "\n\n".join(
-        f"({h.chunk.filename} page {h.chunk.page_no}) {h.chunk.text}"
-        for h in verified_hits) or "No passages retrieved."
+        llm.untrusted_document(f"{h.chunk.filename} page {h.chunk.page_no}", h.chunk.text)
+        for h in verified_hits) or "No retrieved evidence."
 
     content, error = _chat([
         {"role": "system", "content": _ASK_SYSTEM},
@@ -545,7 +549,8 @@ def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: st
             f"Protection score: {score_summary}\n\n"
             f"Findings:\n{findings_summary}\n\n"
             f"Verbatim policy passages:\n{passages}"},
-    ], max_tokens=420)
+    ], max_tokens=420, tenant_id=tenant_id, purpose="evidence_question_answer",
+       user_intent=question)
 
     if content is None:
         return AIResult(
@@ -554,14 +559,17 @@ def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: st
             error=error,
             payload={"citations": citations, "source": "DETERMINISTIC"})
 
-    if _asserts_outcome(content):
+    safe, rejection = llm.guard_user_visible(
+        content, {"brief": brief, "score": score, "passages": passages},
+        citations=citations, require_citations=True)
+    if not safe:
         return AIResult(
             True, "LLM_ASSISTED",
             text=("I can't answer that in those terms. This engine locates and "
                   "quotes what your documents say; whether cover applies is a "
                   "judgement for a licensed adviser. "
                   + _deterministic_answer(question, brief, score, verified_hits)),
-            error="Model output asserted an outcome and was replaced.",
+            error=rejection,
             payload={"citations": citations, "source": "DETERMINISTIC_AFTER_REJECTION"})
 
     return AIResult(True, "LLM_ASSISTED", text=content,

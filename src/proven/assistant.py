@@ -40,7 +40,7 @@ import json
 import re
 from typing import Optional
 
-from . import auth, config
+from . import auth, config, llm
 
 # ── the catalogue ───────────────────────────────────────────────────────────
 #
@@ -594,32 +594,33 @@ def _public(dest: dict) -> dict:
             "what": dest["what"]}
 
 
-def _model_pick(question: str, allowed: tuple[dict, ...]) -> tuple[Optional[str],
-                                                                  Optional[str],
-                                                                  Optional[str]]:
+def _model_pick(question: str, allowed: tuple[dict, ...], *,
+                tenant_id: str = "unscoped") -> tuple[Optional[str],
+                                                       Optional[str],
+                                                       Optional[str]]:
     """Let the model choose ONE id from `allowed` and write one sentence.
 
     Returns (destination_id, sentence, error). The id is validated by the caller against
     the same list that was offered, so the worst a bad response can do is be ignored.
     """
-    from . import ai                                        # local: avoids a cycle
-
-    catalogue = "\n".join(f"- {d['id']}: {d['label']} — {d['what']}" for d in allowed)
+    catalogue = "\n".join(
+        f"- {destination['id']}: {destination['label']} — {destination['what']}"
+        for destination in allowed)
     system = (
         "You help a user of an insurance document-analysis product find the right screen. "
         "You are given the ONLY screens this user is allowed to reach. Choose the single "
-        "best one for their question. You must reply with JSON: "
-        '{"id": "<one id from the list, or empty string if none fits>", '
-        '"say": "<one short sentence, max 30 words, saying what they will find there>"}. '
-        "Never invent an id. Never mention a screen that is not in the list. Do not "
-        "promise any figure, coverage outcome or claim result."
+        "best one for their question. Reply with JSON containing an id from the supplied "
+        "list (or an empty id) and one short sentence. Never promise a figure, coverage "
+        "outcome or claim result."
     )
-    content, error = ai._chat(
+    result = llm.chat(
         [{"role": "system", "content": system},
          {"role": "user", "content": f"Screens:\n{catalogue}\n\nQuestion: {question}"}],
-        json_mode=True, max_tokens=200)
-    if error or not content:
-        return None, None, error or "empty response"
+        json_mode=True, max_tokens=200, purpose="navigation", tenant_id=tenant_id,
+        user_intent=question)
+    if not result.available:
+        return None, None, result.error or "empty response"
+    content = result.display_text()
     try:
         parsed = json.loads(content)
     except Exception as exc:                                # noqa: BLE001
@@ -628,10 +629,12 @@ def _model_pick(question: str, allowed: tuple[dict, ...]) -> tuple[Optional[str]
         return None, None, "not an object"
     chosen = str(parsed.get("id") or "").strip()
     say = " ".join(str(parsed.get("say") or "").split())[:260]
-    return (chosen or None), (say or None), None
+    safe, _why = llm.guard_user_visible(say, allowed)
+    return (chosen or None), (say or None) if safe else None, None
 
 
-def answer(question: str, role: Optional[str], *, allow_model: bool = True) -> dict:
+def answer(question: str, role: Optional[str], *, allow_model: bool = True,
+           model_allowed: bool = False, tenant_id: str = "unscoped") -> dict:
     """The helper's whole reply to one question.
 
     Shape:
@@ -676,8 +679,8 @@ def answer(question: str, role: Optional[str], *, allow_model: bool = True) -> d
             "role": role,
         }
 
-    if allow_model and config.ai_enabled() and mine:
-        chosen_id, say, _err = _model_pick(text, mine)
+    if allow_model and model_allowed and config.ai_enabled() and mine:
+        chosen_id, say, _err = _model_pick(text, mine, tenant_id=tenant_id)
         valid = {d["id"] for d in mine}
 
         # THE MODEL MAY ONLY CHOOSE WHERE THE KEYWORDS FOUND NOTHING.
