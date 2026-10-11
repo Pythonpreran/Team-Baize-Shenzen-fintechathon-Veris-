@@ -1423,12 +1423,31 @@ function askPaint() {
   });
 }
 
-const ASK_NAVIGATION_WORDS = /\b(?:go|goto|take|bring|show|open|navigate|nav|jump|find|where|locate|lead|direct|send|get)\b/i;
+const ASK_DIRECT_NAVIGATION_COMMAND = /^\s*(?:(?:go|goto|navigate|nav|jump)\s+(?:to\s+)?|(?:take|bring|lead|direct|send|get)\s+(?:me\s+)?to\s+)/i;
+const ASK_EXPLICIT_NAVIGATION_REQUEST = /^\s*(?:(?:show|open|find|locate)\s+(?:me\s+)?|where\s+(?:is|are)\s+(?:the\s+)?)/i;
+const ASK_SCREEN_REFERENCE = /\b(?:screen|page|tab|workspace|portfolio|overview|documents?|claims?|alerts?|business|record)\b/i;
+
+function askNamesDestination(question) {
+  const text = ` ${String(question || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  return ASK.dests.some(destination => {
+    const names = [destination && destination.label,
+      ...(Array.isArray(destination && destination.trail) ? destination.trail : [])];
+    return names.some(name => {
+      const phrase = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      return phrase.length >= 3 && text.includes(` ${phrase} `);
+    });
+  });
+}
 
 function askNavigationIntent(question) {
-  // Preserve the full deterministic navigator vocabulary in assistant._GO_WORDS. The
-  // server still enforces the role boundary after this client-side dispatch.
-  return ASK_NAVIGATION_WORDS.test(String(question || ""));
+  /* A navigation word alone is not enough: policy questions naturally ask where a term is
+   * stated. Direct movement phrasing is unambiguous; other commands need a screen reference
+   * or a destination from the role-filtered server catalogue. Falling back to cited Q&A is
+   * safer than hiding policy evidence behind the navigator. */
+  const text = String(question || "").trim();
+  if (ASK_DIRECT_NAVIGATION_COMMAND.test(text)) return true;
+  return ASK_EXPLICIT_NAVIGATION_REQUEST.test(text)
+    && (ASK_SCREEN_REFERENCE.test(text) || askNamesDestination(text));
 }
 
 async function askSend(preset) {

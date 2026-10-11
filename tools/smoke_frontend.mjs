@@ -627,9 +627,46 @@ tryRun("Ask VERIS preserves the navigator vocabulary for navigation requests", (
   ]) {
     if (!g.askNavigationIntent(question)) throw new Error(`navigation was not routed: ${question}`);
   }
-  if (g.askNavigationIntent("When does Mum's waiting period end?"))
-    throw new Error("policy question was sent to the navigator");
+  for (const question of [
+    "When does Mum's waiting period end?",
+    "Where does Mum's policy state the waiting-period end?",
+  ]) {
+    if (g.askNavigationIntent(question)) throw new Error(`policy question was sent to the navigator: ${question}`);
+  }
 });
+
+await (async () => {
+  const previousFetch = sandbox.fetch;
+  const requests = [];
+  try {
+    sandbox.fetch = async path => {
+      requests.push(path);
+      if (path === "/api/ai/ask") {
+        return { status: 200, ok: true, json: async () => ({
+          text: "Cited policy answer", mode: "DETERMINISTIC", source: "DETERMINISTIC",
+          citations: [], output_state: "DOCUMENTED", evidence_class: "PROVEN",
+        }) };
+      }
+      if (path === "/api/assistant") {
+        return { status: 200, ok: true, json: async () => ({
+          answer: "Navigation answer", route: null, suggestions: [], mode: "DETERMINISTIC",
+        }) };
+      }
+      throw new Error(`unexpected request: ${path}`);
+    };
+    await g.askSend("Where does Mum's policy state the waiting-period end?");
+    await g.askSend("Show me the documents screen");
+    if (requests[0] !== "/api/ai/ask")
+      throw new Error(`policy wording question used ${requests[0]} instead of cited Q&A`);
+    if (requests[1] !== "/api/assistant")
+      throw new Error(`screen request used ${requests[1]} instead of navigation`);
+    results.push(["ok  ", "Ask VERIS dispatches policy wording questions to cited Q&A"]);
+  } catch (e) {
+    results.push(["FAIL", `Ask VERIS dispatches policy wording questions to cited Q&A :: ${e.message}`]);
+  } finally {
+    sandbox.fetch = previousFetch;
+  }
+})();
 
 let bad = 0;
 for (const [tag, label] of results) { if (tag === "FAIL") bad++; console.log(tag, label); }
