@@ -136,11 +136,17 @@
   "health": {
     "per_day": "per day",
     "of_sum_insured": "({percent}% of the sum insured)",
+    "of_current_sum_insured": "({percent}% of the current sum insured; maximum {maximum}%)",
     "each_admissible_claim": "of each admissible claim",
     "months": "month | months",
+    "days": "day | days",
+    "hours": "hour | hours",
     "show_source": "Show the cited source",
     "open_source": "Open the publisher source",
     "source_meta": "From {document}, page {page}",
+    "schedule_operands": "Schedule operands",
+    "member_with_age": "{name}, age {age}",
+    "scope_meta": "Applies to {members}. {reason}",
     "document": {
       "policy_schedule": "the policy schedule",
       "policy_wording": "the published policy wording"
@@ -149,18 +155,35 @@
       "wording_missing": "The published wording needed to map this synthetic health plan is not present in the local corpus. No policy term is inferred.",
       "wording_not_matched": "The linked policy wording did not establish a mapped health term for this card. No policy term is inferred."
     },
+    "scope": {
+      "declared_condition": "The schedule records the declared condition.",
+      "all_named_members": "The schedule identifies these insured members on the family-floater policy.",
+      "family_floater": "The schedule identifies one shared sum insured for these members."
+    },
     "item": {
       "ped_waiting": "Declared-condition waiting period ends",
+      "initial_waiting": "Initial waiting period ends",
+      "specific_waiting": "Specific-disease waiting-period selection",
       "room_rent_cap": "Room-rent cap",
+      "icu_limit": "Intensive-care daily limit",
       "co_payment": "Co-payment condition",
-      "moratorium": "Moratorium period",
+      "proportionate_deduction": "Room-category proportionate-deduction condition",
+      "day_care": "Day-care minimum-stay condition",
+      "pre_hospitalisation": "Pre-hospitalisation period",
+      "post_hospitalisation": "Post-hospitalisation period",
+      "cumulative_bonus": "Cumulative-bonus condition",
+      "claim_intimation": "Emergency claim-intimation timing",
+      "reimbursement": "Reimbursement procedure condition",
+      "moratorium": "Moratorium date",
       "cashless_network": "Cashless network and pre-authorisation condition",
       "deductible": "Deductible condition",
       "co_insurance": "Co-insurance condition",
       "medishield_ward_limit": "Published normal-ward claim limit",
       "room_board_limit": "Daily room-and-board limit",
       "b1_deductible": "Annual B1-ward deductible",
-      "pro_ration": "Higher-ward pro-ration condition"
+      "pro_ration": "Higher-ward pro-ration condition",
+      "ward_entitlement": "Standard-plan ward entitlement",
+      "family_floater_shared": "Family-floater sum insured is shared"
     }
   }
 }

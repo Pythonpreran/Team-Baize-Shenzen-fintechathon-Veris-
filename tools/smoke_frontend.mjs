@@ -546,7 +546,7 @@ await (async () => {
   }
 })();
 
-tryRun("planLayoutCard renders cited health terms without a generic health notice", () => {
+tryRun("planLayoutCard renders cited health terms with schedule operands", () => {
   const html = g.planLayoutCard({
     id: "health-policy", insurer: "Go Digit General Insurance Limited",
     product: "Arogya Sanjeevani Policy (synthetic schedule)", country: "IN",
@@ -558,7 +558,12 @@ tryRun("planLayoutCard renders cited health terms without a generic health notic
     health_items: [
       { mechanism_code: "WAITING.PED", label_key: "health.item.ped_waiting",
         display: "PED_END_DATE", value: "2029-04-01", state: "DOCUMENTED",
-        evidence_class: "PROVEN", citation: { document: "Policy wording", page: 8,
+        evidence_class: "PROVEN", member_scope: [{ name: "Lakshmi", age: "63" }],
+        scope_reason_key: "health.scope.declared_condition",
+        operand_citations: [{ document: "Policy schedule", page: 1,
+          quote: "Lakshmi has declared diabetes." }, { document: "Policy schedule", page: 1,
+          quote: "Period: 1 April 2026 to 31 March 2027" }],
+        citation: { document: "Policy wording", page: 8,
           quote: "waiting clause", source_url: "https://publisher.example/wording" } },
       { mechanism_code: "LIMIT.ROOM_RENT", label_key: "health.item.room_rent_cap",
         display: "MONEY_PER_DAY", value: "5000", unit: "INR", params: { percent: "2" },
@@ -566,8 +571,16 @@ tryRun("planLayoutCard renders cited health terms without a generic health notic
           page: 6, quote: "room clause", source_url: "https://publisher.example/wording" } },
       { mechanism_code: "SHARE.CO_PAYMENT", label_key: "health.item.co_payment",
         display: "PERCENT_CONDITION", value: "5", unit: "%", state: "DOCUMENTED",
-        evidence_class: "PROVEN", citation: { document: "Policy wording", page: 18,
+        evidence_class: "PROVEN", member_scope: [{ name: "Raghavan", age: "67" },
+          { name: "Lakshmi", age: "63" }], scope_reason_key: "health.scope.all_named_members",
+        citation: { document: "Policy wording", page: 18,
           quote: "co-payment clause", source_url: "https://publisher.example/wording" } },
+      { mechanism_code: "LIMIT.FAMILY_FLOATER_SHARED",
+        label_key: "health.item.family_floater_shared", display: "CONDITION",
+        state: "DOCUMENTED", evidence_class: "PROVEN",
+        member_scope: [{ name: "Raghavan", age: "67" }, { name: "Lakshmi", age: "63" }],
+        scope_reason_key: "health.scope.family_floater", citation: { document: "Policy schedule",
+          page: 1, quote: "Synthetic family-floater sum insured: INR 500,000." } },
     ],
   });
   if (!html.includes("Declared-condition waiting period ends: 1 April 2029"))
@@ -576,6 +589,15 @@ tryRun("planLayoutCard renders cited health terms without a generic health notic
     throw new Error("room-rent cap was not rendered with its source operands");
   if (!html.includes("Co-payment condition: 5% of each admissible claim"))
     throw new Error("co-payment condition was not rendered");
+  if (!html.includes("Applies to Lakshmi, age 63. The schedule records the declared condition."))
+    throw new Error("the derived waiting date lost its member schedule scope");
+  if (!html.includes("Applies to Raghavan, age 67, Lakshmi, age 63. The schedule identifies these insured members on the family-floater policy."))
+    throw new Error("the co-payment member scope was not rendered");
+  if (!html.includes("Family-floater sum insured is shared")
+      || !html.includes("The schedule identifies one shared sum insured for these members."))
+    throw new Error("the shared floater sum insured was not rendered");
+  if (!html.includes("Schedule operands") || !html.includes("Lakshmi has declared diabetes."))
+    throw new Error("schedule citations were not rendered alongside the policy wording");
   if (!html.includes("Show the cited source") || !html.includes("publisher.example/wording"))
     throw new Error("the cited source control was not rendered");
   if (html.includes("This policy is not yet mapped"))

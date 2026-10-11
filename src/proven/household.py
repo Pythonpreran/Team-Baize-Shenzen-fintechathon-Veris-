@@ -47,6 +47,26 @@ class CoverageSpec:
 
 
 @dataclass(frozen=True)
+class HealthScheduleSpec:
+    """Exact, generated schedule spans used as operands by the health mapper.
+
+    These values are not caller input. The loader reaches this fixture only after the
+    uploaded PDF bytes match the generator, then binds the policy to that retained
+    source document. The mapper keeps the resulting source-document id and span id on
+    every derived item so a public wording never obscures the schedule operand.
+    """
+
+    policy_start_quote: str
+    insured_members_quote: str
+    member_ages: tuple[tuple[str, int], ...] = ()
+    family_floater: bool = False
+    family_floater_quote: Optional[str] = None
+    declared_member_key: Optional[str] = None
+    declared_condition: Optional[str] = None
+    declared_condition_quote: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class PolicySpec:
     country: str
     line_of_business: str
@@ -61,6 +81,7 @@ class PolicySpec:
     asset_keys: tuple[str, ...]
     document_filename: str
     coverage: tuple[CoverageSpec, ...]
+    health_schedule: Optional[HealthScheduleSpec] = None
 
 
 DOCUMENTS: tuple[DocumentSpec, ...] = (
@@ -154,13 +175,23 @@ POLICIES: tuple[PolicySpec, ...] = (
         document_filename="rao-india-health-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.FAMILY_FLOATER", None, None,
-                         "This synthetic schedule identifies Raghavan and Lakshmi on a family-floater health policy."),
+                         "Synthetic family-floater sum insured: INR 500,000."),
             CoverageSpec("LIMIT.SUM_INSURED", "500000", "INR",
                          "Synthetic family-floater sum insured: INR 500,000."),
             CoverageSpec("WAITING.PED", None, None,
-                         "Lakshmi Rao's declared diabetes is recorded for later waiting-period mapping from the policy wording."),
+                         "Lakshmi has declared diabetes."),
             CoverageSpec("SHARE.CO_PAYMENT", None, None,
-                         "The synthetic schedule says that any co-payment terms require the policy wording before they are mapped."),
+                         "Room-rent, co-payment and waiting-period terms require the policy wording."),
+        ),
+        health_schedule=HealthScheduleSpec(
+            policy_start_quote="Period: 1 April 2026 to 31 March 2027",
+            insured_members_quote="Insured members: Raghavan (age 67) and Lakshmi (age 63)",
+            member_ages=(("raghavan", 67), ("lakshmi", 63)),
+            family_floater=True,
+            family_floater_quote="Synthetic family-floater sum insured: INR 500,000.",
+            declared_member_key="lakshmi",
+            declared_condition="diabetes",
+            declared_condition_quote="Lakshmi has declared diabetes.",
         ),
     ),
     PolicySpec(

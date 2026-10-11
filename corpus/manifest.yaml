@@ -493,6 +493,7 @@ documents:
     media_type: application/pdf
     seed_path: "policy-wordings/in-arogya-sanjeevani-policy-wording.pdf"
     sha256: "70ec4e51cf03a49c06cd7b06fd2dae16ac4ab3a204591fb1e8568a50858ea75b"
+    text_sha256: "a10ddee3f3ffb956a9ccc31f43c96d9771567a57fec4783097507977062d7f32"
     bytes: 576824
     pages: 25
     redistribute: false
@@ -511,6 +512,7 @@ documents:
     media_type: application/pdf
     seed_path: "policy-wordings/sg-medishield-life-information-booklet.pdf"
     sha256: "83e154d438f536b44271b802c14147ff5f39bbf03057d0c3fc8e35f72f84e99b"
+    text_sha256: "5402083b9ba5997d5876c629640e9aa7bdccbe6edbbca14b4d58d618ab01a1de"
     bytes: 830421
     pages: 34
     redistribute: false
@@ -529,6 +531,7 @@ documents:
     media_type: application/pdf
     seed_path: "policy-wordings/sg-singlife-shield-standard-plan-wording.pdf"
     sha256: "cf58fc957e05bcd2ce9240f5e9a3892534bb10e143820e6259b31a2b11cab19f"
+    text_sha256: "2e4317c62a1b6101af0887a93cc2c103df9b996342a33414b481b2367e0397cf"
     bytes: 396270
     pages: 31
     redistribute: false

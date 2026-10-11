@@ -139,6 +139,15 @@ class Document(BaseModel):
     redistribute: bool
     usage_note: str
     text: Optional[TextSeed] = None
+    #: Expected SHA-256 of a page-marked extraction generated from this PDF.  Unlike
+    #: ``text``, this records no seed path: the extractor must reproduce it from the
+    #: separately hash-verified original before a reader may quote it.
+    text_sha256: Optional[str] = None
+
+    @field_validator("text_sha256")
+    @classmethod
+    def _text_hex64(cls, v: Optional[str]) -> Optional[str]:
+        return _check_sha256(v) if v is not None else None
 
     @field_validator("id")
     @classmethod
@@ -421,21 +430,23 @@ def present_text(ref: str | Document) -> Optional[Path]:
 
 
 def verify_text(ref: str | Document, path: Optional[Path] = None) -> Path:
-    """Hash the page-marked text against the manifest wherever an expected hash exists.
+    """Verify page-marked text wherever the manifest declares its expected hash.
 
     The text file is the artefact the committed page offsets were MEASURED against, so it
-    is the one a wrong copy corrupts. Two cases have a known expected hash:
+    is the one a wrong copy corrupts. Three cases have a known expected hash:
 
       * a `text/plain` retrieval, where the retrieval IS the publisher's bytes and the
-        manifest's own `sha256` applies to this file; and
+        manifest's own `sha256` applies to this file;
       * a PDF whose verified extraction was SEEDED (`text: {seed_path, sha256}` in the
-        manifest, and `text: "seeded"` in the fetch log): the fetcher wrote that seed
-        verbatim, so its hash is the manifest's `text.sha256`.
+        manifest, and `text: "seeded"` in the fetch log); and
+      * a PDF whose `text_sha256` records the deterministic page-marked extraction made
+        from its separately verified original. This is used when no redistributable
+        extraction seed exists.
 
-    A PDF whose text was re-extracted on a download path has no single expected value —
-    its hash depends on which pypdf produced it — so it is not checked here; the PDF it
-    came from is verified by `require_original` instead, and the fetcher recorded a
-    warning about shifted offsets when it extracted it.
+    A PDF whose text was re-extracted on a download path and declares neither a seed nor
+    `text_sha256` has no single expected value — its hash depends on which pypdf produced
+    it — so it is not checked here; the PDF it came from is verified by `require_original`
+    instead, and the fetcher recorded a warning about shifted offsets when it extracted it.
 
     `path` defaults to the corpus copy; the clause comparison passes the file it is about
     to read from its own directory, so the check covers the bytes actually aligned.
@@ -446,6 +457,8 @@ def verify_text(ref: str | Document, path: Optional[Path] = None) -> Path:
         return verify_stored(d, p)
     if d.text is not None and _text_was_seeded(d):
         return _verify_hash(d, p, d.text.sha256, what="page-marked text")
+    if d.text_sha256 is not None:
+        return _verify_hash(d, p, d.text_sha256, what="page-marked text")
     return p
 
 

@@ -397,19 +397,17 @@ def _health_schedule_facts(facts: PolicyFacts, doc: LoadedDoc, *,
     if not detected.is_health:
         return
 
-    for name, value in (("health_family_floater", detected.family_floater),
-                        ("health_insured_members", list(detected.members)),
-                        ("health_declared_ped", detected.declared_ped),
-                        ("health_continuous_coverage", detected.continuous_coverage)):
-        if value in (None, [], False):
+    for name, value, evidence_key in (
+        ("health_family_floater", detected.family_floater, "family_floater"),
+        ("health_insured_members", list(detected.members), "members"),
+        ("health_member_ages", dict(detected.member_ages), "member_ages"),
+        ("health_declared_ped", detected.declared_ped, "declared_ped"),
+        ("health_continuous_coverage", detected.continuous_coverage,
+         "continuous_coverage"),
+    ):
+        if value in (None, [], {}, False):
             continue
-        evidence_keys = {
-            "health_family_floater": "family_floater",
-            "health_insured_members": "members",
-            "health_declared_ped": "declared_ped",
-            "health_continuous_coverage": "continuous_coverage",
-        }
-        needle_page = detected.evidence.get(evidence_keys[name])
+        needle_page = detected.evidence.get(evidence_key)
         if needle_page is not None:
             facts.put(_fact(name, value, doc, needle_page[0], needle_page[1],
                             source=PDF_TEXT))

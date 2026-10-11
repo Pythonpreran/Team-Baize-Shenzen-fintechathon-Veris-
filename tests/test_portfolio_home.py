@@ -340,12 +340,24 @@ def test_household_health_cards_are_mapped_from_their_cited_wordings(client):
     assert india["health_mapping"]["mapped"] is True
     terms = {item["mechanism_code"]: item for item in india["health_items"]}
     assert terms["WAITING.PED"]["value"] == "2029-04-01"
+    assert terms["WAITING.PED"]["member_scope"] == [{
+        "id": india["insured_member_ids"][1], "name": "Lakshmi", "age": "63",
+    }]
+    assert {operand["quote"] for operand in terms["WAITING.PED"]["operand_citations"]} == {
+        "Period: 1 April 2026 to 31 March 2027", "Lakshmi has declared diabetes.",
+    }
     assert terms["LIMIT.ROOM_RENT"]["value"] == "5000"
+    assert terms["LIMIT.ICU"]["value"] == "10000"
     assert terms["SHARE.CO_PAYMENT"]["value"] == "5"
+    assert [member["name"] for member in terms["SHARE.CO_PAYMENT"]["member_scope"]] == [
+        "Raghavan", "Lakshmi",
+    ]
+    assert terms["CONDITION.MORATORIUM"]["value"] == "2031-04-01"
+    assert terms["LIMIT.FAMILY_FLOATER_SHARED"]["scope_reason_key"] == "health.scope.family_floater"
     assert all(item["citation"]["page"] >= 1 for item in terms.values())
 
     singlife = next(policy for policy in portfolio["policies"]
                     if policy["masked_number"] == "****-ISP2")
     singlife_codes = {item["mechanism_code"] for item in singlife["health_items"]}
-    assert {"LIMIT.ROOM_BOARD", "SHARE.DEDUCTIBLE", "SHARE.CO_INSURANCE",
-            "CONDITION.PRO_RATION"} <= singlife_codes
+    assert {"CONDITION.WARD_ENTITLEMENT", "LIMIT.ROOM_BOARD", "LIMIT.ICU",
+            "SHARE.DEDUCTIBLE", "SHARE.CO_INSURANCE", "CONDITION.PRO_RATION"} <= singlife_codes

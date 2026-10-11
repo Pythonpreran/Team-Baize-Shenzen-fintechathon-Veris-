@@ -332,3 +332,136 @@ mechanisms:
         any_of: ['higher\s+class\s+wards?|private\s+hospital']
       computation_context:
         any_of: ['claims?\s+computation']
+
+  HEALTH.WAITING.INITIAL:
+    label: Initial health waiting period
+    taxonomy_code: HEALTH.WAITING.INITIAL
+    known_names: [First Thirty Days Waiting Period]
+    mandatory_slots:
+      waiting_label:
+        any_of: ['first\s+(?:thirty|\d+)\s+days\s+waiting\s+period']
+      commencement_basis:
+        any_of: ['first\s+policy\s+commencement\s+date']
+
+  HEALTH.WAITING.SPECIFIC:
+    label: Specific-disease waiting period
+    taxonomy_code: HEALTH.WAITING.SPECIFIC
+    known_names: [Specific Waiting Period]
+    mandatory_slots:
+      waiting_label:
+        any_of: ['specific\s+waiting\s+period']
+      continuous_coverage:
+        any_of: ['(?:24\s*/\s*36|\d+)\s+months\s+of\s+continuous\s+coverage']
+
+  HEALTH.LIMIT.ICU_DAILY:
+    label: Intensive-care daily limit
+    taxonomy_code: HEALTH.LIMIT.ICU_DAILY
+    known_names: [ICU, Intensive Care Unit]
+    mandatory_slots:
+      intensive_care:
+        any_of: ['intensive\s+care\s+unit|ICU/ICCU']
+      daily_limit:
+        any_of: ['per\s+day']
+    optional_slots:
+      cap_amount:
+        capture: '(?:Rs\.?|S\$|\$)\s*([\d,]+)\s+per\s+day'
+
+  HEALTH.CONDITION.PROPORTIONATE_DEDUCTION:
+    label: Room-category proportionate deduction condition
+    taxonomy_code: HEALTH.CONDITION.PROPORTIONATE_DEDUCTION
+    known_names: [Proportionate deductions]
+    mandatory_slots:
+      room_or_icu_trigger:
+        any_of: ['room/ICU/ICCU']
+      stated_proportion:
+        any_of: ['same\s+proportion\s+as\s+the\s+admissible\s+rate']
+      actual_rate_basis:
+        any_of: ['actual\s+rate\s+per\s+day']
+
+  HEALTH.CONDITION.DAY_CARE:
+    label: Day-care hospitalisation condition
+    taxonomy_code: HEALTH.CONDITION.DAY_CARE
+    known_names: [Day Care Treatment]
+    mandatory_slots:
+      day_care:
+        any_of: ['day\s+care\s+treatment']
+      minimum_stay_exception:
+        any_of: ['time\s+limit\s+shall\s+not\s+apply']
+
+  HEALTH.LIMIT.PRE_HOSPITALISATION:
+    label: Pre-hospitalisation day limit
+    taxonomy_code: HEALTH.LIMIT.PRE_HOSPITALISATION
+    known_names: [Pre-Hospitalization]
+    mandatory_slots:
+      pre_hospitalisation:
+        any_of: ['pre\s*-\s*hospitalization']
+      stated_days:
+        any_of: ['fixed\s+period\s+of\s+\d+\s+days\s+prior']
+    optional_slots:
+      days:
+        capture: 'fixed\s+period\s+of\s+(\d+)\s+days\s+prior'
+
+  HEALTH.LIMIT.POST_HOSPITALISATION:
+    label: Post-hospitalisation day limit
+    taxonomy_code: HEALTH.LIMIT.POST_HOSPITALISATION
+    known_names: [Post Hospitalisation]
+    mandatory_slots:
+      post_hospitalisation:
+        any_of: ['post\s+hospitalisation']
+      stated_days:
+        any_of: ['fixed\s+period\s+of\s+\d+\s+days\s+from\s+the\s+date\s+of\s+discharge']
+    optional_slots:
+      days:
+        capture: 'fixed\s+period\s+of\s+(\d+)\s+days\s+from\s+the\s+date\s+of\s+discharge'
+
+  HEALTH.LIMIT.CUMULATIVE_BONUS:
+    label: Cumulative-bonus condition
+    taxonomy_code: HEALTH.LIMIT.CUMULATIVE_BONUS
+    known_names: [Cumulative Bonus]
+    mandatory_slots:
+      bonus_label:
+        any_of: ['cumulative\s+bonus']
+      increase:
+        any_of: ['increased\s+by\s+\d+\s*%']
+      maximum:
+        any_of: ['maximum\s+of\s+\d+\s*%\s+of\s+the\s+sum\s+insured']
+    optional_slots:
+      percentage:
+        capture: 'increased\s+by\s+(\d+)\s*%'
+      maximum_percentage:
+        capture: 'maximum\s+of\s+(\d+)\s*%\s+of\s+the\s+sum\s+insured'
+
+  HEALTH.DEADLINE.CLAIM_INTIMATION:
+    label: Claim-intimation timing condition
+    taxonomy_code: HEALTH.DEADLINE.CLAIM_INTIMATION
+    known_names: [Notification of Claim]
+    mandatory_slots:
+      notification:
+        any_of: ['notification\s+of\s+claim']
+      emergency_timing:
+        any_of: ['within\s+\d+\s+hours\s+from\s+the\s+date\s+of\s+emergency\s+hospitalization']
+    optional_slots:
+      hours:
+        capture: 'within\s+(\d+)\s+hours\s+from\s+the\s+date\s+of\s+emergency\s+hospitalization'
+
+  HEALTH.CONDITION.REIMBURSEMENT:
+    label: Reimbursement-claim procedure condition
+    taxonomy_code: HEALTH.CONDITION.REIMBURSEMENT
+    known_names: [Procedure for reimbursement of claims]
+    mandatory_slots:
+      reimbursement_procedure:
+        any_of: ['procedure\s+for\s+reimbursement\s+of\s+claims']
+      document_submission:
+        any_of: ['claim\s+documents']
+
+  HEALTH.SG.WARD_ENTITLEMENT:
+    label: Standard-plan ward entitlement
+    taxonomy_code: HEALTH.SG.WARD_ENTITLEMENT
+    known_names: [Hospital ward type]
+    mandatory_slots:
+      ward_label:
+        any_of: ['hospital\s+ward\s+type']
+      b1_ward:
+        any_of: ['B1\s+standard\s+ward']
+      public_hospital:
+        any_of: ['public\s+hospital']

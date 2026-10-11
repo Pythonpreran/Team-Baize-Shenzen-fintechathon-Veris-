@@ -16,22 +16,67 @@ profiles:
         display: PED_END_DATE
         requires_declared_ped: true
         pattern: '(?is)pre\s*-\s*existing\s+disease.*?excluded\s+until\s+the\s+expiry\s+of\s+(?P<months>\d+)\s*months.*?date\s+of\s+inception'
+      - mechanism_code: WAITING.INITIAL
+        label_key: health.item.initial_waiting
+        display: DAYS_END_DATE
+        requires_policy_start: true
+        pattern: '(?is)first\s+(?P<days>thirty|\d+)\s+days\s+waiting\s+period.*?within\s+\d+\s+days\s+from\s+the\s+first\s+policy\s+commencement\s+date'
+      - mechanism_code: WAITING.SPECIFIC
+        label_key: health.item.specific_waiting
+        display: CONDITION
+        requires_specific_schedule_selection: true
+        pattern: '(?is)specific\s+waiting\s+period.*?expiry\s+of\s+(?P<months>24\s*/\s*36|\d+)\s+months\s+of\s+continuous\s+coverage'
       - mechanism_code: LIMIT.ROOM_RENT
         label_key: health.item.room_rent_cap
         display: MONEY_PER_DAY
         pattern: '(?is)room\s+rent.*?up\s+to\s+(?P<percent>\d+)\s*%\s+of\s+the\s+sum\s+insured\s+subject\s+to\s+maximum\s+of\s+(?:rs\.?\s*)?(?P<amount>[\d,]+).*?per\s+day'
+      - mechanism_code: LIMIT.ICU
+        label_key: health.item.icu_limit
+        display: MONEY_PER_DAY
+        pattern: '(?is)intensive\s+(?:cardiac\s+care\s+unit\s+\(ICCU\)\s+expenses|care\s+unit\s+\(ICU\).*?expenses)\s+up\s+to\s+(?P<percent>\d+)\s*%\s+of\s+sum\s+insured\s+subject\s+to\s+maximum\s+of\s+(?:rs\.?\s*)?(?P<amount>[\d,]+).*?per\s+day'
       - mechanism_code: SHARE.CO_PAYMENT
         label_key: health.item.co_payment
         display: PERCENT_CONDITION
+        requires_member_scope: true
+        scope_reason_key: health.scope.all_named_members
         pattern: '(?is)each\s+and\s+every\s+claim.*?co\s*-\s*payment\s+of\s+(?P<percent>\d+)\s*%\s+applicable\s+to\s+claim\s+amount'
+      - mechanism_code: CONDITION.PROPORTIONATE_DEDUCTION
+        label_key: health.item.proportionate_deduction
+        display: CONDITION
+        pattern: '(?is)admission\s+to\s+a\s+room/ICU/ICCU.*?same\s+proportion\s+as\s+the\s+admissible\s+rate\s+per\s+day\s+bears\s+to\s+the\s+actual\s+rate\s+per\s+day\s+of\s+Room\s+Rent/ICU/ICCU'
+      - mechanism_code: COVERED.DAY_CARE
+        label_key: health.item.day_care
+        display: CONDITION
+        pattern: '(?is)expenses\s+of\s+hospitalization\s+for\s+a\s+minimum\s+period\s+of\s+24\s+consecutive\s+hours.*?time\s+limit\s+shall\s+not\s+apply\s+in\s+respect\s+of\s+Day\s+Care\s+Treatment'
+      - mechanism_code: LIMIT.PRE_HOSPITALISATION
+        label_key: health.item.pre_hospitalisation
+        display: DAYS_CONDITION
+        pattern: '(?is)pre\s*-\s*hospitalization.*?fixed\s+period\s+of\s+(?P<days>\d+)\s+days\s+prior\s+to\s+the\s+date\s+of\s+admissible\s+hospitalization'
+      - mechanism_code: LIMIT.POST_HOSPITALISATION
+        label_key: health.item.post_hospitalisation
+        display: DAYS_CONDITION
+        pattern: '(?is)post\s+hospitalisation.*?fixed\s+period\s+of\s+(?P<days>\d+)\s+days\s+from\s+the\s+date\s+of\s+discharge'
+      - mechanism_code: LIMIT.CUMULATIVE_BONUS
+        label_key: health.item.cumulative_bonus
+        display: PERCENT_OF_SUM_INSURED
+        pattern: '(?is)cumulative\s+bonus\s+will\s+be\s+increased\s+by\s+(?P<percent>\d+)\s*%.*?maximum\s+of\s+(?P<maximum>\d+)\s*%\s+of\s+the\s+sum\s+insured'
       - mechanism_code: CONDITION.MORATORIUM
         label_key: health.item.moratorium
-        display: MONTHS_CONDITION
+        display: MORATORIUM_END_DATE
+        requires_policy_start: true
         pattern: '(?is)(?P<months>sixty|\d+)\s+continuous\s+months\s+is\s+called\s+as\s+moratorium'
       - mechanism_code: CONDITION.CASHLESS_NETWORK
         label_key: health.item.cashless_network
         display: CONDITION
         pattern: '(?is)treatment\s+may\s+be\s+taken\s+in\s+a\s+network\s+provider.*?preauthorization'
+      - mechanism_code: DEADLINE.CLAIM_INTIMATION
+        label_key: health.item.claim_intimation
+        display: HOURS_CONDITION
+        pattern: '(?is)notification\s+of\s+claim.*?within\s+(?P<hours>\d+)\s+hours\s+from\s+the\s+date\s+of\s+emergency\s+hospitalization'
+      - mechanism_code: CONDITION.REIMBURSEMENT
+        label_key: health.item.reimbursement
+        display: CONDITION
+        pattern: '(?is)procedure\s+for\s+reimbursement\s+of\s+claims.*?necessary\s+documents'
 
   - id: SG-MEDISHIELD-LIFE
     country: SG
@@ -45,22 +90,39 @@ profiles:
       - mechanism_code: SHARE.CO_INSURANCE
         label_key: health.item.co_insurance
         display: CONDITION
-        pattern: '(?is)co\s*-\s*insurance.*?claimable\s+amount'
+        pattern: '(?is)co\s*-\s*insurance\s+is\s+the\s+percentage\s+of\s+the\s+claimable\s+amount.*?need\s+to\s+pay'
       - mechanism_code: LIMIT.WARD_DAILY
         label_key: health.item.medishield_ward_limit
         display: MONEY_PER_DAY
         state: NOT_CONFIRMED
         pattern: '(?is)normal\s+ward.*?\$(?P<amount>[\d,]+)\s+per\s+day'
+      - mechanism_code: LIMIT.ICU
+        label_key: health.item.icu_limit
+        display: MONEY_PER_DAY
+        state: NOT_CONFIRMED
+        pattern: '(?is)intensive\s+care\s+unit\s+ward\s+\$(?P<amount>[\d,]+)\s+per\s+day'
+      - mechanism_code: CONDITION.PRO_RATION
+        label_key: health.item.pro_ration
+        display: CONDITION
+        pattern: '(?is)claimable\s+amount.*?pro\s*-\s*ration\s+factor.*?claim\s+limits'
 
   - id: SG-SINGLIFE-SHIELD-STANDARD
     country: SG
     product_contains: Singlife Shield Standard Plan
     corpus_id: sg-singlife-shield-standard-plan-wording
     terms:
+      - mechanism_code: CONDITION.WARD_ENTITLEMENT
+        label_key: health.item.ward_entitlement
+        display: CONDITION
+        pattern: '(?is)hospital\s+ward\s+type\s*any\s+B1\s+standard\s+ward\s+of\s+a\s+public\s+hospital'
       - mechanism_code: LIMIT.ROOM_BOARD
         label_key: health.item.room_board_limit
         display: MONEY_PER_DAY
         pattern: '(?is)daily\s+room,\s+board.*?S\$(?P<amount>[\d,]+)\s+per\s+day'
+      - mechanism_code: LIMIT.ICU
+        label_key: health.item.icu_limit
+        display: MONEY_PER_DAY
+        pattern: '(?is)intensive\s+care\s+unit\s+\(ICU\).*?S\$(?P<amount>[\d,]+)\s+per\s+day'
       - mechanism_code: SHARE.DEDUCTIBLE
         label_key: health.item.b1_deductible
         display: MONEY
@@ -73,3 +135,7 @@ profiles:
         label_key: health.item.pro_ration
         display: CONDITION
         pattern: '(?is)pro\s*-\s*ration\s+factor\s*is\s+applied.*?claims\s+computation'
+      - mechanism_code: CONDITION.REIMBURSEMENT
+        label_key: health.item.reimbursement
+        display: CONDITION
+        pattern: '(?is)benefits.*?reimbursement\s+for\s+reasonable\s+expenses.*?terms\s+and\s+conditions'

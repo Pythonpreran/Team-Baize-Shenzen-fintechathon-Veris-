@@ -71,10 +71,10 @@ def india_health_schedule_pdf() -> bytes:
         "SYNTHETIC INDIA FAMILY FLOATER HEALTH SCHEDULE",
         "",
         "Product: Arogya Sanjeevani Policy",
-        "Insured members: Raghavan and Lakshmi",
+        "Insured members: Raghavan (age 67) and Lakshmi (age 63)",
         "Policy reference: ****-HEALTH6",
         "Period: 1 April 2026 to 31 March 2027",
-        "Family-floater sum insured: INR 500,000",
+        "Synthetic family-floater sum insured: INR 500,000.",
         "Lakshmi has declared diabetes.",
         "Room-rent, co-payment and waiting-period terms require the policy wording.",
     ]], banner=SYNTHETIC_MARK)

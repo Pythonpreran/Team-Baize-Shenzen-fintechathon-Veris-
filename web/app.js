@@ -2507,17 +2507,32 @@ const HEALTH_TEXT = Object.freeze({
   "health.document.policy_wording": () => t("health.document.policy_wording"),
   "health.item.b1_deductible": () => t("health.item.b1_deductible"),
   "health.item.cashless_network": () => t("health.item.cashless_network"),
+  "health.item.claim_intimation": () => t("health.item.claim_intimation"),
   "health.item.co_insurance": () => t("health.item.co_insurance"),
   "health.item.co_payment": () => t("health.item.co_payment"),
+  "health.item.cumulative_bonus": () => t("health.item.cumulative_bonus"),
   "health.item.deductible": () => t("health.item.deductible"),
+  "health.item.day_care": () => t("health.item.day_care"),
+  "health.item.family_floater_shared": () => t("health.item.family_floater_shared"),
+  "health.item.icu_limit": () => t("health.item.icu_limit"),
+  "health.item.initial_waiting": () => t("health.item.initial_waiting"),
   "health.item.medishield_ward_limit": () => t("health.item.medishield_ward_limit"),
   "health.item.moratorium": () => t("health.item.moratorium"),
   "health.item.ped_waiting": () => t("health.item.ped_waiting"),
+  "health.item.post_hospitalisation": () => t("health.item.post_hospitalisation"),
+  "health.item.pre_hospitalisation": () => t("health.item.pre_hospitalisation"),
   "health.item.pro_ration": () => t("health.item.pro_ration"),
+  "health.item.proportionate_deduction": () => t("health.item.proportionate_deduction"),
+  "health.item.reimbursement": () => t("health.item.reimbursement"),
   "health.item.room_board_limit": () => t("health.item.room_board_limit"),
   "health.item.room_rent_cap": () => t("health.item.room_rent_cap"),
+  "health.item.specific_waiting": () => t("health.item.specific_waiting"),
+  "health.item.ward_entitlement": () => t("health.item.ward_entitlement"),
   "health.notice.wording_missing": () => t("health.notice.wording_missing"),
   "health.notice.wording_not_matched": () => t("health.notice.wording_not_matched"),
+  "health.scope.all_named_members": () => t("health.scope.all_named_members"),
+  "health.scope.declared_condition": () => t("health.scope.declared_condition"),
+  "health.scope.family_floater": () => t("health.scope.family_floater"),
 });
 
 function healthText(key) {
@@ -2533,11 +2548,14 @@ function portfolioItemDisplay(policy, item) {
   const label = portfolioItemLabel(item);
   if (item?.value == null || item.value === "") {
     if (item?.state === "INFORMATION_MISSING" && item?.missing_document_key) {
-      return t("portfolio.missing_value", { document: healthText(item.missing_document_key) });
+      return `${label}: ${t("portfolio.missing_value", {
+        document: healthText(item.missing_document_key),
+      })}`;
     }
     return label;
   }
-  if (item.display === "PED_END_DATE") {
+  if (item.display === "PED_END_DATE" || item.display === "MORATORIUM_END_DATE"
+      || item.display === "DAYS_END_DATE") {
     return `${label}: ${formatPolicyDate(item.value, policy.country)}`;
   }
   if (item.display === "MONEY_PER_DAY") {
@@ -2551,8 +2569,20 @@ function portfolioItemDisplay(policy, item) {
   if (item.display === "PERCENT_CONDITION") {
     return `${label}: ${item.value}% ${t("health.each_admissible_claim")}`;
   }
+  if (item.display === "PERCENT_OF_SUM_INSURED") {
+    const maximum = item.params?.maximum || "";
+    return `${label}: ${t("health.of_current_sum_insured", {
+      percent: item.value, maximum,
+    })}`;
+  }
   if (item.display === "MONTHS_CONDITION") {
     return `${label}: ${item.value} ${t("health.months", { count: item.value })}`;
+  }
+  if (item.display === "DAYS_CONDITION") {
+    return `${label}: ${item.value} ${t("health.days", { count: item.value })}`;
+  }
+  if (item.display === "HOURS_CONDITION") {
+    return `${label}: ${item.value} ${t("health.hours", { count: item.value })}`;
   }
   if (item.unit === "%") return `${label}: ${item.value}%`;
   return `${label}: ${money(item.value, item.unit || policy.country)}`;
@@ -2578,25 +2608,48 @@ function portfolioEvidencePanel(policy, item) {
     }))}</p>`;
 }
 
-function healthCitation(item) {
-  const citation = item?.citation;
+function healthMemberScope(item) {
+  const members = Array.isArray(item?.member_scope) ? item.member_scope : [];
+  const labels = members.map(member => {
+    const name = String(member?.name || "").trim();
+    if (!name) return "";
+    return member?.age ? t("health.member_with_age", { name, age: member.age }) : name;
+  }).filter(Boolean);
+  if (!labels.length) return "";
+  const reason = healthText(item?.scope_reason_key);
+  return `<p class="portfolio-evidence__meta">${esc(t("health.scope_meta", {
+    members: labels.join(", "), reason,
+  }))}</p>`;
+}
+
+function healthCitationSource(citation) {
   if (!citation || !citation.quote) return "";
   const url = typeof citation.source_url === "string" && /^https:\/\//i.test(citation.source_url)
     ? citation.source_url : "";
-  return `<details class="portfolio-evidence__health">
-    <summary>${esc(t("health.show_source"))}</summary>
-    <blockquote class="portfolio-evidence__quote">${esc(citation.quote)}</blockquote>
+  return `<li><blockquote class="portfolio-evidence__quote">${esc(citation.quote)}</blockquote>
     <p class="portfolio-evidence__meta">${esc(t("health.source_meta", {
       document: citation.document || "", page: citation.page || "",
-    }))}${url ? ` · <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("health.open_source"))}</a>` : ""}</p>
+    }))}${url ? ` · <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("health.open_source"))}</a>` : ""}</p></li>`;
+}
+
+function healthCitation(item) {
+  const citation = item?.citation;
+  const operands = Array.isArray(item?.operand_citations) ? item.operand_citations : [];
+  if ((!citation || !citation.quote) && !operands.some(operand => operand?.quote)) return "";
+  const operandSources = operands.map(healthCitationSource).filter(Boolean).join("");
+  return `<details class="portfolio-evidence__health">
+    <summary>${esc(t("health.show_source"))}</summary>
+    <ul class="portfolio-evidence__sources">${healthCitationSource(citation)}${operandSources
+      ? `<li class="portfolio-evidence__operand-title">${esc(t("health.schedule_operands"))}</li>${operandSources}` : ""}</ul>
   </details>`;
 }
 
 function planEvidenceControl(policy, item) {
-  if (item?.citation) return healthCitation(item);
-  if (!item?.source_document_id) return "";
+  const scope = healthMemberScope(item);
+  if (item?.citation) return `${scope}${healthCitation(item)}`;
+  if (!item?.source_document_id) return scope;
   const arg = `${policy.id}|${item.id}`;
-  return `<button type="button" class="btn btn-ghost btn-sm portfolio-wording"
+  return `${scope}<button type="button" class="btn btn-ghost btn-sm portfolio-wording"
       data-act="portfolio-evidence" data-arg="${esc(arg)}"
       aria-controls="portfolio-evidence-${esc(item.id)}">
       ${esc(t("portfolio.show_wording"))}</button>

@@ -198,23 +198,47 @@ documents:
     expect:
       - mechanism: HEALTH.WAITING.PED
         cite: pre-existing disease waiting-period clause
+      - mechanism: HEALTH.WAITING.INITIAL
+        cite: first thirty-day waiting-period clause
+      - mechanism: HEALTH.WAITING.SPECIFIC
+        cite: specific-disease waiting-period clause
       - mechanism: HEALTH.LIMIT.ROOM_RENT
         cite: room-rent daily-cap clause
         values:
           cap_amount: '5000'
+      - mechanism: HEALTH.LIMIT.ICU_DAILY
+        cite: intensive-care daily-cap clause
       - mechanism: HEALTH.SHARE.CO_PAYMENT
         cite: co-payment condition
         values:
           percentage: '5'
+      - mechanism: HEALTH.CONDITION.PROPORTIONATE_DEDUCTION
+        cite: room-category proportionate-deduction clause
+      - mechanism: HEALTH.CONDITION.DAY_CARE
+        cite: day-care minimum-stay exception
+      - mechanism: HEALTH.LIMIT.PRE_HOSPITALISATION
+        cite: pre-hospitalisation day-limit clause
+      - mechanism: HEALTH.LIMIT.POST_HOSPITALISATION
+        cite: post-hospitalisation day-limit clause
+      - mechanism: HEALTH.LIMIT.CUMULATIVE_BONUS
+        cite: cumulative-bonus clause
       - mechanism: HEALTH.CLAIM.MORATORIUM
         cite: moratorium definition
       - mechanism: HEALTH.CLAIM.CASHLESS
         cite: network-provider pre-authorisation procedure
+      - mechanism: HEALTH.DEADLINE.CLAIM_INTIMATION
+        cite: emergency claim-intimation timing clause
+      - mechanism: HEALTH.CONDITION.REIMBURSEMENT
+        cite: reimbursement-claim procedure
 
   - carrier: SINGLIFE
     corpus_id: sg-singlife-shield-standard-plan-wording
     jurisdiction: SG
     read_depth: TARGETED_HEALTH_TERMS
     expect:
+      - mechanism: HEALTH.SG.WARD_ENTITLEMENT
+        cite: B1 public-hospital ward entitlement
+      - mechanism: HEALTH.LIMIT.ICU_DAILY
+        cite: intensive-care daily limit
       - mechanism: HEALTH.SG.PRO_RATION
         cite: higher-ward pro-ration clause

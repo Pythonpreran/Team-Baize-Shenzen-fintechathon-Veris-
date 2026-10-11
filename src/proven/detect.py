@@ -239,6 +239,7 @@ class HealthScheduleDetection:
     is_health: bool
     family_floater: bool
     members: tuple[str, ...]
+    member_ages: tuple[tuple[str, int], ...]
     declared_ped: Optional[str]
     policy_start: Optional[str]
     continuous_coverage: Optional[str]
@@ -252,6 +253,33 @@ def _health_hit(pages: list[str], pattern: str) -> tuple[Optional[re.Match[str]]
         if match is not None:
             return match, page_no
     return None, 1
+
+
+def _health_members(raw_members: str) -> tuple[tuple[str, ...], tuple[tuple[str, int], ...]]:
+    """Read labelled schedule members and ages without treating a household profile as one.
+
+    Age is useful evidence for age-linked health terms, but only an explicit age beside
+    an insured member counts. A bare number elsewhere on the line is not a member age.
+    """
+    names: list[str] = []
+    ages: list[tuple[str, int]] = []
+    for raw in re.split(r"\s+(?:and|&)\s+|[;,]", raw_members):
+        part = raw.strip()
+        if not part:
+            continue
+        age_match = re.match(
+            r"^(?P<name>[A-Za-z][A-Za-z .'-]{0,79}?)\s*(?:\(\s*|,\s*)?"
+            r"age\s+(?P<age>\d{1,3})\s*\)?$",
+            part, re.IGNORECASE)
+        if age_match is None:
+            names.append(part)
+            continue
+        name = age_match.group("name").strip()
+        age = int(age_match.group("age"))
+        names.append(name)
+        if 0 < age <= 130:
+            ages.append((name, age))
+    return tuple(names), tuple(ages)
 
 
 def detect_health_schedule(pages: list[str]) -> HealthScheduleDetection:
@@ -271,11 +299,13 @@ def detect_health_schedule(pages: list[str]) -> HealthScheduleDetection:
     members_match, members_page = _health_hit(
         pages, r"\binsured\s+members\s*:\s*([^\n]+)")
     members: tuple[str, ...] = ()
+    member_ages: tuple[tuple[str, int], ...] = ()
     if members_match is not None:
         raw_members = members_match.group(1).strip().rstrip(".")
-        members = tuple(part.strip() for part in re.split(r"\s+(?:and|&)\s+|,", raw_members)
-                        if part.strip())
+        members, member_ages = _health_members(raw_members)
         evidence["members"] = (members_match.group(0).strip(), members_page)
+        if member_ages:
+            evidence["member_ages"] = (members_match.group(0).strip(), members_page)
 
     ped_match, ped_page = _health_hit(
         pages, r"\b([A-Za-z][A-Za-z ]{1,80})\s+has\s+declared\s+([A-Za-z][A-Za-z -]{1,120})\.")
@@ -300,6 +330,7 @@ def detect_health_schedule(pages: list[str]) -> HealthScheduleDetection:
         is_health=health_match is not None,
         family_floater=floater_match is not None,
         members=members,
+        member_ages=member_ages,
         declared_ped=declared_ped,
         policy_start=policy_start,
         continuous_coverage=continuous_coverage,
