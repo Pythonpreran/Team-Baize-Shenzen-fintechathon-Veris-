@@ -12,7 +12,7 @@ import calendar
 import copy
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
@@ -384,6 +384,65 @@ def _item_from_clause(term: Mapping[str, Any], document: corpus.Document,
                       clause: ClauseMatch,
                       context: Optional[ScheduleContext]) -> dict[str, Any]:
     """Build one term, withholding a derived value until every operand is cited."""
+    def temporal_operands() -> Optional[tuple[date, int, int, bool]]:
+        """Read the date controls from the schedule span that establishes all four.
+
+        A current policy period does not establish the first-policy date, prior
+        continuity, portability or migration credits, or whether the sum insured was
+        enhanced. The synthetic fixture records all of them in one exact schedule span;
+        any other shape returns no date rather than treating the current period as the
+        first policy.
+        """
+        if context is None:
+            return None
+        citation = context.citations.get("policy_start")
+        quote = citation.get("quote") if isinstance(citation, Mapping) else None
+        if not isinstance(quote, str):
+            return None
+        first_policy = re.search(
+            r"\bfirst\s+policy\s+commencement\s*:\s*"
+            r"(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b", quote, re.IGNORECASE)
+        continuity = re.search(
+            r"\bcontinuous\s+coverage\s+before\s+this\s+period\s*:\s*"
+            r"(\d+)\s+months?\b", quote, re.IGNORECASE)
+        portability = re.search(
+            r"\bportability\s+or\s+migration\s+credit\s*:\s*"
+            r"(\d+)\s+months?\b", quote, re.IGNORECASE)
+        enhancement = re.search(
+            r"\bsum[-\s]insured\s+enhancement\s*:\s*(none|no|yes|present)\b",
+            quote, re.IGNORECASE)
+        if not all((first_policy, continuity, portability, enhancement)):
+            return None
+        try:
+            first_start = datetime.strptime(first_policy.group(1), "%d %B %Y").date()
+            continuous_months = int(continuity.group(1))
+            portability_months = int(portability.group(1))
+        except ValueError:
+            return None
+        if continuous_months < 0 or portability_months < 0:
+            return None
+        enhanced = enhancement.group(1).lower() in {"yes", "present"}
+        return first_start, continuous_months, portability_months, enhanced
+
+    def unadjusted_date_base() -> Optional[date]:
+        operands = temporal_operands()
+        if operands is None:
+            return None
+        first_start, continuous_months, portability_months, enhanced = operands
+        if continuous_months or portability_months or enhanced:
+            return None
+        return first_start
+
+    def has_initial_waiting_exception() -> bool:
+        operands = temporal_operands()
+        if operands is None:
+            return False
+        _first_start, continuous_months, _portability_months, enhanced = operands
+        # The wording removes the initial wait after more than twelve months of
+        # continuous coverage. An enhancement has a separate application, so it stays
+        # withheld instead of flattening two different limits into one date.
+        return continuous_months > 12 and not enhanced
+
     if term.get("requires_declared_ped") and (
             context is None or context.declared_member is None
             or not context.declared_condition):
@@ -402,9 +461,10 @@ def _item_from_clause(term: Mapping[str, Any], document: corpus.Document,
     captures = clause.captures
     if display in {"PED_END_DATE", "MORATORIUM_END_DATE"}:
         months = _months(captures.get("months"))
-        if context is None or months is None:
+        base = unadjusted_date_base()
+        if months is None or base is None:
             return _missing_schedule_item(term, document, clause)
-        item["value"] = add_months(context.policy_start, months).isoformat()
+        item["value"] = add_months(base, months).isoformat()
         item["params"] = {"months": str(months)}
         citation_keys = ("policy_start",)
         scope: tuple[Mapping[str, str], ...] = ()
@@ -416,11 +476,21 @@ def _item_from_clause(term: Mapping[str, Any], document: corpus.Document,
         _attach_schedule(item, context, citation_keys, scope=scope,
                          scope_reason_key=reason)
     elif display == "DAYS_END_DATE":
+        if has_initial_waiting_exception():
+            item.update({
+                "label_key": "health.item.initial_waiting_exception",
+                "display": "CONDITION",
+                "value": None,
+                "unit": None,
+                "params": {},
+            })
+            _attach_schedule(item, context, ("policy_start",))
+            return item
         days = _days(captures.get("days"))
-        if context is None or days is None:
+        base = unadjusted_date_base()
+        if days is None or base is None:
             return _missing_schedule_item(term, document, clause)
-        item["value"] = date.fromordinal(
-            context.policy_start.toordinal() + days).isoformat()
+        item["value"] = date.fromordinal(base.toordinal() + days).isoformat()
         item["params"] = {"days": str(days)}
         _attach_schedule(item, context, ("policy_start",))
     elif display in {"MONEY", "MONEY_PER_DAY"}:

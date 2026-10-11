@@ -390,8 +390,9 @@ def _health_schedule_facts(facts: PolicyFacts, doc: LoadedDoc, *,
     """Extract health schedule operands without importing policy wording assumptions.
 
     The schedule can establish who is named, whether a pool is shared, a declared
-    condition and the policy start. It cannot establish a waiting-period duration,
-    co-payment or room-rent term; those remain absent until the policy wording says so.
+    condition and the dates or credits that govern a derived waiting-period result. It
+    cannot establish a waiting-period duration, co-payment or room-rent term; those
+    remain absent until the policy wording says so.
     """
     detected = detect.detect_health_schedule(doc.pages)
     if not detected.is_health:
@@ -404,23 +405,36 @@ def _health_schedule_facts(facts: PolicyFacts, doc: LoadedDoc, *,
         ("health_declared_ped", detected.declared_ped, "declared_ped"),
         ("health_continuous_coverage", detected.continuous_coverage,
          "continuous_coverage"),
+        ("health_continuous_coverage_months", detected.continuous_coverage_months,
+         "continuous_coverage_months"),
+        ("health_portability_migration_credit_months",
+         detected.portability_migration_credit_months,
+         "portability_migration_credit_months"),
+        ("health_sum_insured_enhanced", detected.sum_insured_enhanced,
+         "sum_insured_enhanced"),
     ):
-        if value in (None, [], {}, False):
+        if value is None or value == [] or value == {}:
             continue
         needle_page = detected.evidence.get(evidence_key)
         if needle_page is not None:
             facts.put(_fact(name, value, doc, needle_page[0], needle_page[1],
                             source=PDF_TEXT))
 
-    if detected.policy_start:
+    for name, raw, evidence_key in (
+        ("health_policy_start", detected.policy_start, "policy_start"),
+        ("health_first_policy_start", detected.first_policy_start,
+         "first_policy_start"),
+    ):
+        if raw is None:
+            continue
         try:
-            start = datetime.strptime(detected.policy_start, "%d %B %Y").date()
+            parsed = datetime.strptime(raw, "%d %B %Y").date()
         except ValueError:
-            start = None
-        needle_page = detected.evidence.get("policy_start")
-        if start is not None and needle_page is not None:
-            facts.put(_fact("health_policy_start", start, doc, needle_page[0],
-                            needle_page[1], source=PDF_TEXT))
+            continue
+        needle_page = detected.evidence.get(evidence_key)
+        if needle_page is not None:
+            facts.put(_fact(name, parsed, doc, needle_page[0], needle_page[1],
+                            source=PDF_TEXT))
 
     hit = find_money_with_currency(
         doc.pages, ("family-floater sum insured", "family floater sum insured",

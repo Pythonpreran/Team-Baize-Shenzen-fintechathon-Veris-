@@ -184,7 +184,13 @@ POLICIES: tuple[PolicySpec, ...] = (
                          "Room-rent, co-payment and waiting-period terms require the policy wording."),
         ),
         health_schedule=HealthScheduleSpec(
-            policy_start_quote="Period: 1 April 2026 to 31 March 2027",
+            policy_start_quote=(
+                "Period: 1 April 2026 to 31 March 2027\n"
+                "First policy commencement: 1 April 2026.\n"
+                "Continuous coverage before this period: 0 months.\n"
+                "Portability or migration credit: 0 months.\n"
+                "Sum-insured enhancement: none."
+            ),
             insured_members_quote="Insured members: Raghavan (age 67) and Lakshmi (age 63)",
             member_ages=(("raghavan", 67), ("lakshmi", 63)),
             family_floater=True,

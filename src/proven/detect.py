@@ -242,7 +242,11 @@ class HealthScheduleDetection:
     member_ages: tuple[tuple[str, int], ...]
     declared_ped: Optional[str]
     policy_start: Optional[str]
+    first_policy_start: Optional[str]
     continuous_coverage: Optional[str]
+    continuous_coverage_months: Optional[int]
+    portability_migration_credit_months: Optional[int]
+    sum_insured_enhanced: Optional[bool]
     evidence: dict[str, tuple[str, int]]
 
 
@@ -320,11 +324,46 @@ def detect_health_schedule(pages: list[str]) -> HealthScheduleDetection:
     if start_match is not None:
         evidence["policy_start"] = (start_match.group(0).strip(), start_page)
 
+    first_policy_match, first_policy_page = _health_hit(
+        pages, r"\bfirst\s+policy\s+commencement\s*:\s*"
+               r"(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b")
+    first_policy_start = first_policy_match.group(1) if first_policy_match else None
+    if first_policy_match is not None:
+        evidence["first_policy_start"] = (
+            first_policy_match.group(0).strip(), first_policy_page)
+
     continuity_match, continuity_page = _health_hit(
         pages, r"\bcontinuous\s+coverage\s*:\s*([^\n]+)")
     continuous_coverage = continuity_match.group(1).strip() if continuity_match else None
     if continuity_match is not None:
         evidence["continuous_coverage"] = (continuity_match.group(0).strip(), continuity_page)
+
+    continuity_months_match, continuity_months_page = _health_hit(
+        pages, r"\bcontinuous\s+coverage\s+before\s+this\s+period\s*:\s*"
+               r"(\d+)\s+months?\b")
+    continuous_coverage_months = (
+        int(continuity_months_match.group(1)) if continuity_months_match else None)
+    if continuity_months_match is not None:
+        evidence["continuous_coverage_months"] = (
+            continuity_months_match.group(0).strip(), continuity_months_page)
+
+    portability_match, portability_page = _health_hit(
+        pages, r"\bportability\s+or\s+migration\s+credit\s*:\s*"
+               r"(\d+)\s+months?\b")
+    portability_migration_credit_months = (
+        int(portability_match.group(1)) if portability_match else None)
+    if portability_match is not None:
+        evidence["portability_migration_credit_months"] = (
+            portability_match.group(0).strip(), portability_page)
+
+    enhancement_match, enhancement_page = _health_hit(
+        pages, r"\bsum[-\s]insured\s+enhancement\s*:\s*"
+               r"(none|no|yes|present)\b")
+    sum_insured_enhanced = None
+    if enhancement_match is not None:
+        sum_insured_enhanced = enhancement_match.group(1).lower() in {"yes", "present"}
+        evidence["sum_insured_enhanced"] = (
+            enhancement_match.group(0).strip(), enhancement_page)
 
     return HealthScheduleDetection(
         is_health=health_match is not None,
@@ -333,7 +372,11 @@ def detect_health_schedule(pages: list[str]) -> HealthScheduleDetection:
         member_ages=member_ages,
         declared_ped=declared_ped,
         policy_start=policy_start,
+        first_policy_start=first_policy_start,
         continuous_coverage=continuous_coverage,
+        continuous_coverage_months=continuous_coverage_months,
+        portability_migration_credit_months=portability_migration_credit_months,
+        sum_insured_enhanced=sum_insured_enhanced,
         evidence=evidence,
     )
 

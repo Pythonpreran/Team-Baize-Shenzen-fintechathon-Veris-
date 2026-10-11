@@ -344,7 +344,12 @@ def test_household_health_cards_are_mapped_from_their_cited_wordings(client):
         "id": india["insured_member_ids"][1], "name": "Lakshmi", "age": "63",
     }]
     assert {operand["quote"] for operand in terms["WAITING.PED"]["operand_citations"]} == {
-        "Period: 1 April 2026 to 31 March 2027", "Lakshmi has declared diabetes.",
+        "Period: 1 April 2026 to 31 March 2027\n"
+        "First policy commencement: 1 April 2026.\n"
+        "Continuous coverage before this period: 0 months.\n"
+        "Portability or migration credit: 0 months.\n"
+        "Sum-insured enhancement: none.",
+        "Lakshmi has declared diabetes.",
     }
     assert terms["LIMIT.ROOM_RENT"]["value"] == "5000"
     assert terms["LIMIT.ICU"]["value"] == "10000"

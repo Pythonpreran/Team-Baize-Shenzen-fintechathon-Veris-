@@ -562,7 +562,7 @@ tryRun("planLayoutCard renders cited health terms with schedule operands", () =>
         scope_reason_key: "health.scope.declared_condition",
         operand_citations: [{ document: "Policy schedule", page: 1,
           quote: "Lakshmi has declared diabetes." }, { document: "Policy schedule", page: 1,
-          quote: "Period: 1 April 2026 to 31 March 2027" }],
+          quote: "Period: 1 April 2026 to 31 March 2027\nFirst policy commencement: 1 April 2026.\nContinuous coverage before this period: 0 months.\nPortability or migration credit: 0 months.\nSum-insured enhancement: none." }],
         citation: { document: "Policy wording", page: 8,
           quote: "waiting clause", source_url: "https://publisher.example/wording" } },
       { mechanism_code: "LIMIT.ROOM_RENT", label_key: "health.item.room_rent_cap",
@@ -596,7 +596,8 @@ tryRun("planLayoutCard renders cited health terms with schedule operands", () =>
   if (!html.includes("Family-floater sum insured is shared")
       || !html.includes("The schedule identifies one shared sum insured for these members."))
     throw new Error("the shared floater sum insured was not rendered");
-  if (!html.includes("Schedule operands") || !html.includes("Lakshmi has declared diabetes."))
+  if (!html.includes("Schedule operands") || !html.includes("Lakshmi has declared diabetes.")
+      || !html.includes("First policy commencement: 1 April 2026."))
     throw new Error("schedule citations were not rendered alongside the policy wording");
   if (!html.includes("Show the cited source") || !html.includes("publisher.example/wording"))
     throw new Error("the cited source control was not rendered");

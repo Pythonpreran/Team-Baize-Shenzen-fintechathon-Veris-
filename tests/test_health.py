@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -14,6 +15,13 @@ from proven import align, corpus, detect, extract, health, household, ingest, ju
 IN_WORDING = "in-arogya-sanjeevani-policy-wording"
 SG_MEDISHIELD = "sg-medishield-life-information-booklet"
 SG_SHIELD = "sg-singlife-shield-standard-plan-wording"
+TEMPORAL_SCHEDULE_QUOTE = (
+    "Period: 1 April 2026 to 31 March 2027\n"
+    "First policy commencement: 1 April 2026.\n"
+    "Continuous coverage before this period: 0 months.\n"
+    "Portability or migration credit: 0 months.\n"
+    "Sum-insured enhancement: none."
+)
 
 
 def _india_policy(*, start: str | None = "2026-04-01") -> dict:
@@ -63,6 +71,12 @@ def test_health_schedule_detection_and_extraction_are_evidence_bound():
     assert detected.member_ages == (("Raghavan", 67), ("Lakshmi", 63))
     assert detected.declared_ped == "Lakshmi: diabetes"
     assert detected.policy_start == "1 April 2026"
+    assert detected.first_policy_start == "1 April 2026"
+    assert detected.continuous_coverage_months == 0
+    assert detected.portability_migration_credit_months == 0
+    assert detected.sum_insured_enhanced is False
+    for line in TEMPORAL_SCHEDULE_QUOTE.splitlines():
+        assert line in pages[0]
 
     store = ingest.DocStore()
     store.add(ingest.LoadedDoc("health-schedule", "SCHEDULE", "INSURER", pages=pages))
@@ -72,6 +86,11 @@ def test_health_schedule_detection_and_extraction_are_evidence_bound():
     assert facts.get("health_member_ages").value == {"Raghavan": 67, "Lakshmi": 63}
     assert facts.get("health_declared_ped").value == "Lakshmi: diabetes"
     assert facts.get("health_policy_start").value == date(2026, 4, 1)
+    assert facts.get("health_first_policy_start").value == date(2026, 4, 1)
+    assert facts.get("health_continuous_coverage_months").value == 0
+    assert facts.get("health_portability_migration_credit_months").value == 0
+    assert facts.get("health_sum_insured_enhanced").value is False
+    assert facts.get("health_sum_insured_enhanced").established is True
     assert str(facts.get("health_sum_insured").value) == "500000"
     assert facts.get("health_sum_insured").unit == "INR"
 
@@ -103,6 +122,51 @@ def test_missing_schedule_operands_produce_no_derived_health_value():
         assert item["evidence_class"] == "UNESTABLISHED"
         assert item["value"] is None
         assert item["missing_document_key"] == "health.document.policy_schedule"
+
+
+@pytest.mark.requires_corpus(IN_WORDING)
+def test_current_period_without_continuity_operands_withholds_all_dates():
+    """A current policy period alone cannot stand in for coverage history."""
+    policy, context = _india_fixture_context()
+    citations = {key: dict(value) for key, value in context.citations.items()}
+    citations["policy_start"]["quote"] = "Period: 1 April 2026 to 31 March 2027"
+    current_period_only = replace(context, citations=citations)
+
+    assessment = health.assess_policy(policy, schedule=current_period_only)
+    by_code = {item["mechanism_code"]: item for item in assessment["items"]}
+    for code in ("WAITING.PED", "WAITING.INITIAL", "CONDITION.MORATORIUM"):
+        item = by_code[code]
+        assert item["state"] == "INFORMATION_MISSING"
+        assert item["evidence_class"] == "UNESTABLISHED"
+        assert item["value"] is None
+        assert item["missing_document_key"] == "health.document.policy_schedule"
+
+
+@pytest.mark.requires_corpus(IN_WORDING)
+def test_documented_continuity_exception_has_no_initial_waiting_date():
+    """More than twelve documented continuous months is an exception, not a date."""
+    policy, context = _india_fixture_context()
+    exception_quote = (
+        "Period: 1 April 2026 to 31 March 2027\n"
+        "First policy commencement: 1 April 2025.\n"
+        "Continuous coverage before this period: 13 months.\n"
+        "Portability or migration credit: 0 months.\n"
+        "Sum-insured enhancement: none."
+    )
+    citations = {key: dict(value) for key, value in context.citations.items()}
+    citations["policy_start"]["quote"] = exception_quote
+    assessment = health.assess_policy(policy, schedule=replace(context, citations=citations))
+    by_code = {item["mechanism_code"]: item for item in assessment["items"]}
+
+    initial = by_code["WAITING.INITIAL"]
+    assert initial["state"] == "DOCUMENTED"
+    assert initial["label_key"] == "health.item.initial_waiting_exception"
+    assert initial["display"] == "CONDITION"
+    assert initial["value"] is None
+    assert initial["operand_citations"][0]["quote"] == exception_quote
+    for code in ("WAITING.PED", "CONDITION.MORATORIUM"):
+        assert by_code[code]["state"] == "INFORMATION_MISSING"
+        assert by_code[code]["value"] is None
 
 
 @pytest.mark.requires_corpus(IN_WORDING)
@@ -154,7 +218,11 @@ def test_health_terms_are_cited_and_limited_to_allowed_states():
         "id": "member-lakshmi", "name": "Lakshmi", "age": "63",
     }]
     assert {citation["quote"] for citation in by_code["WAITING.PED"]["operand_citations"]} == {
-        "Period: 1 April 2026 to 31 March 2027", "Lakshmi has declared diabetes.",
+        TEMPORAL_SCHEDULE_QUOTE, "Lakshmi has declared diabetes.",
+    }
+    assert by_code["WAITING.INITIAL"]["value"] == "2026-05-01"
+    assert {citation["quote"] for citation in by_code["WAITING.INITIAL"]["operand_citations"]} == {
+        TEMPORAL_SCHEDULE_QUOTE,
     }
     assert by_code["LIMIT.ROOM_RENT"]["value"] == "5000"
     assert by_code["LIMIT.ICU"]["value"] == "10000"
@@ -163,6 +231,9 @@ def test_health_terms_are_cited_and_limited_to_allowed_states():
         "Raghavan", "Lakshmi",
     ]
     assert by_code["CONDITION.MORATORIUM"]["value"] == "2031-04-01"
+    assert {citation["quote"] for citation in by_code["CONDITION.MORATORIUM"]["operand_citations"]} == {
+        TEMPORAL_SCHEDULE_QUOTE,
+    }
     assert by_code["LIMIT.FAMILY_FLOATER_SHARED"]["state"] == "DOCUMENTED"
     assert {item["mechanism_code"] for item in india["items"]} >= {
         "WAITING.PED", "WAITING.INITIAL", "WAITING.SPECIFIC", "LIMIT.ROOM_RENT",

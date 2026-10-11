@@ -163,6 +163,7 @@
     "item": {
       "ped_waiting": "Declared-condition waiting period ends",
       "initial_waiting": "Initial waiting period ends",
+      "initial_waiting_exception": "Initial waiting-period continuity exception",
       "specific_waiting": "Specific-disease waiting-period selection",
       "room_rent_cap": "Room-rent cap",
       "icu_limit": "Intensive-care daily limit",

@@ -2516,6 +2516,7 @@ const HEALTH_TEXT = Object.freeze({
   "health.item.family_floater_shared": () => t("health.item.family_floater_shared"),
   "health.item.icu_limit": () => t("health.item.icu_limit"),
   "health.item.initial_waiting": () => t("health.item.initial_waiting"),
+  "health.item.initial_waiting_exception": () => t("health.item.initial_waiting_exception"),
   "health.item.medishield_ward_limit": () => t("health.item.medishield_ward_limit"),
   "health.item.moratorium": () => t("health.item.moratorium"),
   "health.item.ped_waiting": () => t("health.item.ped_waiting"),
