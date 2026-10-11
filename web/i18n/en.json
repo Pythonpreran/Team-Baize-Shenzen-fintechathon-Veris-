@@ -186,5 +186,33 @@
       "ward_entitlement": "Standard-plan ward entitlement",
       "family_floater_shared": "Family-floater sum insured is shared"
     }
+  },
+  "ask": {
+    "launcher_label": "Ask VERIS",
+    "launcher_title": "Ask a cited policy question or find a screen",
+    "greeting": "Ask a policy question for a cited answer, or tell me where you want to go and I will open that screen.",
+    "title": "Ask VERIS",
+    "owner_workspace": "Your workspace",
+    "adviser_workspace": "Adviser workspace",
+    "carrier_workspace": "Carrier workspace",
+    "boundary": "I answer cited policy questions and only open screens you are allowed to see",
+    "close": "Close Ask VERIS",
+    "show": "Show me",
+    "mode_deterministic": "Deterministic evidence selection",
+    "mode_model": "Model-assisted wording · evidence selection is deterministic",
+    "try": "Try one of these",
+    "placeholder": "e.g. When does Mum's diabetes waiting period end?",
+    "input_label": "Ask a policy question or find a screen",
+    "send": "Send question",
+    "evidence": "Evidence",
+    "show_source": "Show the cited source",
+    "publisher_source": "Read on the publisher's site",
+    "required_document": "Document needed: {document}",
+    "source_title": "Cited source",
+    "source_loading": "Opening the cited source",
+    "source_unavailable": "The cited source cannot be shown.",
+    "source_close": "Close cited source",
+    "source_page": "Page {page}",
+    "source_highlight": "The cited wording is highlighted on this page."
   }
 }

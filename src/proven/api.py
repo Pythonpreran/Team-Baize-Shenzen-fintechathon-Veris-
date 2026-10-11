@@ -30,6 +30,7 @@ import io
 import json
 import queue
 import re
+import secrets
 import threading
 import time
 from pathlib import Path
@@ -52,7 +53,7 @@ from . import (actions, advisernote, ai, align, assistant, auth, blindspots, boo
                bi, drift, events, ingest, jurisdiction, llm, mailer, marketmap,
                notifications, ocr,
                orchestrator, pagequality, persistence, pipeline, premium_at_risk,
-               presenter, renewal,
+               presenter, qa, renewal,
                scenario, scheduler, score, sentinel, sourceview, stages, supplychain,
                voi, warranty, watchlist)
 from .errors import ProvenError
@@ -84,6 +85,14 @@ HOUSEHOLD_EXAMPLE_DIR = EXAMPLE_DIR / "household"
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 SESSION_COOKIE = "proven_sid"
 SESSIONS = SessionStore()
+
+# Conversation turns are session-local and tenant-keyed.  The remembered question is
+# redacted before storage; the structured policy/member ids make a follow-up resolvable
+# without retaining a second copy of an owner's words.
+_QA_MEMORY_KEY = "_portfolio_qa_memory"
+_QA_CITATIONS_KEY = "_portfolio_qa_citations"
+_QA_MEMORY_LIMIT = 6
+_QA_CITATION_LIMIT = 48
 
 # Uploads per session per window. A cheap fixed-window counter, which is the right
 # amount of machinery for a single-process demo: enough to stop an accidental loop
@@ -343,6 +352,46 @@ def portfolio_coverage_evidence(policy_id: str, coverage_id: str,
         "quote": evidence.wording,
         "document": source_policy.document_filename,
         "evidence_class": item["evidence_class"],
+    }
+
+
+@app.get("/api/portfolio/documents/{document_id}/page/{page_no}")
+def portfolio_document_page(document_id: str, page_no: int, citation_id: str,
+                            full: bool = False, session: Session = Depends(_session)):
+    """Render one owner-held portfolio page at a server-bound Q&A citation.
+
+    The browser supplies only an opaque citation id.  The server resolves its document,
+    page and quotation from the current session, verifies the quotation against the
+    encrypted portfolio PDF, then asks the existing renderer to mark it.  A caller can
+    therefore never turn this endpoint into an arbitrary-PDF or arbitrary-highlight API.
+    """
+    with session.lock:
+        scope = _portfolio_scope(session)
+        citation = _portfolio_qa_citation(
+            session, scope.tenant_id, citation_id, document_id, page_no)
+    document = _portfolio_repository().get_document(scope, document_id)
+    try:
+        pages = ingest.extract_pdf_pages_cached(document["blob"], document["filename"])
+    except ProvenError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if page_no < 1 or page_no > len(pages):
+        raise HTTPException(404, f"Page {page_no} is not in this portfolio document.")
+    page_text = pages[page_no - 1]
+    start, end = citation["char_start"], citation["char_end"]
+    if start < 0 or end < start or page_text[start:end] != citation["quote"]:
+        raise HTTPException(409, "The stored portfolio page no longer verifies this citation.")
+    rendered = sourceview.render_page(
+        document["blob"], page_no, citation["quote"],
+        dpi=sourceview.FULLSCREEN_DPI if full else sourceview.DISPLAY_DPI)
+    return {
+        "document_id": document_id,
+        "filename": document["filename"],
+        "kind": document["kind"],
+        "quote": citation["quote"],
+        "char_start": start,
+        "char_end": end,
+        "display": "PAGE" if rendered.available else "NONE",
+        **rendered.as_dict(),
     }
 
 
@@ -2370,7 +2419,12 @@ def presentation_status():
 # configured, and says which mode produced the result.
 
 class AskIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
     question: str = Field(min_length=3, max_length=500)
+    policy_id: Optional[str] = Field(default=None, max_length=160)
+    member_id: Optional[str] = Field(default=None, max_length=160)
 
 
 class ExplainIn(BaseModel):
@@ -2514,20 +2568,164 @@ def ai_explain(body: ExplainIn, session: Session = Depends(_session)):
         return {"rule_id": body.rule_id, **result.as_dict()}
 
 
+def _portfolio_qa_memory(session: Session, tenant_id: str) -> list[dict]:
+    """Return only this tenant's bounded, redacted conversation turns."""
+    stored = session.state.get(_QA_MEMORY_KEY)
+    if not isinstance(stored, list):
+        return []
+    return [dict(turn) for turn in stored
+            if isinstance(turn, dict) and turn.get("tenant_id") == tenant_id][-_QA_MEMORY_LIMIT:]
+
+
+def _remember_portfolio_qa(session: Session, tenant_id: str, question: str,
+                           portfolio: dict, answer: qa.Answer) -> None:
+    """Store only redacted question text plus opaque scope ids for a follow-up turn."""
+    stored = session.state.get(_QA_MEMORY_KEY)
+    rows = [dict(turn) for turn in stored if isinstance(turn, dict)] if isinstance(stored, list) else []
+    members = [member for member in portfolio.get("members", []) if isinstance(member, dict)]
+    current = [turn for turn in rows if turn.get("tenant_id") == tenant_id][-( _QA_MEMORY_LIMIT - 1):]
+    other = [turn for turn in rows if turn.get("tenant_id") != tenant_id]
+    current.append({
+        "tenant_id": tenant_id,
+        "question": qa.redacted_memory_question(question, members),
+        "intent": answer.intent,
+        "policy_id": answer.policy_id,
+        "member_id": answer.member_id,
+    })
+    session.state[_QA_MEMORY_KEY] = (other + current)[-_QA_MEMORY_LIMIT:]
+
+
+def _bind_portfolio_qa_citations(session: Session, scope: persistence.TenantScope,
+                                  portfolio: dict, answer: qa.Answer) -> list[dict]:
+    """Attach opaque viewer ids only to exact spans in the selected owner-held policy."""
+    policy = next((candidate for candidate in portfolio.get("policies", [])
+                   if isinstance(candidate, dict) and candidate.get("id") == answer.policy_id), None)
+    allowed_documents = set(policy.get("source_document_ids") or []) if policy else set()
+    stored = session.state.get(_QA_CITATIONS_KEY)
+    citations = dict(stored) if isinstance(stored, dict) else {}
+    repository = _portfolio_repository()
+    pages_by_document: dict[str, list[str]] = {}
+    bound: list[dict] = []
+    for original in answer.citations:
+        citation = dict(original)
+        document_id = citation.get("document_id")
+        quote = citation.get("quote")
+        page = citation.get("page")
+        if (isinstance(document_id, str) and document_id in allowed_documents
+                and isinstance(quote, str) and quote.strip()
+                and isinstance(page, int) and page > 0):
+            try:
+                pages = pages_by_document.get(document_id)
+                if pages is None:
+                    document = repository.get_document(scope, document_id)
+                    pages = ingest.extract_pdf_pages_cached(document["blob"], document["filename"])
+                    pages_by_document[document_id] = pages
+                page_text = pages[page - 1] if page <= len(pages) else ""
+                start = page_text.find(quote)
+            except (ProvenError, persistence.PortfolioError):
+                start = -1
+            if start >= 0:
+                citation_id = secrets.token_urlsafe(18)
+                end = start + len(quote)
+                citations[citation_id] = {
+                    "tenant_id": scope.tenant_id,
+                    "document_id": document_id,
+                    "page": page,
+                    "quote": quote,
+                    "char_start": start,
+                    "char_end": end,
+                }
+                citation.update({
+                    "citation_id": citation_id,
+                    "viewer": "PORTFOLIO",
+                    "char_start": start,
+                    "char_end": end,
+                    "verified": True,
+                })
+        bound.append(citation)
+    while len(citations) > _QA_CITATION_LIMIT:
+        citations.pop(next(iter(citations)))
+    session.state[_QA_CITATIONS_KEY] = citations
+    return bound
+
+
+def _portfolio_qa_citation(session: Session, tenant_id: str, citation_id: str,
+                            document_id: str, page_no: int) -> dict:
+    """Resolve one opaque portfolio citation and reject every mismatched component."""
+    stored = session.state.get(_QA_CITATIONS_KEY)
+    entry = stored.get(citation_id) if isinstance(stored, dict) else None
+    if not isinstance(entry, dict):
+        raise HTTPException(404, "No current portfolio citation matches that request.")
+    if (entry.get("tenant_id") != tenant_id or entry.get("document_id") != document_id
+            or entry.get("page") != page_no or not isinstance(entry.get("quote"), str)
+            or not isinstance(entry.get("char_start"), int)
+            or not isinstance(entry.get("char_end"), int)):
+        raise HTTPException(404, "No current portfolio citation matches that request.")
+    return dict(entry)
+
+
+def _portfolio_qa_answer(body: AskIn, session: Session) -> Optional[dict]:
+    """Use durable, owner-scoped portfolio evidence when it is available.
+
+    Existing session-case Q&A remains below for the SME prototype and for anonymous local
+    demonstrations.  The portfolio path is intentionally owner-only because its encrypted
+    data has a different tenant boundary from the transient case.
+    """
+    principal = _principal(session)
+    if principal is None or principal.role != auth.SME:
+        return None
+    scope = _portfolio_scope(session)
+    from . import health
+    try:
+        portfolio = health.enrich_portfolio(_portfolio_repository().portfolio(scope))
+    except persistence.PortfolioConfigurationError:
+        # The transient SME case remains usable where no durable portfolio was configured.
+        # Do not turn an optional portfolio capability into a regression of its Q&A path.
+        return None
+    if not portfolio.get("policies"):
+        return None
+    answer = qa.answer(
+        body.question, portfolio, memory=_portfolio_qa_memory(session, scope.tenant_id),
+        policy_id=body.policy_id, member_id=body.member_id)
+    selected = next((policy for policy in portfolio.get("policies", [])
+                     if isinstance(policy, dict) and policy.get("id") == answer.policy_id), None)
+    permission = _ai_model_permission(
+        session, health_context=bool(selected and selected.get("line_of_business") == "HEALTH"))
+    answer = qa.maybe_model_rephrase(
+        answer, body.question, model_allowed=permission["allowed"],
+        tenant_id=permission["tenant_id"])
+    citations = _bind_portfolio_qa_citations(session, scope, portfolio, answer)
+    _remember_portfolio_qa(session, scope.tenant_id, body.question, portfolio, answer)
+    payload = answer.as_dict()
+    payload["citations"] = citations
+    payload["retrieval"] = {
+        "method": "POLICY_EVIDENCE",
+        "tenant_scoped": True,
+        "policy_id": answer.policy_id,
+        "member_id": answer.member_id,
+    }
+    payload["memory"] = {
+        "retained_turns": len(_portfolio_qa_memory(session, scope.tenant_id)),
+        "redacted": True,
+    }
+    return payload
+
+
 @app.post("/api/ai/ask")
 def ai_ask(body: AskIn, session: Session = Depends(_session)):
-    """Ask Pulse — the copilot, answering only from this case's own evidence.
+    """Answer a policy question with tenant-scoped evidence, then fall back safely.
 
-    Retrieval runs first, every retrieved passage is re-verified against the stored
-    page, and only verified passages reach the model as context. So a citation shown
-    beneath an answer is a quote that demonstrably exists where it claims to. With no
-    key configured the copilot still answers, from the structured data the engine
-    already produced.
+    A signed-in owner with durable portfolio policies receives the policy-and-member
+    narrowed path above.  The established transient-case endpoint remains for its existing
+    SME prototype flow and for offline local demonstration tests.
     """
     with session.lock:
         st = _state(session)
         if _case_deleted(st):
             raise HTTPException(404, _DELETED_NOTICE)
+        portfolio_answer = _portfolio_qa_answer(body, session)
+        if portfolio_answer is not None:
+            return {"question": body.question, **portfolio_answer}
         the_brief, allowed = _ai_scope(session)
         retriever = _scoped_retriever(session, allowed)
         candidate_hits = retriever.search(body.question, top_k=config.MAX_CONTEXT_CHUNKS)

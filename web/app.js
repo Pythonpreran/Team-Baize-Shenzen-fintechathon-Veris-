@@ -299,6 +299,8 @@ const ACTIONS = {
   "ask-close": () => askClose(),
   "ask-go": arg => askGo(arg),
   "ask-chip": arg => { const d = askFind(arg); if (d) askSend(`Take me to ${d.label}`); },
+  "ask-citation": arg => askOpenCitation(arg),
+  "ask-citation-close": () => askCloseCitation(),
   /* Landing page: move from marketing to the login form, and jump between sections.
    * `show-login` sets a flag rather than navigating, so the transition needs no round trip
    * and the browser Back button still returns to the landing page. */
@@ -1257,8 +1259,8 @@ function askMount() {
   b.id = "veris-ask-launcher";
   b.className = "ask-fab";
   b.setAttribute("data-act", "ask-open");
-  b.setAttribute("aria-label", "Ask where something is");
-  b.setAttribute("title", "Ask where something is");
+  b.setAttribute("aria-label", t("ask.launcher_label"));
+  b.setAttribute("title", t("ask.launcher_title"));
   // Inline SVG rather than an icon font or an emoji: one less asset, and it inherits
   // currentColor so it stays correct against the glass.
   b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1276,6 +1278,7 @@ function askMount() {
 function askUnmount() {
   document.getElementById("veris-ask-launcher")?.remove();
   document.getElementById("veris-ask")?.remove();
+  askCloseCitation();
   askClearSpot();
   ASK.open = false;
   ASK.msgs = [];
@@ -1296,9 +1299,7 @@ async function askLoadDestinations() {
 async function askOpen() {
   ASK.open = true;
   if (!ASK.msgs.length) {
-    ASK.msgs.push({ who: "veris", text:
-      "Tell me what you are looking for and I will open it for you. You can name a screen, "
-      + "or just say what you want to know." });
+    ASK.msgs.push({ who: "veris", text: t("ask.greeting") });
   }
   askPaint();
   await askLoadDestinations();
@@ -1312,6 +1313,34 @@ function askClose() {
 }
 
 function askToggle() { ASK.open ? askClose() : askOpen(); }
+
+/* Policy answers carry deterministic evidence metadata separately from their prose. The
+ * text is escaped like every other server value; a source button exists only for an opaque
+ * citation id the server minted for this session, never for a caller-supplied quotation. */
+function askAnswerEvidence(message) {
+  const citations = Array.isArray(message.citations) ? message.citations : [];
+  const tags = message.outputState || message.evidenceClass
+    ? `<div class="ask-mode"><span class="tag">${esc(humanState(message.outputState || ""))}</span>
+      <span class="tag">${esc(message.evidenceClass || "UNESTABLISHED")}</span></div>` : "";
+  const sources = citations.map(citation => {
+    const local = citation.viewer === "PORTFOLIO" && citation.citation_id;
+    const url = typeof citation.source_url === "string" && /^https:\/\//i.test(citation.source_url)
+      ? citation.source_url : "";
+    const control = local
+      ? `<button type="button" class="btn btn-ghost btn-sm" data-act="ask-citation"
+          data-arg="${esc(citation.citation_id)}">${esc(t("ask.show_source"))}</button>`
+      : url ? `<a class="btn btn-ghost btn-sm" href="${esc(url)}" target="_blank"
+          rel="noopener noreferrer">${esc(t("ask.publisher_source"))}</a>` : "";
+    return `<li><blockquote class="portfolio-evidence__quote">${esc(citation.quote || "")}</blockquote>
+      <p class="portfolio-evidence__meta">${esc(citation.document || "")} ${citation.page
+        ? `· ${esc(t("ask.source_page", { page: citation.page }))}` : ""}</p>${control}</li>`;
+  }).join("");
+  const required = message.requiredDocument
+    ? `<p class="text-xs text-muted">${esc(t("ask.required_document", {
+      document: message.requiredDocument }))}</p>` : "";
+  return `${tags}${sources ? `<details class="portfolio-evidence__health"><summary>${esc(t("ask.evidence"))}</summary>
+    <ul class="portfolio-evidence__sources">${sources}</ul></details>` : ""}${required}`;
+}
 
 function askPaint() {
   document.getElementById("veris-ask")?.remove();
@@ -1327,53 +1356,54 @@ function askPaint() {
       return `<div class="ask-msg ask-msg--you"><div class="ask-bub">${esc(m.text)}</div></div>`;
     }
     const trail = (m.trail || []).length
-      ? `<div class="ask-trail">${m.trail.map((t, i) =>
-          `${i ? '<i aria-hidden="true">›</i>' : ""}<span>${esc(t)}</span>`).join("")}</div>`
+      ? `<div class="ask-trail">${m.trail.map((trailItem, i) =>
+          `${i ? '<i aria-hidden="true">›</i>' : ""}<span>${esc(trailItem)}</span>`).join("")}</div>`
       : "";
     const go = m.route
       ? `<button class="btn btn-sm btn-primary mt-8" data-act="ask-go"
-           data-arg="${esc(m.route.id)}">Show me →</button>` : "";
+           data-arg="${esc(m.route.id)}">${esc(t("ask.show"))} →</button>` : "";
     const alts = (m.suggestions || []).length
       ? `<div class="ask-alts">${m.suggestions.map(s =>
           `<button class="ask-chip" data-act="ask-chip" data-arg="${esc(s.id)}"
              >${esc(s.label)}</button>`).join("")}</div>` : "";
-    const tag = m.mode
+    const mode = m.mode
       ? `<div class="ask-mode">${esc(m.mode === "LLM_ASSISTED"
-          ? "AI-assisted wording · route is deterministic"
-          : "Deterministic — no model involved")}</div>` : "";
+          ? t("ask.mode_model") : t("ask.mode_deterministic"))}</div>` : "";
+    const evidence = askAnswerEvidence(m);
     return `<div class="ask-msg ask-msg--veris">
-      <div class="ask-bub ${m.boundary ? "is-refused" : ""}">${esc(m.text)}${trail}${go}${alts}${tag}</div>
+      <div class="ask-bub ${m.boundary ? "is-refused" : ""}">${esc(m.text)}${trail}${go}${alts}${mode}${evidence}</div>
     </div>`;
   }).join("");
 
+  const role = (S.user && S.user.role) || "SME";
+  const workspace = role === "SME" ? t("ask.owner_workspace")
+    : role === "ADVISER" ? t("ask.adviser_workspace") : t("ask.carrier_workspace");
   const host = document.createElement("div");
   host.id = "veris-ask";
   host.className = "ask";
   host.setAttribute("role", "dialog");
-  host.setAttribute("aria-label", "Veris helper");
+  host.setAttribute("aria-label", t("ask.title"));
   host.innerHTML = `
     <div class="ask__head">
       <div class="ask__id">
         <span class="ask__dot" aria-hidden="true"></span>
-        <div><div class="ask__t">Ask Veris</div>
-          <div class="ask__s">${esc((S.user && S.user.role) === "SME" ? "Your workspace"
-            : (S.user && S.user.role) === "ADVISER" ? "Adviser workspace"
-            : "Carrier workspace")} · I can only open screens you are allowed to see</div></div>
+        <div><div class="ask__t">${esc(t("ask.title"))}</div>
+          <div class="ask__s">${esc(workspace)} · ${esc(t("ask.boundary"))}</div></div>
       </div>
-      <button class="ask__x" data-act="ask-close" aria-label="Close helper">✕</button>
+      <button class="ask__x" data-act="ask-close" aria-label="${esc(t("ask.close"))}">✕</button>
     </div>
     <div class="ask__body" id="ask-body">${body}
       ${ASK.busy ? `<div class="ask-msg ask-msg--veris"><div class="ask-bub ask-bub--busy">
         <span class="ask-typing"><i></i><i></i><i></i></span></div></div>` : ""}
     </div>
     ${chips && ASK.msgs.length <= 1
-      ? `<div class="ask__chips"><div class="ask__chips-k">Try one of these</div>
+      ? `<div class="ask__chips"><div class="ask__chips-k">${esc(t("ask.try"))}</div>
           <div class="ask__chips-r">${chips}</div></div>` : ""}
     <form class="ask__foot" id="ask-form">
       <input id="ask-input" class="ask__in" type="text" autocomplete="off"
-        placeholder="e.g. take me to the cyber panel" aria-label="What are you looking for?"
+        placeholder="${esc(t("ask.placeholder"))}" aria-label="${esc(t("ask.input_label"))}"
         maxlength="300">
-      <button class="ask__send" type="submit" aria-label="Send">
+      <button class="ask__send" type="submit" aria-label="${esc(t("ask.send"))}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 8 6 8z"
           fill="currentColor"/></svg></button>
     </form>`;
@@ -1393,6 +1423,11 @@ function askPaint() {
   });
 }
 
+function askNavigationIntent(question) {
+  return /^\s*(?:please\s+)?(?:take\s+me\s+to|go\s+to|open|navigate|locate|find|where\s+do\s+i)\b/i
+    .test(String(question || ""));
+}
+
 async function askSend(preset) {
   const input = document.getElementById("ask-input");
   const q = String(preset != null ? preset : (input ? input.value : "")).trim();
@@ -1401,25 +1436,94 @@ async function askSend(preset) {
   ASK.msgs.push({ who: "you", text: q });
   ASK.busy = true;
   askPaint();
+  const navigation = askNavigationIntent(q);
   try {
-    const a = await api("/api/assistant", { method: "POST", body: { question: q } });
+    const a = await api(navigation ? "/api/assistant" : "/api/ai/ask", {
+      method: "POST", body: { question: q },
+    });
     ASK.busy = false;
     if (!a) { askPaint(); return; }
+    if (navigation) {
+      ASK.msgs.push({
+        who: "veris", text: a.answer, route: a.route, trail: a.route && a.route.trail,
+        suggestions: a.suggestions, mode: a.mode, boundary: a.boundary,
+      });
+      ASK.route = a.route || null;
+      askPaint();
+      // Only travel when the phrasing asked to be taken somewhere. Hijacking the screen of
+      // somebody who asked what a word meant is its own small betrayal, so the server decides
+      // this and the button below is the alternative.
+      if (a.route && a.navigate) askGo(a.route.id);
+      return;
+    }
     ASK.msgs.push({
-      who: "veris", text: a.answer, route: a.route, trail: a.route && a.route.trail,
-      suggestions: a.suggestions, mode: a.mode, boundary: a.boundary,
+      who: "veris", text: a.text || "", mode: a.mode, source: a.source,
+      citations: a.citations, outputState: a.output_state,
+      evidenceClass: a.evidence_class, requiredDocument: a.required_document,
     });
-    ASK.route = a.route || null;
     askPaint();
-    // Only travel when the phrasing asked to be taken somewhere. Hijacking the screen of
-    // somebody who asked what a word meant is its own small betrayal, so the server decides
-    // this and the button below is the alternative.
-    if (a.route && a.navigate) askGo(a.route.id);
   } catch (err) {
     ASK.busy = false;
     ASK.msgs.push({ who: "veris", text: err.message || String(err) });
     askPaint();
   }
+}
+
+function askCitationFind(citationId) {
+  for (const message of [...ASK.msgs].reverse()) {
+    const citation = (message.citations || []).find(item => item && item.citation_id === citationId);
+    if (citation) return citation;
+  }
+  return null;
+}
+
+async function askOpenCitation(citationId) {
+  const citation = askCitationFind(citationId);
+  if (!citation || citation.viewer !== "PORTFOLIO" || !citation.document_id || !citation.page) return;
+  ASK.citation = { citation, loading: true };
+  askPaintCitation();
+  try {
+    const query = `?citation_id=${encodeURIComponent(citation.citation_id)}`;
+    const page = await api(`/api/portfolio/documents/${encodeURIComponent(citation.document_id)}`
+      + `/page/${encodeURIComponent(citation.page)}${query}`);
+    ASK.citation = { citation, page };
+  } catch (error) {
+    ASK.citation = { citation, error: error.message || String(error) };
+  }
+  askPaintCitation();
+}
+
+function askCloseCitation() {
+  ASK.citation = null;
+  document.getElementById("veris-ask-citation")?.remove();
+}
+
+function askPaintCitation() {
+  document.getElementById("veris-ask-citation")?.remove();
+  const current = ASK.citation;
+  if (!current) return;
+  const citation = current.citation || {};
+  const page = current.page;
+  const body = current.loading ? spinner(t("ask.source_loading"))
+    : current.error ? `<div class="insight warn"><div class="insight-text">${esc(current.error)}</div></div>`
+      : page && page.available && page.image
+        ? `<div class="pv__frame"><img src="${esc(page.image)}" alt="${esc(t("ask.source_page", {
+          page: page.page_no || citation.page }))}"></div>
+          <p class="pv__note">${esc(t("ask.source_highlight"))}</p>`
+        : `<div class="insight warn"><div class="insight-text">${esc((page && page.reason)
+          || t("ask.source_unavailable"))}</div></div>`;
+  const host = document.createElement("div");
+  host.id = "veris-ask-citation";
+  host.innerHTML = `<div class="v-drawer-overlay" data-act="ask-citation-close"></div>
+    <aside class="v-drawer" role="dialog" aria-modal="true" aria-label="${esc(t("ask.source_title"))}">
+      <button class="v-drawer__close" data-act="ask-citation-close"
+        aria-label="${esc(t("ask.source_close"))}">✕</button>
+      <h3>${esc(t("ask.source_title"))}</h3>
+      <div class="pv-block"><div class="pv-block__h">${esc(citation.document || "")}</div>
+        <blockquote class="portfolio-evidence__quote">${esc(citation.quote || "")}</blockquote>
+        ${body}</div>
+    </aside>`;
+  document.body.appendChild(host);
 }
 
 function askFind(id) {

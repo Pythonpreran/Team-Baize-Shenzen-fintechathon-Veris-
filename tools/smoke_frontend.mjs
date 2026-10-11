@@ -605,6 +605,26 @@ tryRun("planLayoutCard renders cited health terms with schedule operands", () =>
     throw new Error("a mapped health card still renders the generic notice");
 });
 
+tryRun("Ask VERIS renders an evidence-bound policy answer", () => {
+  const html = g.askAnswerEvidence({
+    outputState: "DOCUMENTED", evidenceClass: "PROVEN", requiredDocument: null,
+    citations: [{ document: "Policy schedule", document_id: "doc-1", page: 1,
+      quote: "Lakshmi has declared diabetes. <script>x</script>", citation_id: "citation-1",
+      viewer: "PORTFOLIO" }],
+  });
+  if (!html.includes('data-act="ask-citation"')) throw new Error("local citation has no source action");
+  if (!html.includes("Show the cited source")) throw new Error("citation control is not labelled");
+  if (html.includes("<script>")) throw new Error("citation text reached the DOM unescaped");
+  if (!html.includes("&lt;script&gt;")) throw new Error("citation text was not escaped");
+  if (!html.includes(g.humanState("DOCUMENTED")) || !html.includes("PROVEN"))
+    throw new Error("answer state and evidence class are absent");
+});
+tryRun("Ask VERIS routes navigation separately from policy questions", () => {
+  if (!g.askNavigationIntent("Take me to Portfolio")) throw new Error("navigation was not routed");
+  if (g.askNavigationIntent("When does Mum's waiting period end?"))
+    throw new Error("policy question was sent to the navigator");
+});
+
 let bad = 0;
 for (const [tag, label] of results) { if (tag === "FAIL") bad++; console.log(tag, label); }
 console.log(`\n${results.length - bad}/${results.length} passed`);

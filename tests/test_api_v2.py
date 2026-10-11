@@ -645,6 +645,7 @@ COVERED: set[tuple[str, str]] = {
     ("POST", "/api/policies"),
     ("GET", "/api/policies/{policy_id}"),
     ("GET", "/api/policies/{policy_id}/coverage/{coverage_id}/evidence"),
+    ("GET", "/api/portfolio/documents/{document_id}/page/{page_no}"),
     ("POST", "/api/portfolio/example-household"),
     ("GET", "/api/bundle/kinds"),
     ("POST", "/api/bundle"),
