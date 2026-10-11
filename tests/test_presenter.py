@@ -91,6 +91,14 @@ def test_signed_numbers_remain_distinct_in_presentation_grounding():
     assert ok is False
 
 
+def test_unicode_minus_values_remain_signed_in_presentation_grounding():
+    allowed = presenter._numbers_in({"adjustment": "\N{MINUS SIGN}100"})
+    ok, _ = presenter.numbers_are_grounded("The adjustment is \N{MINUS SIGN}100", allowed)
+    assert ok is True
+    ok, _ = presenter.numbers_are_grounded("The adjustment is 100", allowed)
+    assert ok is False
+
+
 def test_model_call_accepts_template_numbers_supplied_to_both_grounding_gates(monkeypatch):
     context = {"overall": 62, "action_count": 4}
     base = presenter.build_fallback(

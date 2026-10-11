@@ -762,7 +762,8 @@ def _provider_model_version(body: Mapping[str, Any], current: Settings) -> Optio
     return current.model_version
 
 
-_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_+-])[-+]?\d[\d,]*(?:\.\d+)?")
+_UNICODE_MINUS = "\N{MINUS SIGN}"
+_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9_+\-\u2212])[-+\u2212]?\d[\d,]*(?:\.\d+)?")
 _TOKEN_RE = re.compile(r"\[VERIS_[A-Z_]+_\d+\]")
 _DATE_RE = re.compile(
     r"\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|"
@@ -776,7 +777,8 @@ _DOCUMENT_WORDS = re.compile(r"\b(policy|wording|document|schedule|clause|page)\
 def _normalise_number(value: str) -> Optional[str]:
     """Normalise only equivalent decimal representations, never a numeric prefix."""
     try:
-        return format(Decimal(value.replace(",", "")).normalize(), "f")
+        canonical = value.replace(_UNICODE_MINUS, "-").replace(",", "")
+        return format(Decimal(canonical).normalize(), "f")
     except (InvalidOperation, ValueError):
         return None
 

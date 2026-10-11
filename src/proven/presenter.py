@@ -222,12 +222,14 @@ def clear_cache() -> None:
 
 # ── validation ───────────────────────────────────────────────────────────────
 
-_NUM_RE = re.compile(r"(?<![A-Za-z0-9_+-])[-+]?\d[\d,]*(?:\.\d+)?")
+_UNICODE_MINUS = "\N{MINUS SIGN}"
+_NUM_RE = re.compile(r"(?<![A-Za-z0-9_+\-\u2212])[-+\u2212]?\d[\d,]*(?:\.\d+)?")
 
 
 def _normalise_number(value: str) -> str | None:
     try:
-        return format(Decimal(value.replace(",", "")).normalize(), "f")
+        canonical = value.replace(_UNICODE_MINUS, "-").replace(",", "")
+        return format(Decimal(canonical).normalize(), "f")
     except (InvalidOperation, ValueError):
         return None
 

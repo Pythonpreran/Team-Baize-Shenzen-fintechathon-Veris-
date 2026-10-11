@@ -237,6 +237,16 @@ def test_grounding_keeps_signed_values_distinct():
     assert "number" in (why or "").lower()
 
 
+def test_grounding_keeps_unicode_minus_values_signed():
+    evidence = "The adjustment is \N{MINUS SIGN}100."
+    ok, why = llm.guard_user_visible("The adjustment is \N{MINUS SIGN}100.", evidence)
+    assert ok is True, why
+
+    ok, why = llm.guard_user_visible("The adjustment is 100.", evidence)
+    assert ok is False
+    assert "number" in (why or "").lower()
+
+
 @pytest.mark.parametrize("text", [
     "This policy covers this treatment.",
     "This treatment is covered under the plan.",
