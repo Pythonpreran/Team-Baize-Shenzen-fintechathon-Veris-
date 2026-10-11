@@ -144,16 +144,14 @@ def test_unknown_and_outcome_requests_abstain_without_a_verdict():
     assert "not covered" not in outcome.text.lower()
 
 
-def test_mocked_model_can_only_rephrase_the_deterministic_cited_answer(monkeypatch):
+def test_mocked_model_can_only_select_a_deterministic_cited_answer_template(monkeypatch):
     deterministic = qa.answer("When does Mum's diabetes waiting period end?", _portfolio())
     calls = []
 
     def fake_chat(messages, **kwargs):
         calls.append((messages, kwargs))
         return llm.ChatResult(
-            True,
-            content="The schedule records 1 April 2029 as the declared-condition waiting-period end date.",
-            profile="mock", model="mock-model", model_version="mock-v1",
+            True, content="CITED", profile="mock", model="mock-model", model_version="mock-v1",
         )
 
     monkeypatch.setattr(qa.llm, "chat", fake_chat)
@@ -162,9 +160,9 @@ def test_mocked_model_can_only_rephrase_the_deterministic_cited_answer(monkeypat
         model_allowed=True, tenant_id="tenant-a")
 
     assert calls
-    assert modelled.source == "LLM"
+    assert modelled.source == "LLM_TEMPLATE"
     assert modelled.mode == "LLM_ASSISTED"
-    assert "1 April 2029" in modelled.text
+    assert modelled.text == f"The cited policy materials state: {deterministic.text}"
     assert modelled.output_state == deterministic.output_state
     assert modelled.citations == deterministic.citations
 
@@ -181,7 +179,24 @@ def test_model_outcome_prose_is_discarded_in_favour_of_the_deterministic_answer(
 
     assert rejected.source == "DETERMINISTIC_AFTER_REJECTION"
     assert rejected.text == deterministic.text
-    assert "outcome" in (rejected.error or "").lower()
+    assert "approved deterministic presentation template" in (rejected.error or "").lower()
+
+
+def test_model_novel_qualitative_clause_is_discarded_in_favour_of_the_deterministic_answer(
+        monkeypatch):
+    deterministic = qa.answer("When does Mum's diabetes waiting period end?", _portfolio())
+    monkeypatch.setattr(
+        qa.llm, "chat", lambda *_args, **_kwargs: llm.ChatResult(
+            True, content="The policy requires treatment at a nominated hospital."))
+
+    rejected = qa.maybe_model_rephrase(
+        deterministic, "When does Mum's diabetes waiting period end?",
+        model_allowed=True, tenant_id="tenant-a")
+
+    assert rejected.source == "DETERMINISTIC_AFTER_REJECTION"
+    assert rejected.text == deterministic.text
+    assert "nominated hospital" not in rejected.text
+    assert "approved deterministic presentation template" in (rejected.error or "").lower()
 
 
 @pytest.fixture()

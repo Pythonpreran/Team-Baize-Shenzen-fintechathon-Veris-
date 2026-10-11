@@ -1423,9 +1423,12 @@ function askPaint() {
   });
 }
 
+const ASK_NAVIGATION_WORDS = /\b(?:go|goto|take|bring|show|open|navigate|nav|jump|find|where|locate|lead|direct|send|get)\b/i;
+
 function askNavigationIntent(question) {
-  return /^\s*(?:please\s+)?(?:take\s+me\s+to|go\s+to|open|navigate|locate|find|where\s+do\s+i)\b/i
-    .test(String(question || ""));
+  // Preserve the full deterministic navigator vocabulary in assistant._GO_WORDS. The
+  // server still enforces the role boundary after this client-side dispatch.
+  return ASK_NAVIGATION_WORDS.test(String(question || ""));
 }
 
 async function askSend(preset) {

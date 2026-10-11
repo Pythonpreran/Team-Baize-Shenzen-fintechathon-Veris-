@@ -31,9 +31,10 @@ _OUTCOME_OR_ADVICE = re.compile(
 )
 
 _MODEL_SYSTEM = (
-    "Restate the supplied deterministic, evidence-bound insurance answer in one short "
-    "sentence. Do not add any number, date, condition, conclusion, advice, coverage "
-    "decision, or claim-payment statement. The citations are rendered separately."
+    "Choose one approved deterministic presentation template for the supplied "
+    "evidence-bound answer. Reply with exactly one identifier: DIRECT or CITED. Do not "
+    "write an answer, policy condition, conclusion, advice, coverage decision, or "
+    "claim-payment statement."
 )
 
 
@@ -428,29 +429,36 @@ def answer(question: str, portfolio: Mapping[str, Any], *, memory: Sequence[Mapp
 
 def maybe_model_rephrase(answer: Answer, question: str, *, model_allowed: bool,
                           tenant_id: str) -> Answer:
-    """Use a model only to rephrase a documented deterministic answer under the shared gate."""
+    """Let a model select a deterministic presentation template, never policy prose."""
     if (not model_allowed or answer.output_state != "DOCUMENTED" or not answer.citations):
         return answer
-    evidence = {
-        "deterministic_answer": answer.text,
-        "citations": [dict(citation) for citation in answer.citations],
-    }
+    evidence = {"deterministic_answer": answer.text}
     result = llm.chat(
         [{"role": "system", "content": _MODEL_SYSTEM},
          {"role": "user", "content": (
              f"Question: {question}\n\nDeterministic answer: {answer.text}\n\n"
-             f"Verified citations: {answer.citations}")}],
-        max_tokens=180, purpose="portfolio_question_answer", tenant_id=tenant_id,
+             "Approved template identifiers: DIRECT, CITED.")}],
+        max_tokens=12, purpose="portfolio_question_answer", tenant_id=tenant_id,
         user_intent=question)
     if not result.available:
         return replace(answer, error=result.error)
-    text = result.display_text().strip()
+
+    template = result.display_text().strip().upper()
+    if template == "DIRECT":
+        text = answer.text
+    elif template == "CITED":
+        text = f"The cited policy materials state: {answer.text}"
+    else:
+        return replace(
+            answer, source="DETERMINISTIC_AFTER_REJECTION",
+            error="Model output did not select an approved deterministic presentation template.")
+
     safe, reason = llm.guard_user_visible(
         text, evidence, citations=answer.citations, require_citations=True,
         trusted_evidence=answer.text)
     if not safe:
         return replace(answer, source="DETERMINISTIC_AFTER_REJECTION", error=reason)
-    return replace(answer, text=text, mode="LLM_ASSISTED", source="LLM")
+    return replace(answer, text=text, mode="LLM_ASSISTED", source="LLM_TEMPLATE")
 
 
 def redacted_memory_question(question: str, members: Sequence[Mapping[str, Any]]) -> str:

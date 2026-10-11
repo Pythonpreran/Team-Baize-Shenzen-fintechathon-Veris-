@@ -619,8 +619,14 @@ tryRun("Ask VERIS renders an evidence-bound policy answer", () => {
   if (!html.includes(g.humanState("DOCUMENTED")) || !html.includes("PROVEN"))
     throw new Error("answer state and evidence class are absent");
 });
-tryRun("Ask VERIS routes navigation separately from policy questions", () => {
-  if (!g.askNavigationIntent("Take me to Portfolio")) throw new Error("navigation was not routed");
+tryRun("Ask VERIS preserves the navigator vocabulary for navigation requests", () => {
+  for (const question of [
+    "Take me to Portfolio",
+    "Show me the documents screen",
+    "Where are my documents?",
+  ]) {
+    if (!g.askNavigationIntent(question)) throw new Error(`navigation was not routed: ${question}`);
+  }
   if (g.askNavigationIntent("When does Mum's waiting period end?"))
     throw new Error("policy question was sent to the navigator");
 });
