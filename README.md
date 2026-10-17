@@ -11,10 +11,13 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt -e .
 python scripts/fetch_corpus.py --seed-from ../06-evidence
+$env:VERIS_PORTFOLIO_DB_PATH = "$env:LOCALAPPDATA\veris-demo\portfolio.sqlite"
 python -m uvicorn proven.api:app --port 8000
 ```
 
-Open `http://localhost:8000`. The default local mode supports the offline synthetic demo. Do not expose it to a network; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for hosted mode.
+`VERIS_PORTFOLIO_DB_PATH` is required: the encrypted household and business portfolio refuses to start without an explicit database path, and every portfolio screen says so until it is set. Keep it outside the repository. In local mode a development master key is generated beside the database on first use; hosted mode must supply `VERIS_MASTER_KEY`.
+
+Open `http://localhost:8000` and sign in as the business owner from the demo accounts the login screen lists, then load the example household from the Portfolio screen. The default local mode supports the offline synthetic demo and shows its seeded passwords openly, so do not expose it to a network or a tunnel; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for hosted mode.
 
 To run the local synthetic claim-to-correction composition, follow the generated-local-credential instructions in [docs/DEMO-RUNBOOK.md](docs/DEMO-RUNBOOK.md), then run:
 
@@ -52,9 +55,9 @@ python scripts/verify_evidence.py
 6. Synthetic insurer-query reply preparation.
 7. Synthetic settlement check, dispute preparation, correction receipt, and reconciliation.
 8. Synthetic overdue-claim escalation gate.
-9. Renewal/payment under mandate — not implemented in this delivery scope.
+9. Renewal and synthetic insurer-invoice payment under a live mandate, with exact-payload confirmation and step-up — local test contract.
 10. Renewal comparison — local test contract.
-11. Adviser file sharing/revocation — not implemented in this delivery scope.
+11. Time-limited consent to share with a named recipient, then revocation — local test contract.
 12. Small-business adviser action workflow — local test contract.
 
 ## Documentation and evidence
