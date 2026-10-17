@@ -167,13 +167,51 @@ def _really_absent(exc: corpus.CorpusMissing) -> bool:
         return True          # the manifest itself is unreadable: trust the exception
 
 
+# ── the same rule once the API answers a missing corpus with a typed 503 ─────
+#
+# Platform hardening made the API catch `CorpusMissing` and return 503 CORPUS_MISSING
+# instead of a stack trace. That is right for a user, but it means the exception no
+# longer reaches the test: a route test on an unseeded machine now fails on a status or
+# key assertion, and the absent document disappears behind roughly two hundred failures.
+#
+# So the API's own handler is wrapped to record each `CorpusMissing` it turned into a
+# 503 during the current test. A failed test is converted to a skip ONLY when such a 503
+# was served AND the document it names is genuinely absent — the same narrow rule as the
+# uncaught case above. On a seeded machine a served CORPUS_MISSING is a bug and still
+# fails, and a test that never received one fails exactly as before.
+_SERVED_CORPUS_MISSING: list[corpus.CorpusMissing] = []
+_api_corpus_missing_handler = api.app.exception_handlers[corpus.CorpusMissing]
+
+
+async def _recording_corpus_missing_handler(request, exc):
+    _SERVED_CORPUS_MISSING.append(exc)
+    return await _api_corpus_missing_handler(request, exc)
+
+
+api.app.exception_handlers[corpus.CorpusMissing] = _recording_corpus_missing_handler
+
+
+def _served_corpus_absence() -> str | None:
+    for exc in _SERVED_CORPUS_MISSING:
+        if _really_absent(exc):
+            name = getattr(exc, "document_id", None) or "the required document"
+            return (f"API answered 503 CORPUS_MISSING for corpus document '{name}': {exc}. "
+                    + _FETCH_HINT.format(what=name))
+    return None
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    _SERVED_CORPUS_MISSING.clear()
+
+
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
 def pytest_runtest_makereport(item, call):
     outcome = yield
     report = outcome.get_result()
     if report.outcome != "failed" or call.excinfo is None:
         return
-    reason = _corpus_absence(call.excinfo.value)
+    reason = _corpus_absence(call.excinfo.value) or _served_corpus_absence()
     if reason is None:
         return
     report.outcome = "skipped"

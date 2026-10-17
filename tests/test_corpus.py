@@ -604,3 +604,57 @@ def test_an_unrelated_failure_is_never_converted():
 
     assert conftest._corpus_absence(ValueError("a real bug")) is None
     assert conftest._corpus_absence(AssertionError("a real failure")) is None
+
+
+# The API answers an uncaught `CorpusMissing` with a typed 503, so the exception never
+# reaches the test. conftest records each one the API served; the same absence-only rule
+# then decides whether a resulting failure becomes a named skip.
+
+def test_a_served_corpus_missing_503_is_recorded_and_named_when_absent(monkeypatch, tmp_path):
+    import conftest
+    from fastapi import APIRouter
+    from fastapi.testclient import TestClient
+
+    from proven import api
+
+    monkeypatch.setenv("VERIS_CORPUS_DIR", str(tmp_path / "nothing-here"))
+    router = APIRouter()
+
+    @router.get("/__qa_corpus_missing_probe")
+    def _probe():
+        raise corpus.CorpusMissing("probe wording absent",
+                                   document_id="sg-chubb-selectplus-wording")
+
+    # A throwaway app reusing the API's (wrapped) handler, so the real app's routes and
+    # middleware stack are untouched by this test.
+    from fastapi import FastAPI
+    probe_app = FastAPI()
+    probe_app.include_router(router)
+    probe_app.add_exception_handler(corpus.CorpusMissing,
+                                    api.app.exception_handlers[corpus.CorpusMissing])
+    conftest._SERVED_CORPUS_MISSING.clear()
+    try:
+        response = TestClient(probe_app).get("/__qa_corpus_missing_probe")
+        assert response.status_code == 503
+        assert response.json()["error"] == "CORPUS_MISSING"
+        assert len(conftest._SERVED_CORPUS_MISSING) == 1
+        reason = conftest._served_corpus_absence()
+        assert reason and "sg-chubb-selectplus-wording" in reason
+    finally:
+        # Cleared even on failure, so this test's own 503 can never mask its own failure.
+        conftest._SERVED_CORPUS_MISSING.clear()
+    assert conftest._served_corpus_absence() is None
+
+
+@pytest.mark.requires_corpus("sg-chubb-selectplus-wording")
+def test_a_served_corpus_missing_503_on_a_seeded_machine_is_not_converted():
+    """The document is present, so the API serving CORPUS_MISSING about it is a bug."""
+    import conftest
+
+    conftest._SERVED_CORPUS_MISSING.clear()
+    conftest._SERVED_CORPUS_MISSING.append(corpus.CorpusMissing(
+        "mis-resolved somewhere", document_id="sg-chubb-selectplus-wording"))
+    try:
+        assert conftest._served_corpus_absence() is None
+    finally:
+        conftest._SERVED_CORPUS_MISSING.clear()

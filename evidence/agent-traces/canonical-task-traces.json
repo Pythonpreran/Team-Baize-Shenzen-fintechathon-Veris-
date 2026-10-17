@@ -48,21 +48,21 @@
     "task": 8
   },
   {
-    "evidence": "No local trace; human submission should not claim this.",
+    "evidence": "tests/test_renewals.py (renewal calendar with the compulsory motor alert; the scheduler's sandbox invoice payment needs a matching live mandate and keeps exact-payload confirmation plus step-up); no real insurer or payment.",
     "name": "Renew compulsory motor cover",
-    "status": "NOT_IMPLEMENTED_P1",
+    "status": "LOCAL_TEST_CONTRACT",
     "task": 9
   },
   {
-    "evidence": "tests/test_renewal.py",
+    "evidence": "tests/test_renewal.py; tests/test_renewals.py (owner-held prior/current document diff, no coverage verdict); tests/test_renewals_api.py (tenant-scoped routes)",
     "name": "Renewal diff",
     "status": "LOCAL_TEST_CONTRACT",
     "task": 10
   },
   {
-    "evidence": "No local trace; human submission should not claim this.",
+    "evidence": "tests/test_delegate_claims.py and tests/test_privacy.py (owner-granted, member-consented, scoped and time-limited delegate access to one claim with no submission or decision authority; consent revocation exercised); hosted delegate identity remains a human action.",
     "name": "Share and revoke claim file",
-    "status": "NOT_IMPLEMENTED_P1",
+    "status": "LOCAL_TEST_CONTRACT",
     "task": 11
   },
   {

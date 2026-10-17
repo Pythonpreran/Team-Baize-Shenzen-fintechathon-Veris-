@@ -390,7 +390,12 @@
         <div class="wf__row wf__row--cut"><span>Less deductible</span><b>61,700</b></div>
         <div class="wf__row wf__row--out"><span>You absorb</span><b>238,300</b></div>
       </div>
-      <span class="big__go">Explore the engine <em aria-hidden="true">&rarr;</em></span>
+      <!-- Was a bare <span>: styled like a link, wired to nothing, so the card's call to
+           action did nothing when clicked. Both cards describe what the running app does,
+           and the section this card sits in is #engine, so an in-page jump would land the
+           reader where they already are. /login is the SPA's login form whatever the
+           session says, matching the header and closing calls to action. -->
+      <a class="big__go" href="/login">Explore the engine <em aria-hidden="true">&rarr;</em></a>
     </article>
 
     <article class="big big--alt tilt reveal" data-d="2">
@@ -409,7 +414,9 @@
         <p class="refuse__say">Precedence could not be established.
           <em>Routed to a licensed adviser.</em></p>
       </div>
-      <span class="big__go">See the brief <em aria-hidden="true">&rarr;</em></span>
+      <!-- Same defect as the card above. The Review Brief is an in-app artefact, not a
+           section of this page, so this opens the app rather than scrolling. -->
+      <a class="big__go" href="/login">See the brief <em aria-hidden="true">&rarr;</em></a>
     </article>
   </div>
 </section>

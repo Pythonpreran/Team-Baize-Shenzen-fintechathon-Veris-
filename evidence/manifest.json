@@ -2,7 +2,7 @@
   "files": [
     {
       "path": "agent-traces/canonical-task-traces.json",
-      "sha256": "d6527f4f91619a521de45553836dc0ca037d5d0d153f467dbc768cb25e3e71a4"
+      "sha256": "212c766aa42b025caf2cf5babc1636147b0fbfc9d1def273a4aba639df13546c"
     },
     {
       "path": "evaluation/scoreboard.json",
@@ -26,11 +26,11 @@
     },
     {
       "path": "sandbox-operation-verification.json",
-      "sha256": "80607cef8993d2b0d3ca940b3502924083e7d23d4570bc74e9834eb03a9b6392"
+      "sha256": "96bbf00f20bd3da15c6978a6f1c39e2f1db6d646535302d2ccb512f340f542d5"
     },
     {
       "path": "sandbox-operations.jsonl",
-      "sha256": "d9ea80244cf151df18f5b8e78318c8d5adeb907e1cb6deb116aaeb4eadc0f712"
+      "sha256": "8791b361ba21969c275b41139433bb61b7baf626ca493960e8880fdd4af8becc"
     },
     {
       "path": "screenshots/README.md",

@@ -605,7 +605,10 @@ class SandboxService:
                 result = self._claim_out(existing)
                 result["idempotent_replay"] = True
                 result["webhook"] = self._signed_webhook(
-                    conn, "CLAIM_ACKNOWLEDGED", str(existing["id"]), tenant_id=tenant_id)
+                    conn,
+                    "MOTOR_SURVEYOR_REQUIRED" if str(existing["status"]) == "SURVEYOR_REQUIRED"
+                    else "CLAIM_ACKNOWLEDGED",
+                    str(existing["id"]), tenant_id=tenant_id)
                 return result
             claim_id = _id("SBX-CLM")
             now = self._clock(conn).isoformat(timespec="seconds")
@@ -639,8 +642,10 @@ class SandboxService:
             self._log(conn, "CLAIM_SUBMITTED", {"claim_id": claim_id, "policy_id": policy_id,
                                                  "scenario": scenario}, tenant_id=tenant_id)
             row = conn.execute("SELECT * FROM sandbox_claim WHERE id=?", (claim_id,)).fetchone()
+            event_type = ("MOTOR_SURVEYOR_REQUIRED" if scenario == "MOTOR_OWN_DAMAGE"
+                          else "CLAIM_ACKNOWLEDGED")
             return {**self._claim_out(row), "webhook": self._signed_webhook(
-                conn, "CLAIM_ACKNOWLEDGED", claim_id, tenant_id=tenant_id)}
+                conn, event_type, claim_id, tenant_id=tenant_id)}
 
     def _claim_row(self, conn: sqlite3.Connection, claim_id: str, *,
                    tenant_id: Optional[str] = None) -> sqlite3.Row:
@@ -657,6 +662,24 @@ class SandboxService:
     def claim_status(self, claim_id: str, *, tenant_id: Optional[str] = None) -> dict[str, Any]:
         with self._connection() as conn:
             return self._claim_out(self._claim_row(conn, claim_id, tenant_id=tenant_id))
+
+    def complete_motor_survey(self, claim_id: str, *, tenant_id: str) -> dict[str, Any]:
+        """Sandbox-admin-only surveyor event for the seeded motor own-damage path.
+
+        VERIS can observe the signed event but cannot call this method through its agent
+        tools; keeping it counterparty-owned prevents the application from deciding that
+        a vehicle inspection occurred or from bypassing the surveyor state.
+        """
+        tenant = _tenant_id(tenant_id)
+        with self._connection() as conn:
+            row = self._claim_row(conn, claim_id, tenant_id=tenant)
+            if row["status"] != "SURVEYOR_REQUIRED":
+                raise SandboxConflict("A synthetic motor claim awaiting survey is required before survey completion.")
+            now = self._clock(conn).isoformat(timespec="seconds")
+            conn.execute("UPDATE sandbox_claim SET status=?, updated_at=? WHERE id=? AND tenant_id=?",
+                         ("UNDER_ASSESSMENT", now, claim_id, tenant))
+            self._log(conn, "MOTOR_SURVEY_COMPLETED", {"claim_id": claim_id}, tenant_id=tenant)
+            return self._signed_webhook(conn, "MOTOR_SURVEY_COMPLETED", claim_id, tenant_id=tenant)
 
     def open_claim_query(self, claim_id: str, *, tenant_id: str) -> dict[str, Any]:
         """Sandbox-admin-only state change that emits a separately signed query event."""

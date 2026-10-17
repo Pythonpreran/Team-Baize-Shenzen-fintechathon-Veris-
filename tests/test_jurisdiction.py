@@ -130,14 +130,17 @@ SG_EXAMPLE = ["02-policy-schedule.pdf", "03-management-accounts.pdf",
 # ── 1. the packs validate, and the validator bites ──────────────────────────
 
 def test_the_packs_on_disk_validate_and_generic_is_always_there():
-    assert jurisdiction.pack_codes() == ("GENERIC", "IN", "SG")
+    # T27 (deliberate, PLAN rule 26): Hong Kong and Malaysia moved from signals.yaml into
+    # their own packs; Australia is now the country recognised without one. T28
+    # (deliberate) adds the China pack.
+    assert jurisdiction.pack_codes() == ("CN", "GENERIC", "HK", "IN", "MY", "SG")
     assert jurisdiction.generic().is_generic
     sg = jurisdiction.pack("SG")
     assert sg.currency.code == "SGD"
     assert sg.timezone == "Asia/Singapore"
     assert sg.entries(), "the Singapore pack states nothing"
     # Recognisable without a pack, so a document from there gets an honest notice.
-    assert {c["code"] for c in jurisdiction.recognised_without_pack()} == {"MY", "HK"}
+    assert {c["code"] for c in jurisdiction.recognised_without_pack()} == {"AU"}
 
 
 def test_an_entry_without_a_verification_block_is_rejected():
@@ -451,14 +454,38 @@ def test_detection_is_logged_both_ways_without_the_documents_text(caplog):
         assert private not in logged, f"{private!r} was written to the log"
 
 
-def test_a_synthetic_malaysian_wording_is_malaysia_and_read_under_generic():
+#: A fictional wording from the country now recognised without a pack (signals.yaml).
+AU_WORDING_LINES = [
+    "SYNTHETIC SAMPLE - NOT ISSUED BY ANY INSURER",
+    "POLICY WORDING",
+    "This Policy is governed by the laws of New South Wales.",
+    "Excess: A$ 250 each and every claim.",
+    "Example Underwriting Pty Ltd ABN 12 345 678 901 AFSL 123456.",
+]
+
+
+def test_a_synthetic_malaysian_wording_is_malaysia_and_read_under_the_malaysia_pack():
+    # T27 replaces the GENERIC-fallback assertion deliberately (PLAN rule 26): Malaysia
+    # now has a pack, so its wording is read under MY. What must not change still holds:
+    # no Singapore pack, and no Malaysian legal statement reaches an owner unquoted.
     pages = ingest.extract_pdf_pages_cached(pdfbuild.build_pdf([MY_WORDING_LINES]),
                                             "my.pdf")
     applied = jurisdiction.assess([("my.pdf", pages)])
     assert (applied.detection.code, applied.detection.confidence) == ("MY", "HIGH")
+    assert applied.pack.code == "MY" and applied.pack_available
+    for entry in applied.pack.entries():
+        assert not entry.owner_facing or (entry.verification.quote and entry.verification.source_url)
+
+
+def test_a_wording_from_a_recognised_country_without_a_pack_is_read_under_generic():
+    # The behaviour the Malaysian test used to pin, kept with the country that has no pack.
+    pages = ingest.extract_pdf_pages_cached(pdfbuild.build_pdf([AU_WORDING_LINES]),
+                                            "au.pdf")
+    applied = jurisdiction.assess([("au.pdf", pages)])
+    assert (applied.detection.code, applied.detection.confidence) == ("AU", "HIGH")
     assert applied.pack.code == "GENERIC" and not applied.pack_available
-    assert "no Malaysia jurisdiction pack yet" in applied.notice
-    assert "governed by Malaysian Law" in applied.notice
+    assert "no Australia jurisdiction pack yet" in applied.notice
+    assert "governed by the laws of New South Wales" in applied.notice
 
 
 @pytest.mark.requires_corpus(pipeline.CHUBB_ID)
@@ -489,13 +516,32 @@ def test_other_singapore_wordings_are_singapore(doc_id):
                                     "my-qbe-retail-package-wording",
                                     "my-qbe-industrial-all-risk-wording"])
 def test_real_malaysian_wordings_are_malaysia_and_get_no_singapore_pack(doc_id):
+    # T27 (deliberate): read under the Malaysia pack, which is still never Singapore's.
     if corpus.missing([doc_id]):
         pytest.skip(f"corpus document not fetched: {doc_id}")
     pages = corpus.split_pages(corpus.require_text(doc_id).read_text(encoding="utf-8"))
     applied = jurisdiction.assess([(doc_id, pages)])
     assert applied.detection.code == "MY"
-    assert applied.pack.code == "GENERIC"
-    assert "no Malaysia jurisdiction pack yet" in applied.notice
+    assert applied.pack.code == "MY" and applied.pack_available
+    assert "Singapore" not in (applied.notice or "")
+
+
+@pytest.mark.requires_corpus("au-aig-travel-insurance-pds")
+def test_the_generic_showcase_wording_is_read_and_quoted_with_no_australian_statement():
+    """A real public wording from a third country with no pack (T27 showcase)."""
+    from proven import align, health
+    doc_id = "au-aig-travel-insurance-pds"
+    pages = [text for _page, text in health._pages(doc_id)]
+    applied = jurisdiction.assess([(doc_id, pages)])
+    assert (applied.detection.code, applied.pack.code) == ("AU", "GENERIC")
+    assert "no Australia jurisdiction pack yet" in applied.notice
+    assert applied.pack.entries() == [], "GENERIC states no law"
+    bound = align.align_pages(pages, carrier=doc_id).alignments
+    assert [a.mechanism for a in bound] == ["TRAVEL.EXCLUSION.EXISTING_CONDITION"]
+    quote = bound[0].quote
+    assert "Pre-existing medical conditions of You or any other person are not covered" in quote
+    flat = " ".join(pages[bound[0].page_no - 1].split())
+    assert "Pre-existing medical conditions of You or any other person are not covered" in flat
 
 
 @pytest.mark.parametrize(
@@ -528,16 +574,19 @@ def test_uncertain_uploads_keep_the_generic_notice_and_skipped_rules(client, pag
 
 # ── 3. under GENERIC nothing Singaporean runs or is said ────────────────────
 
-def test_no_singapore_rule_fires_under_generic_even_with_its_inputs_present():
+def test_no_singapore_rule_fires_under_another_countrys_pack_even_with_its_inputs_present():
     """The CPF record and the work injury schedule are both here, 14 against 11 — the
     exact inputs of the headcount finding. The Malaysian wording outweighs them, so the
-    bundle is not read as Singaporean and the Singapore rules are named, not run."""
+    bundle is not read as Singaporean and the Singapore rules are named, not run.
+
+    T27 (deliberate, PLAN rule 26): the bundle is now read under the Malaysia pack rather
+    than GENERIC. The point of the test — no Singapore rule runs — is unchanged."""
     files = _my_files() + _example_files(["06-cpf-contribution-record.pdf",
                                           "07-work-injury-schedule.pdf"])
     brief = pipeline.run_bundle(files)["brief"]
-    assert brief["jurisdiction"]["pack"] == "GENERIC"
+    assert brief["jurisdiction"]["pack"] == "MY"
     fired = {f["rule_id"] for f in brief["findings"]}
-    assert not fired & SG_RULES, f"Singapore rules ran under GENERIC: {fired & SG_RULES}"
+    assert not fired & SG_RULES, f"Singapore rules ran under the MY pack: {fired & SG_RULES}"
     assert {r["rule_id"] for r in brief["jurisdiction"]["rules_not_applied"]} == SG_RULES
     # And the documents only Singapore defines are not treated as authority documents.
     cpf = next(f for f in brief["intake"]["files"] if f["kind"] == "CPF_RECORD")
@@ -659,20 +708,23 @@ def test_every_singapore_rule_runs_under_the_singapore_pack():
     assert cpf["author_class"] == "AUTHORITY"
 
 
-def test_a_malaysian_upload_gets_an_honest_notice_not_a_singapore_answer(client):
+def test_a_malaysian_upload_gets_its_own_pack_not_a_singapore_answer(client):
+    # T27 (deliberate, PLAN rule 26): replaces the "no Malaysia pack yet" GENERIC notice
+    # now that MY.yaml exists. The honest-notice path itself is pinned with Australia in
+    # test_an_australian_upload_still_gets_the_honest_no_pack_notice below; everything
+    # this test checks about Singapore law never reaching a Malaysian business stays.
     files = [("files", (f.filename, f.data, "application/pdf")) for f in _my_files()]
     r = client.post("/api/bundle", files=files,
                     data={"kinds": '["BASE_WORDING", "SCHEDULE"]'})
     assert r.status_code == 200, r.text
     body = r.json()
     j = body["brief"]["jurisdiction"]
-    assert (j["detected"], j["pack"], j["pack_available"]) == ("MY", "GENERIC", False)
-    assert "no Malaysia jurisdiction pack yet" in j["notice"]
-    assert body["intake"]["jurisdiction"]["notice"] == j["notice"]
+    assert (j["detected"], j["pack"], j["pack_available"]) == ("MY", "MY", True)
+    assert "no Malaysia jurisdiction pack yet" not in (j["notice"] or "")
     assert any(r["signal"] == "governing_law" and r["direction"] == "for"
                for r in j["reasons"])
-    assert any("Country-specific rules were not run" in n
-               for n in body["brief"]["not_searched"])
+    assert {r["rule_id"] for r in j["rules_not_applied"]} >= {
+        "WICA-HEADCOUNT-UNDERDECLARED", "WORKPASS-MEDICAL-BELOW-MINIMUM"}
     assert not any("CPF contribution record" in n for n in body["brief"]["not_searched"])
 
     # Nothing the owner reads states Singapore law or a Singapore figure.
@@ -703,11 +755,31 @@ def test_a_malaysian_upload_gets_an_honest_notice_not_a_singapore_answer(client)
         leaked = [w for w in singaporean if w in text]
         assert not leaked, f"{route} carries {leaked} for a Malaysian business"
     prefill = client.get("/api/onboarding").json()["identity_prefill"]
-    assert prefill["jurisdiction_pack"] == "GENERIC" and prefill["fields"] == []
+    assert prefill["jurisdiction_pack"] == "MY" and prefill["fields"] == []
     assert "no lookup was attempted" in prefill["status"]
 
 
+def test_an_australian_upload_still_gets_the_honest_no_pack_notice(client):
+    """The GENERIC behaviour the Malaysian upload test pinned before T27, kept."""
+    r = client.post("/api/bundle", files=[
+        ("files", ("au.pdf", pdfbuild.build_pdf([AU_WORDING_LINES]), "application/pdf"))],
+        data={"kinds": '["BASE_WORDING"]'})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    j = body["brief"]["jurisdiction"]
+    assert (j["detected"], j["pack"], j["pack_available"]) == ("AU", "GENERIC", False)
+    assert "no Australia jurisdiction pack yet" in j["notice"]
+    assert body["intake"]["jurisdiction"]["notice"] == j["notice"]
+    assert any("Country-specific rules were not run" in n
+               for n in body["brief"]["not_searched"])
+    brief_text = json.dumps(body["brief"]["findings"])
+    for word in ("Singapore", "S$", "WICA", "PDPA", "60-day"):
+        assert word not in brief_text, f"{word!r} reached an Australian brief"
+
+
 def test_consent_status_uses_the_case_document_class_under_generic(client):
+    # T27 (deliberate): the Malaysian bundle is read under MY now; the CPF record is still
+    # SELF there because only the Singapore pack lists it as an authority document.
     files = _my_files() + _example_files(["06-cpf-contribution-record.pdf"])
     response = client.post(
         "/api/bundle",
@@ -715,7 +787,7 @@ def test_consent_status_uses_the_case_document_class_under_generic(client):
         data={"kinds": '["BASE_WORDING", "SCHEDULE", "CPF_RECORD"]'},
     )
     assert response.status_code == 200, response.text
-    assert response.json()["brief"]["jurisdiction"]["pack"] == "GENERIC"
+    assert response.json()["brief"]["jurisdiction"]["pack"] == "MY"
     shareable = {entry["kind"]: entry for entry in
                  client.get("/api/consent/status").json()["shareable"]}
     assert shareable["CPF_RECORD"]["author_class"] == "SELF"
@@ -868,8 +940,9 @@ def test_the_regulators_name_appears_in_no_pack_but_singapores():
 
 def test_the_index_lists_packs_recognised_countries_and_the_detection_rule(client):
     body = client.get("/api/jurisdictions").json()
-    assert {p["code"] for p in body["packs"]} == {"GENERIC", "IN", "SG"}
-    assert {c["code"] for c in body["recognised_without_pack"]} == {"MY", "HK"}
+    # T27 (deliberate): HK and MY have packs; AU is recognised without one. T28 adds CN.
+    assert {p["code"] for p in body["packs"]} == {"CN", "GENERIC", "HK", "IN", "MY", "SG"}
+    assert {c["code"] for c in body["recognised_without_pack"]} == {"AU"}
     assert body["fallback"] == "GENERIC"
     weights = [s["weight"] for s in body["detection"]["signals"]]
     assert weights == sorted(weights, reverse=True)
@@ -894,9 +967,18 @@ def test_a_pack_is_served_with_every_entrys_verification_and_status(client):
 
 
 def test_a_recognised_country_without_a_pack_is_told_so(client):
-    r = client.get("/api/jurisdictions/MY")
+    # T27 (deliberate): Malaysia has a pack now, so the recognised-without-pack route is
+    # exercised with Australia, and the Malaysia and Hong Kong packs are served instead.
+    r = client.get("/api/jurisdictions/AU")
     assert r.status_code == 404
-    assert "no Malaysia jurisdiction pack yet" in r.json()["detail"]
+    assert "no Australia jurisdiction pack yet" in r.json()["detail"]
+    for code, currency in (("MY", "MYR"), ("HK", "HKD")):
+        body = client.get(f"/api/jurisdictions/{code}").json()
+        assert body["code"] == code and body["currency"]["code"] == currency
+        for section in ("regulators", "statutes", "compulsory_covers", "complaint_ladder",
+                        "market_conventions"):
+            for entry in body[section]:
+                assert entry["owner_facing"] is (entry["verification"]["status"] != "CANDIDATE")
 
 
 @pytest.mark.parametrize("code", ["XX", "signals", "..", "SG.yaml", "sg%2F..%2FGENERIC"])
@@ -908,10 +990,14 @@ def test_the_bundle_kinds_say_who_authors_each_kind_in_each_pack(client):
     kinds = {k["kind"]: k for k in client.get("/api/bundle/kinds").json()["kinds"]}
     assert kinds["CPF_RECORD"]["author_class"] == "SELF"
     assert "No jurisdiction is selected" in kinds["CPF_RECORD"]["author_class_context"]
+    # T27 (deliberate): the Hong Kong and Malaysia packs join the per-pack listing; T28
+    # (deliberate) adds the China pack, which also leaves the CPF record SELF-authored.
     assert kinds["CPF_RECORD"]["author_class_by_jurisdiction"] == \
-        {"GENERIC": "SELF", "IN": "SELF", "SG": "AUTHORITY"}
+        {"CN": "SELF", "GENERIC": "SELF", "HK": "SELF", "IN": "SELF", "MY": "SELF",
+         "SG": "AUTHORITY"}
     assert kinds["TENANCY"]["author_class_by_jurisdiction"] == \
-        {"GENERIC": "THIRD_PARTY", "IN": "THIRD_PARTY", "SG": "THIRD_PARTY"}
+        {"CN": "THIRD_PARTY", "GENERIC": "THIRD_PARTY", "HK": "THIRD_PARTY",
+         "IN": "THIRD_PARTY", "MY": "THIRD_PARTY", "SG": "THIRD_PARTY"}
 
 
 # ── the source checker ──────────────────────────────────────────────────────

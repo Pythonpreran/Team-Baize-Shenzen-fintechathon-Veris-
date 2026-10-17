@@ -94,9 +94,10 @@ SESSIONS = SessionStore()
 # local mode keeps the established offline test and demo ergonomics.
 _CSRF_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _HOSTED_PUBLIC_PATHS = frozenset({
-    "/", "/landing", "/login", "/api/health", "/api/auth/csrf",
+    "/", "/landing", "/login", "/sw.js", "/api/health", "/api/auth/csrf",
     "/api/auth/login", "/api/auth/signup", "/api/auth/me",
     "/api/jurisdictions", "/api/jurisdictions/SG", "/api/jurisdictions/IN",
+    "/api/jurisdictions/HK", "/api/jurisdictions/MY", "/api/jurisdictions/CN",
     "/api/jurisdictions/GENERIC",
 })
 _HOSTED_DOC_PATHS = frozenset({"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"})
@@ -271,8 +272,9 @@ def portfolio_overview(session: Session = Depends(_session)):
         # this session. This does not make a GET manufacture a demo case or retain its
         # findings.
         repo.wrap_sme_analysis(scope, state)
-    from . import health
-    return motor.enrich_portfolio(health.enrich_portfolio(repo.portfolio(scope)))
+    from . import health, home_travel
+    return home_travel.enrich_portfolio(
+        motor.enrich_portfolio(health.enrich_portfolio(repo.portfolio(scope))))
 
 
 @app.get("/api/household/members")
@@ -472,6 +474,291 @@ def load_household_example(session: Session = Depends(_session)):
         session.state["_household_example_case_id"] = state.get("case_id")
     return {"ok": True, "portfolio": portfolio}
 
+
+DEMO_RESET_CONFIRMATION = "RESET_SYNTHETIC_EXAMPLE"
+
+
+class DemoResetIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    confirm: str = Field(min_length=1, max_length=64)
+
+
+@app.post("/api/demo/reset")
+def demo_reset(body: DemoResetIn, session: Session = Depends(_session)):
+    """Return this tenant to an empty example state without touching owner material.
+
+    Hosted mode keeps the same rule as local mode, and that is the decision: the route is
+    reachable only by a signed-in owner (the hosted middleware also demands the CSRF
+    token), it resolves the tenant from that principal, and it can remove nothing but
+    the server-stamped synthetic example. An owner upload, including a claim photo, is
+    never deleted here: it is kept and reported, and only the step-up erase removes it.
+    """
+    if body.confirm != DEMO_RESET_CONFIRMATION:
+        raise HTTPException(422, "Confirm the reset of the synthetic example to continue.")
+    scope, principal = _agent_scope(session)
+    repository = _portfolio_repository()
+    claim_repository = _claims_repository()
+    # Every document or photo an owner attached to any claim is protected. A claim on the
+    # synthetic example is removed with the example, but what the owner uploaded to it is
+    # kept, encrypted, for the step-up erase: the reset cannot tell a sample from a real
+    # discharge summary, so it never deletes either.
+    protected = sorted({str(document_id) for claim in claim_repository.list(scope)
+                        for document_id in (claim.get("uploaded_document_ids") or [])})
+    example_documents = {}
+    for spec in household.DOCUMENTS:
+        path = HOUSEHOLD_EXAMPLE_DIR / spec.filename
+        if path.is_file():
+            example_documents[spec.filename] = hashlib.sha256(path.read_bytes()).hexdigest()
+    result = repository.remove_synthetic_example(
+        scope, seed_id=household.SEED_ID,
+        example_documents=example_documents,
+        example_members=[{"name": m.name, "relationship": m.relationship,
+                          "date_of_birth": m.date_of_birth} for m in household.MEMBERS],
+        example_assets=[{"kind": a.kind, "name": a.name} for a in household.ASSETS],
+        protected_document_ids=protected)
+    removed_claims = claim_repository.remove_synthetic_claims(scope, result["removed_policy_ids"])
+    store = _agent_store()
+    withdrawn = store.withdraw_pending_actions(
+        scope.tenant_id, claim_ids=removed_claims, policy_ids=result["removed_policy_ids"])
+    removed = {**result["removed"], "claims": len(removed_claims),
+               "pending_confirmations_withdrawn": withdrawn}
+    if any(removed.values()):
+        # The ledger is append-only by design: the reset is recorded, never rewritten.
+        store.append_ledger(
+            scope.tenant_id, kind="DEMO_RESET", actor=f"user:{principal.id}",
+            detail={"removed": removed, "synthetic_only": True})
+    with session.lock:
+        session.reset_case()
+    return {
+        "ok": True,
+        "removed": removed,
+        "households_kept_for_owner_records": result["households_released"],
+        "kept_owner_uploads": len(protected),
+        "kept_matching_documents": result["kept_matching_documents"],
+        "notice": ("Only the server-stamped synthetic example was removed from this tenant. "
+                   "Documents and photos you uploaded, mandates, the agent ledger and the "
+                   "synthetic counterparty's signed operation log were not changed; uploads "
+                   "are removed only by the step-up privacy erase."),
+    }
+
+
+# ── portfolio privacy and delegated-claim controls ──────────────────────────
+
+class PrivacyConsentIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    purpose: str = Field(min_length=1, max_length=240)
+    data_categories: list[str] = Field(min_length=1, max_length=16)
+    recipient: str = Field(min_length=1, max_length=240)
+    valid_from: str = Field(min_length=10, max_length=10)
+    valid_until: str = Field(min_length=10, max_length=10)
+    member_id: Optional[str] = Field(default=None, max_length=160)
+
+
+class PrivacyDelegateIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    member_id: str = Field(min_length=1, max_length=160)
+    delegate_id: str = Field(min_length=1, max_length=160)
+    scopes: list[str] = Field(min_length=1, max_length=12)
+    valid_from: str = Field(min_length=10, max_length=10)
+    valid_until: str = Field(min_length=10, max_length=10)
+
+
+class PrivacyRetentionIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    portfolio_days: int = Field(ge=1, le=3650)
+    claim_days: int = Field(ge=1, le=3650)
+    audit_days: int = Field(ge=1, le=3650)
+
+
+class PrivacyStepUpIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    password: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    totp_code: Optional[str] = Field(default=None, min_length=6, max_length=12)
+
+
+@app.get("/api/privacy/consents")
+def privacy_consents(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"consents": _portfolio_repository().list_privacy_consents(scope)}
+
+
+@app.post("/api/privacy/consents")
+def privacy_create_consent(body: PrivacyConsentIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"consent": _portfolio_repository().create_privacy_consent(scope, **body.model_dump())}
+
+
+@app.delete("/api/privacy/consents/{consent_id}")
+def privacy_revoke_consent(consent_id: str, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().revoke_privacy_consent(scope, consent_id)
+
+
+@app.get("/api/privacy/delegates")
+def privacy_delegate_grants(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"delegates": _portfolio_repository().list_delegate_grants(scope)}
+
+
+@app.post("/api/privacy/delegates")
+def privacy_create_delegate(body: PrivacyDelegateIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return {"delegate": _portfolio_repository().create_delegate_grant(scope, **body.model_dump())}
+
+
+@app.delete("/api/privacy/delegates/{grant_id}")
+def privacy_revoke_delegate(grant_id: str, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().revoke_delegate_grant(scope, grant_id)
+
+
+@app.get("/api/privacy/retention")
+def privacy_retention(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().retention_settings(scope)
+
+
+@app.put("/api/privacy/retention")
+def privacy_set_retention(body: PrivacyRetentionIn, session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().set_retention_settings(scope, **body.model_dump())
+
+
+@app.get("/api/privacy/notices")
+def privacy_notices(session: Session = Depends(_session)):
+    from . import privacy
+
+    with session.lock:
+        scope = _portfolio_scope(session)
+    countries = [policy.get("country") for policy in _portfolio_repository().list_policies(scope)]
+    return {"notices": privacy.notices(countries),
+            "notice": "Country-specific legal statements are withheld unless their pack entry is source-quoted or human-verified."}
+
+
+@app.get("/api/privacy/export")
+def privacy_export(session: Session = Depends(_session)):
+    with session.lock:
+        scope = _portfolio_scope(session)
+    return _portfolio_repository().export_portfolio_data(scope)
+
+
+@app.post("/api/privacy/erase")
+def privacy_erase(body: PrivacyStepUpIn, session: Session = Depends(_session)):
+    """Crypto-shred only after the signed-in owner re-authenticates or supplies enrolled TOTP."""
+    with session.lock:
+        scope = _portfolio_scope(session)
+        principal = _require_role(session, auth.SME)
+    store = _agent_store()
+    if not _agent_step_up(store, principal, body):
+        raise HTTPException(403, "Step-up authentication is required before local tenant crypto-shredding.")
+    return _portfolio_repository().crypto_shred(scope)
+
+
+class DelegatePacketIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    document_ids: list[str] = Field(min_length=1, max_length=32)
+
+
+def _delegate_scope(session: Session) -> tuple[persistence.TenantScope, auth.Principal]:
+    """Resolve a delegate only inside its owner-created shared local tenant."""
+    with session.lock:
+        principal = _require_role(session, auth.DELEGATE)
+    return persistence.TenantScope(
+        tenant_id=principal.organisation_id, user_id=principal.id,
+        user_name=principal.name, user_email=principal.email, role=auth.SME), principal
+
+
+def _delegate_claim_context(session: Session, claim_id: str, required_scope: str
+                            ) -> tuple[persistence.TenantScope, auth.Principal, dict, dict]:
+    """Fail closed unless exactly one insured adult member granted this delegate scope."""
+    scope, principal = _delegate_scope(session)
+    claim = _claims_repository().get(scope, claim_id)
+    policy = _portfolio_repository().get_policy(scope, claim["policy_id"])
+    members = policy.get("insured_member_ids") if isinstance(policy.get("insured_member_ids"), list) else []
+    # Older multi-member claim records do not identify the claimant. Do not infer one
+    # from a shared schedule merely to make delegation convenient.
+    if len(members) != 1 or not _portfolio_repository().delegate_allowed(
+            scope, delegate_id=principal.id, member_id=str(members[0]), required_scope=required_scope):
+        raise HTTPException(403, "This delegate has no live, member-scoped grant for that claim action.")
+    return scope, principal, claim, policy
+
+
+@app.get("/api/delegate/claims")
+def delegate_claims(session: Session = Depends(_session)):
+    scope, principal = _delegate_scope(session)
+    repository = _portfolio_repository()
+    visible = []
+    for claim in _claims_repository().list(scope):
+        try:
+            policy = repository.get_policy(scope, claim["policy_id"])
+        except persistence.PortfolioError:
+            continue
+        members = policy.get("insured_member_ids") if isinstance(policy.get("insured_member_ids"), list) else []
+        if len(members) != 1 or not repository.delegate_allowed(
+                scope, delegate_id=principal.id, member_id=str(members[0]), required_scope="claims:read"):
+            continue
+        visible.append({
+            "id": claim["id"], "policy_id": claim["policy_id"], "state": claim["state"],
+            "line_of_business": claim.get("line_of_business"), "created_at": claim.get("created_at"),
+            "synthetic": bool(claim.get("synthetic")),
+        })
+    return {"claims": visible, "count": len(visible),
+            "notice": "Only claims for one explicitly consented member are visible to this time-limited delegate."}
+
+
+@app.get("/api/delegate/claims/{claim_id}")
+def delegate_claim_detail(claim_id: str, session: Session = Depends(_session)):
+    _scope, _principal, claim, _policy = _delegate_claim_context(session, claim_id, "claims:read")
+    return {"claim": claim,
+            "notice": "This is a delegated read under a live member-scoped claim grant; it cannot submit or decide a claim."}
+
+
+@app.post("/api/delegate/claims/{claim_id}/packet")
+def delegate_claim_packet(claim_id: str, body: DelegatePacketIn,
+                          session: Session = Depends(_session)):
+    scope, _principal, claim, policy = _delegate_claim_context(session, claim_id, "claims:manage")
+    allowed_ids = set(policy.get("source_document_ids") or []) | set(claim.get("uploaded_document_ids") or [])
+    requested_ids = set(body.document_ids)
+    if not requested_ids <= allowed_ids:
+        raise HTTPException(403, "A delegate may use only this claim's existing policy and uploaded documents.")
+    documents = [_portfolio_repository().get_document(scope, document_id) for document_id in body.document_ids]
+    packet = _claims_repository().packet(scope, claim_id, documents)
+    return {"claim_id": claim_id, "packet": packet,
+            "notice": "The delegate prepared a local packet only. Submission remains an owner-confirmed tier-2 action."}
+
+
+@app.post("/api/delegate/claims/{claim_id}/ready")
+def delegate_claim_ready(claim_id: str, session: Session = Depends(_session)):
+    scope, principal, claim, _policy = _delegate_claim_context(session, claim_id, "claims:manage")
+    packet = claim.get("packet") if isinstance(claim.get("packet"), Mapping) else None
+    if (claim["state"] != "DRAFTING" or not claim.get("packet_manifest_sha256") or packet is None
+            or packet.get("checklist_complete") is not True):
+        raise HTTPException(409, "A verified, checklist-complete draft packet is required before delegate preparation can mark it ready.")
+    ready = _claims_repository().transition(
+        scope, claim_id, to_state="READY", actor="DELEGATE",
+        note=f"Prepared locally by delegated principal {principal.id}; external submission still needs owner confirmation.")
+    return {"claim": ready,
+            "notice": "Delegate preparation is reversible inside VERIS. It cannot submit or decide a claim."}
 
 
 # ── deterministic agent runtime ─────────────────────────────────────────────
@@ -764,6 +1051,8 @@ def sandbox_webhook(body: SandboxWebhookIn):
     local = _claims_repository().by_sandbox_claim(tenant_id, sandbox_claim_id)
     transitions = {
         "CLAIM_ACKNOWLEDGED": "ACKNOWLEDGED",
+        "MOTOR_SURVEYOR_REQUIRED": "SURVEYOR_REQUIRED",
+        "MOTOR_SURVEY_COMPLETED": "UNDER_ASSESSMENT",
         "CLAIM_QUERY_OPEN": "QUERY_OPEN",
         "CLAIM_DECIDED": "DECIDED",
         "SETTLEMENT_CORRECTED": "SETTLED",
@@ -873,12 +1162,22 @@ async def claim_upload_documents(claim_id: str, files: list[UploadFile] = File(.
         raise HTTPException(422, "Upload between one and eight claim documents or photos.")
     if len(kinds) != len(files):
         raise HTTPException(422, "Choose one checklist document type for each uploaded file.")
-    allowed_kinds = {"HOSPITAL_DISCHARGE_SUMMARY", "HOSPITAL_BILL"}
+    allowed_kinds = (
+        {"HOSPITAL_DISCHARGE_SUMMARY", "HOSPITAL_BILL"}
+        if str(claim.get("line_of_business") or "").upper() == "HEALTH"
+        else {"RC", "SUPPLIER_INVOICE", "FIR", "SELF_DECLARATION"}
+        if str(claim.get("line_of_business") or "").upper() == "MOTOR"
+        else set()
+    )
+    if not allowed_kinds:
+        raise HTTPException(422, "This claim path has no configured upload document kinds.")
     stored = []
     for upload, supplied_kind in zip(files, kinds):
         kind = str(supplied_kind or "").upper()
         if kind not in allowed_kinds:
-            raise HTTPException(422, "Claim uploads must be labelled as a hospital discharge summary or itemised bill.")
+            raise HTTPException(
+                422,
+                "Claim uploads must use a configured checklist document type for this implemented claim path.")
         blob = await upload.read(2_000_001)
         if len(blob) > 2_000_000:
             raise HTTPException(413, "A claim document or photo exceeds the 2 MB local demo limit.")
@@ -1074,8 +1373,9 @@ class ProtectionEventIn(BaseModel):
 
 
 def _mapped_portfolio(scope: persistence.TenantScope) -> dict:
-    from . import health
-    return motor.enrich_portfolio(health.enrich_portfolio(_portfolio_repository().portfolio(scope)))
+    from . import health, home_travel
+    return home_travel.enrich_portfolio(
+        motor.enrich_portfolio(health.enrich_portfolio(_portfolio_repository().portfolio(scope))))
 
 
 @app.get("/api/protection-map")
@@ -3182,6 +3482,41 @@ def renewal_compare(session: Session = Depends(_session)):
                            "existing precedence rules, not a new coverage verdict."),
             }
         return result
+
+
+# ── tenant renewal calendar and owner-held comparison ───────────────────────
+
+class RenewalDocumentsIn(BaseModel):
+    class Config:
+        extra = "forbid"
+
+    prior_document_id: str = Field(min_length=1, max_length=160)
+    current_document_id: str = Field(min_length=1, max_length=160)
+
+
+@app.get("/api/renewals")
+def tenant_renewal_calendar(session: Session = Depends(_session)):
+    """Read renewal dates and sourced countdowns without initiating a payment."""
+    from datetime import date
+    from . import renewals
+
+    scope, _principal = _agent_scope(session)
+    return renewals.calendar(_mapped_portfolio(scope), as_of=date.today())
+
+
+@app.post("/api/renewals/compare")
+def tenant_renewal_compare(body: RenewalDocumentsIn, session: Session = Depends(_session)):
+    """Diff exactly two tenant-owned policy documents with deterministic evidence links."""
+    from . import renewals
+
+    scope, _principal = _agent_scope(session)
+    repository = _portfolio_repository()
+    prior = repository.get_document(scope, body.prior_document_id)
+    current = repository.get_document(scope, body.current_document_id)
+    try:
+        return renewals.compare_documents(prior, current)
+    except (ValueError, ProvenError) as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 # ── claim scenario simulator — what happens if you claim tomorrow ────────────
@@ -6764,6 +7099,21 @@ def reviewer_entry():
     if not page.is_file():
         raise HTTPException(404, "web/reviewer.html not found")
     return FileResponse(str(page))
+
+
+@app.get("/sw.js")
+def shell_service_worker():
+    """The installable app's service worker, served from the root so it may control /app.
+
+    A worker served under /static/ could only control /static/. The script itself is a
+    public static file: it caches the application shell only, never an /api/ response and
+    never a navigation, so serving it before sign-in discloses nothing.
+    """
+    worker = WEB_DIR / "sw.js"
+    if not worker.is_file():
+        raise HTTPException(404, "web/sw.js not found")
+    return FileResponse(str(worker), media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/entrypoints")

@@ -34,7 +34,7 @@ from typing import Any, Optional
 
 from . import detect, jurisdiction
 from .ingest import DocStore, LoadedDoc
-from .lang import date_parser_for, money_parser_for
+from .lang import DOLLAR_SIGN_CURRENCIES, date_parser_for, money_parser_for
 
 STRUCTURED = "STRUCTURED"
 PDF_TEXT = "PDF_TEXT"
@@ -162,6 +162,11 @@ def find_money_with_currency(pages: list[str], labels: tuple[str, ...],
                 if len(candidates) == 1:
                     candidate = candidates[0]
                     unit = candidate.currency or (parser.currency if parser else None)
+                    # A bare "$" is the pack's own dollar under a dollar-currency pack
+                    # (Hong Kong); everywhere else it keeps its legacy SGD reading.
+                    if (getattr(candidate, "dollar_sign_only", False) and parser
+                            and parser.currency in DOLLAR_SIGN_CURRENCIES):
+                        unit = parser.currency
                     if unit is not None:
                         end = len(label) + candidate.end
                         return (candidate.amount, _verbatim(segment, end), page_no, unit)

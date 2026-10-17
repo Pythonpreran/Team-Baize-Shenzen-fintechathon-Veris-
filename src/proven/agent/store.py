@@ -402,6 +402,32 @@ class AgentStore:
             "consumed_at": row["consumed_at"],
         }
 
+    def withdraw_pending_actions(self, tenant_id: str, *, claim_ids: Sequence[str] = (),
+                                 policy_ids: Sequence[str] = ()) -> int:
+        """Close unconfirmed actions that name a claim or policy the demo reset removed.
+
+        The row is marked consumed rather than deleted, so a later confirmation attempt is
+        refused as already used and the confirmation history stays countable. Only this
+        tenant's rows are read, and only an exact claim or policy id match is withdrawn.
+        """
+        claims, policies = {str(v) for v in claim_ids if str(v)}, {str(v) for v in policy_ids if str(v)}
+        if not claims and not policies:
+            return 0
+        withdrawn = 0
+        now = _now()
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT id, payload_encrypted FROM agent_pending_action "
+                "WHERE tenant_id=? AND consumed_at IS NULL", (tenant_id,)).fetchall()
+            for row in rows:
+                payload = self._open(tenant_id, f"pending-payload:{row['id']}", bytes(row["payload_encrypted"]))
+                if (str(payload.get("claim_id") or "") in claims
+                        or str(payload.get("policy_id") or "") in policies):
+                    withdrawn += conn.execute(
+                        "UPDATE agent_pending_action SET consumed_at=? WHERE id=? AND tenant_id=? "
+                        "AND consumed_at IS NULL", (now, row["id"], tenant_id)).rowcount
+        return withdrawn
+
     def consume_pending_action(self, tenant_id: str, action_id: str, payload_hash: str) -> dict[str, Any]:
         current = self.pending_action(tenant_id, action_id)
         if current["consumed_at"] is not None:

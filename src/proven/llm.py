@@ -22,7 +22,8 @@ from hashlib import sha256
 from typing import Any, Mapping, Optional, Sequence
 
 from . import redact, security
-from .lang.lexicons import en as english_lexicon
+from .lang import CJK, detect_script, lexicons
+from .lang.chinese import chinese_numeral_value
 
 
 @dataclass(frozen=True)
@@ -593,6 +594,29 @@ def clear_runtime_state() -> None:
         _GLOBAL_USAGE = 0
 
 
+#: Providers reachable from mainland China. Only these profiles receive Chinese system
+#: prompts (T28); every other profile keeps the English prompt it was evaluated with.
+CHINESE_PROMPT_PROFILES = frozenset({"deepseek", "qwen"})
+
+
+def prompt_language(text: object = "", *, locale: Optional[str] = None) -> str:
+    """`"zh"` when the active profile is deepseek or qwen AND the owner wrote in Chinese or
+    chose the zh-CN interface; otherwise `"en"`. Only script detection runs on `text`: it
+    is never logged or sent anywhere by this function."""
+    if settings().profile.name not in CHINESE_PROMPT_PROFILES:
+        return "en"
+    if (locale or "").lower().startswith("zh"):
+        return "zh"
+    return "zh" if detect_script(str(text or "")) == CJK else "en"
+
+
+def localised_system(english: str, chinese: str, *, text: object = "",
+                     locale: Optional[str] = None) -> str:
+    """The system prompt in the language `prompt_language` selects. Both versions carry
+    the same constraints; the grounding gates apply every language's lexicon either way."""
+    return chinese if prompt_language(text, locale=locale) == "zh" else english
+
+
 def untrusted_document(source_name: object, text: object) -> str:
     """Delimit document bytes as data, never as executable instructions."""
     source = " ".join(str(source_name or "document").split())[:240]
@@ -784,6 +808,14 @@ _DATE_RE = re.compile(
     r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})\b",
     re.IGNORECASE)
 _DOCUMENT_WORDS = re.compile(r"\b(policy|wording|document|schedule|clause|page)\b", re.IGNORECASE)
+# The Chinese counterparts: a statement about what a policy, clause or page says needs a
+# citation in either language.
+_ZH_DOCUMENT_WORDS = re.compile(r"保单|保险单|条款|保险合同|第[^\s，。]{1,6}[条款项页]")
+_ZH_DIGITS = "零〇○一壹二贰貳两兩三叁參四肆五伍六陆陸七柒八捌九玖"
+_ZH_UNITS = "十拾百佰千仟万萬亿億"
+_ZH_NUMBER_RE = re.compile(
+    rf"[{_ZH_DIGITS}{_ZH_UNITS}]*[{_ZH_UNITS}][{_ZH_DIGITS}{_ZH_UNITS}]*"
+    rf"|[{_ZH_DIGITS}]+(?=[元圆天日月年岁周倍次个%])")
 
 
 def _normalise_number(value: str) -> Optional[str]:
@@ -813,6 +845,23 @@ def _flatten(value: object) -> list[str]:
     return [str(value)] if value is not None else []
 
 
+def _chinese_numbers(text: str) -> list[str]:
+    """Normalised values of the Chinese numerals in `text` (三十日 -> "30").
+
+    Arabic digits are already caught by `_NUMBER_RE`; without this a model could put an
+    unsupported figure on screen simply by writing it in Chinese characters. A lone digit
+    character counts only before a measure word, so 一定 ("certainly") is not the number 1;
+    any run with a unit character counts, which can reject a harmless phrase — the safe
+    direction, because a rejection falls back to the deterministic answer.
+    """
+    out: list[str] = []
+    for match in _ZH_NUMBER_RE.findall(text or ""):
+        value = chinese_numeral_value(match)
+        if value is not None:
+            out.append(format(Decimal(value).normalize(), "f"))
+    return out
+
+
 def _tokens_in_evidence(evidence: object) -> tuple[set[str], set[str]]:
     numbers: set[str] = set()
     dates: set[str] = set()
@@ -821,6 +870,7 @@ def _tokens_in_evidence(evidence: object) -> tuple[set[str], set[str]]:
             normalized = _normalise_number(match)
             if normalized is not None:
                 numbers.add(normalized)
+        numbers.update(_chinese_numbers(part))
         dates.update(_normalise_date(match) for match in _DATE_RE.findall(part))
     return numbers, dates
 
@@ -835,13 +885,14 @@ def guard_user_visible(text: object, evidence: object, *, citations: Sequence[ob
     it never relaxes the outcome, advice or citation gates.
     """
     value = str(text or "")
-    if english_lexicon.OUTCOME_PATTERN.search(value):
+    # Every language's lexicon, whatever language the question was asked in (T28).
+    if lexicons.OUTCOME_GUARD.search(value):
         return False, "Model output asserted an insurance outcome."
-    if english_lexicon.ADVICE_PATTERN.search(value):
+    if lexicons.ADVICE_GUARD.search(value):
         return False, "Model output gave prohibited product advice."
     if require_citations and not citations:
         return False, "Model output lacked the required evidence citation."
-    if _DOCUMENT_WORDS.search(value) and not citations:
+    if (_DOCUMENT_WORDS.search(value) or _ZH_DOCUMENT_WORDS.search(value)) and not citations:
         return False, "A statement about a document lacked a citation."
 
     grounding_evidence = (evidence, trusted_evidence) if trusted_evidence is not None else evidence
@@ -851,6 +902,9 @@ def guard_user_visible(text: object, evidence: object, *, citations: Sequence[ob
         normalized = _normalise_number(match)
         if normalized is None or normalized not in allowed_numbers:
             return False, f"Model output introduced unsupported number {match}."
+    for normalized in _chinese_numbers(without_redaction_tokens):
+        if normalized not in allowed_numbers:
+            return False, f"Model output introduced unsupported number {normalized}."
     for match in _DATE_RE.findall(without_redaction_tokens):
         if _normalise_date(match) not in allowed_dates:
             return False, f"Model output introduced unsupported date {match}."

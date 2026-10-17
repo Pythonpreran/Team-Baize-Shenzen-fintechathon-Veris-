@@ -5,6 +5,26 @@ It inventories verification provenance; it is not legal advice or a statement th
 
 | Country | Rule | Status | Primary source | Retrieved |
 | --- | --- | --- | --- | --- |
+| CN | `CN-AB-INSURANCE-ADVICE` — Insurance advice boundary | CANDIDATE | — | — |
+| CN | `CN-CL-INSURER` — Insurer complaint | CANDIDATE | — | — |
+| CN | `CN-CL-NFRA-HOTLINE` — Banking and insurance consumer complaint hotline (12378) | SOURCE_QUOTED | [source](https://www.nfra.gov.cn/cn/view/pages/index/index.html) | 2026-10-11 |
+| CN | `CN-COMP-MOTOR-CTALI` — Compulsory motor traffic accident liability insurance (交强险) | CANDIDATE | — | — |
+| CN | `CN-DP-PIPL` — Personal Information Protection Law (个人信息保护法), Article 29 | CANDIDATE | — | 2026-10-11 |
+| CN | `CN-REG-NFRA` — National Financial Regulatory Administration (国家金融监督管理总局) | CANDIDATE | [source](https://www.nfra.gov.cn/cn/view/pages/index/index.html) | 2026-10-11 |
+| CN | `CN-STAT-CTALI` — Regulation on Compulsory Traffic Accident Liability Insurance for Motor Vehicles (机动车交通事故责任强制保险条例) | CANDIDATE | — | 2026-10-11 |
+| CN | `CN-STAT-INSURANCE-LAW` — Insurance Law of the People's Republic of China, Article 26 | CANDIDATE | — | 2026-10-11 |
+| CN | `CN-STAT-PIPL-SENSITIVE` — Personal Information Protection Law, Article 28 | CANDIDATE | — | 2026-10-11 |
+| CN | `CN-TL-CLAIM-DETERMINATION` — Insurance Law, Article 23 — claim determination | CANDIDATE | — | 2026-10-11 |
+| HK | `HK-AB-INSURANCE-ADVICE` — Insurance advice boundary | CANDIDATE | — | — |
+| HK | `HK-CL-INDEPENDENT-BODY` — Independent insurance complaint body | CANDIDATE | — | — |
+| HK | `HK-CL-INSURER` — Insurer complaint | CANDIDATE | — | — |
+| HK | `HK-COMP-EMPLOYEES-COMPENSATION` — Employees' compensation insurance | CANDIDATE | — | — |
+| HK | `HK-COMP-MOTOR-THIRD-PARTY` — Motor third-party insurance | CANDIDATE | — | — |
+| HK | `HK-DP-PDPO` — Personal Data (Privacy) Ordinance (Cap. 486) | CANDIDATE | [source](https://www.elegislation.gov.hk/hk/cap486) | 2026-10-11 |
+| HK | `HK-MC-VHIS-STANDARD-PLAN` — Voluntary Health Insurance Scheme Standard Plan | SOURCE_QUOTED | [source](https://www.vhis.gov.hk/doc/en/information_centre/e_standard_plan_template_20220701.pdf) | 2026-10-11 |
+| HK | `HK-REG-IA` — Insurance Authority | CANDIDATE | — | — |
+| HK | `HK-STAT-ECO-CAP282` — Employees' Compensation Ordinance (Cap. 282) | CANDIDATE | [source](https://www.elegislation.gov.hk/hk/cap282) | 2026-10-11 |
+| HK | `HK-STAT-MVITPR-CAP272` — Motor Vehicles Insurance (Third Party Risks) Ordinance (Cap. 272) | CANDIDATE | [source](https://www.elegislation.gov.hk/hk/cap272) | 2026-10-11 |
 | IN | `IN-AB-INSURANCE-ADVICE` — Insurance advice boundary | CANDIDATE | — | — |
 | IN | `IN-CL-BIMA-BHAROSA` — Bima Bharosa | SOURCE_QUOTED | [source](https://bimabharosa.irdai.gov.in/Home/UserManualDocumentDownload) | 2026-10-11 |
 | IN | `IN-CL-CONSUMER-COMMISSION` — Consumer commission | CANDIDATE | — | — |
@@ -23,6 +43,14 @@ It inventories verification provenance; it is not legal advice or a statement th
 | IN | `IN-TL-GRACE` — Grace period | CANDIDATE | — | — |
 | IN | `IN-TL-MORATORIUM` — Moratorium period | CANDIDATE | — | — |
 | IN | `IN-TL-PED-WAITING` — Pre-existing disease waiting-period cap | CANDIDATE | — | — |
+| MY | `MY-AB-INSURANCE-ADVICE` — Insurance advice boundary | CANDIDATE | — | — |
+| MY | `MY-CL-FINANCIAL-OMBUDSMAN` — Financial ombudsman (ofs.org.my) | SOURCE_QUOTED | [source](https://www.ofs.org.my/) | 2026-10-11 |
+| MY | `MY-CL-INSURER` — Insurer complaint | CANDIDATE | — | — |
+| MY | `MY-COMP-MOTOR-THIRD-PARTY` — Motor third-party insurance | CANDIDATE | — | — |
+| MY | `MY-DP-PDPA` — Personal Data Protection Act 2010 | CANDIDATE | — | — |
+| MY | `MY-REG-BNM` — Bank Negara Malaysia | CANDIDATE | — | — |
+| MY | `MY-STAT-FSA-2013` — Financial Services Act 2013 | CANDIDATE | — | — |
+| MY | `MY-STAT-RTA-1987` — Road Transport Act 1987 (Act 333), Part IV | CANDIDATE | [source](https://ppj.gov.my/storage/7472/Act-333---Road-Transport-Act-1987.pdf) | 2026-10-11 |
 | SG | `SG-AB-FINANCIAL-ADVISERS` — Financial Advisers Act 2001 | CANDIDATE | [source](https://sso.agc.gov.sg/Act/FAA2001) | — |
 | SG | `SG-CL-FIDREC` — Financial Industry Disputes Resolution Centre (FIDReC) | SOURCE_QUOTED | [source](https://www.fidrec.com.sg/) | 2026-10-10 |
 | SG | `SG-CL-INSURER` — The insurer's own complaints process | CANDIDATE | — | — |

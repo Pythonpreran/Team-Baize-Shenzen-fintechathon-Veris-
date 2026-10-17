@@ -136,6 +136,30 @@ def _resolve_tesseract_cmd() -> Optional[str]:
     return None
 
 
+#: Tesseract's simplified-Chinese language pack.
+CHINESE_SIMPLIFIED = "chi_sim"
+
+
+def parse_language_list(output: str) -> tuple[str, ...]:
+    """Language codes from `tesseract --list-langs` output (its header line dropped)."""
+    codes = set()
+    for line in (output or "").splitlines():
+        token = line.strip()
+        if token and " " not in token and not token.lower().startswith("list"):
+            codes.add(token)
+    return tuple(sorted(codes))
+
+
+def _list_languages(cmd: str) -> tuple[str, ...]:
+    import subprocess
+    try:
+        done = subprocess.run([cmd, "--list-langs"], capture_output=True, text=True,
+                              timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    return parse_language_list((done.stdout or "") + "\n" + (done.stderr or ""))
+
+
 class TesseractOCRProvider:
     """Local, offline OCR via Tesseract. No document leaves the process."""
 
@@ -146,6 +170,7 @@ class TesseractOCRProvider:
         self.lang = lang or ocr_lang()
         self._cmd = _resolve_tesseract_cmd()
         self._version: Optional[str] = None
+        self._languages: Optional[tuple[str, ...]] = None
 
     def available(self) -> bool:
         if importlib.util.find_spec("pytesseract") is None:
@@ -166,6 +191,15 @@ class TesseractOCRProvider:
         if self._version is None:
             self.available()
         return f"tesseract {self._version}" if self._version else "tesseract (unknown)"
+
+    def languages(self) -> tuple[str, ...]:
+        """The language packs the installed binary reports — asked, never assumed (T28).
+
+        `chi_sim` is optional: the deployment image installs it, a developer machine may
+        not, and nothing claims Chinese OCR unless the binary lists it."""
+        if self._languages is None:
+            self._languages = (_list_languages(self._cmd) if self._cmd else ())
+        return self._languages
 
     def _configure(self) -> None:
         import pytesseract
@@ -515,12 +549,17 @@ def status() -> dict:
     p = default_provider()
     mode = ocr_mode()
     runnable = mode != OCR_OFF and p.available()
+    # Detection, not assertion: a language is reported only if the engine lists it.
+    languages = list(p.languages()) if runnable and hasattr(p, "languages") else []
     return {
         "provider": p.name,
         "local": True,
         "mode": mode,
         "available": runnable,
         "version": p.version() if runnable else None,
+        "configured_language": ocr_lang(),
+        "languages": languages,
+        "chinese_simplified": CHINESE_SIMPLIFIED in languages,
         "supported_inputs": (["image/png", "image/jpeg", "image/tiff", "image/bmp",
                               "image-only PDF (embedded raster)"] if runnable else []),
         "rasteriser": pdfrender.RENDERER if rasteriser_available() else None,

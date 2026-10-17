@@ -242,3 +242,128 @@ documents:
         cite: intensive-care daily limit
       - mechanism: HEALTH.SG.PRO_RATION
         cite: higher-ward pro-ration clause
+
+  # ── Home and travel public wordings, structurally mapped for T26. ────────
+  # Read by the team for the mechanisms listed. Every mechanism that binds in these
+  # wordings is listed, including the two SME mechanisms the home wording genuinely
+  # contains, so an unexpected binding still counts as a false positive.
+  - carrier: AIG_HOME
+    corpus_id: sg-aig-homes-advantage-wording
+    jurisdiction: SG
+    read_depth: TARGETED_HOME_TERMS
+    expect:
+      - mechanism: HOME.COVERED.CONTENTS
+        cite: Household Contents insuring clause, p.2
+      - mechanism: HOME.LIMIT.SINGLE_ARTICLE
+        cite: no more than $10,000 per article unless itemised, p.2
+        values:
+          amount: '10,000'
+      - mechanism: HOME.ADEQ.INSURANCE_TO_VALUE
+        cite: Insurance to Value condition, p.6
+      - mechanism: HOME.CONDITION.SETTLEMENT_BASIS
+        cite: Basis of Settlement, repair or replacement as new, p.7
+      - mechanism: HOME.EXCL.THEFT_FORCIBLE_ENTRY
+        cite: theft by violent and forcible entry peril, p.1
+        values:
+          days: '60'
+      - mechanism: COND.UNOCCUPANCY
+        cite: unoccupied for more than 60 consecutive days, p.1
+        values:
+          days: '60'
+      - mechanism: HOME.DEADLINE.CLAIM_NOTICE
+        cite: written notice no later than seven (7) days, p.6
+        values:
+          days: '7'
+      - mechanism: HOME.CONDITION.POLICE_REPORT
+        cite: police report in the case of theft, p.6
+      - mechanism: COND.PREMIUM_PAYMENT_WARRANTY
+        cite: Premium Payment Warranty (corporate policyholders), p.8
+      - mechanism: COND.DECLARATION_CLAUSE_GENERAL
+        cite: Compliance with Policy Provisions, conditions precedent, p.9
+
+  - carrier: HDFC_ERGO_BGR
+    corpus_id: in-hdfc-ergo-bharat-griha-raksha-wording
+    jurisdiction: IN
+    read_depth: TARGETED_HOME_TERMS
+    expect:
+      - mechanism: HOME.IN.BASIS.COST_OF_CONSTRUCTION
+        cite: building sum insured is the prevailing cost of construction, p.4
+      - mechanism: HOME.COVERED.CONTENTS
+        cite: general contents insuring clause, p.5
+      - mechanism: HOME.IN.CONTENTS.BUILT_IN
+        cite: built-in contents cover of 20% of the building sum insured, p.5
+        values:
+          percent: '20'
+          maximum_lakh: '10'
+      - mechanism: HOME.IN.THEFT.AFTER_INSURED_EVENT
+        cite: theft within 7 days of an insured event, p.4
+        values:
+          days: '7'
+      - mechanism: HOME.IN.DEADLINE.IMMEDIATE_NOTICE
+        cite: immediate notice of loss or damage, p.8
+      - mechanism: HOME.IN.WAIVER.UNDERINSURANCE
+        cite: Waiver of Underinsurance, p.9
+    expect_absent:
+      - mechanism: COND.UNOCCUPANCY
+        cite: this standard wording states no unoccupancy trigger
+      - mechanism: HOME.EXCL.THEFT_FORCIBLE_ENTRY
+        cite: theft is tied to an insured event, not to forcible entry
+
+  - carrier: AIG_TRAVEL
+    corpus_id: sg-aig-travel-guard-direct-wording
+    jurisdiction: SG
+    read_depth: TARGETED_TRAVEL_TERMS
+    expect:
+      - mechanism: TRAVEL.COVERED.CANCELLATION
+        cite: cancellation of your trip (pre-departure), p.14
+      - mechanism: TRAVEL.COVERED.OVERSEAS_MEDICAL
+        cite: overseas medical expenses within ninety (90) days, p.16
+        values:
+          days: '90'
+      - mechanism: TRAVEL.CONDITION.BAGGAGE_DELAY
+        cite: baggage delayed for more than six (6) continuous hours, p.22
+        values:
+          hours: '6'
+      - mechanism: TRAVEL.CONDITION.CARRIER_REPORT
+        cite: property irregularity report for airline loss or damage, p.46
+      - mechanism: TRAVEL.EXCLUSION.EXISTING_CONDITION
+        cite: this Policy does not cover any existing health conditions, p.11
+      - mechanism: TRAVEL.DEADLINE.CLAIM_NOTICE
+        cite: claim documents no later than thirty (30) days, p.46
+        values:
+          days: '30'
+
+  # ── Hong Kong government Standard Plan template (T27). ───────────────────
+  - carrier: VHIS_TEMPLATE
+    corpus_id: hk-vhis-standard-plan-template
+    jurisdiction: HK
+    read_depth: TARGETED_HEALTH_TERMS
+    expect:
+      - mechanism: HEALTH.HK.GUARANTEED_RENEWAL
+        cite: guaranteed renewal rights up to the age of 100, p.1
+        values:
+          age: '100'
+      - mechanism: HEALTH.HK.NO_LIFETIME_LIMIT
+        cite: no lifetime benefit limit, p.1
+      - mechanism: HEALTH.HK.UNKNOWN_PRE_EXISTING
+        cite: unknown pre-existing conditions, stepped reimbursement, p.31
+        values:
+          second_year_percent: '25'
+      - mechanism: HEALTH.HK.ROOM_AND_BOARD
+        cite: room and board $750 per day, maximum 180 days, p.46
+        values:
+          amount: '750'
+          days: '180'
+      - mechanism: HEALTH.HK.ANNUAL_LIMIT
+        cite: annual benefit limit $420,000 per policy year, p.46
+        values:
+          amount: '420,000'
+
+  # ── The GENERIC showcase: a third country with no pack (T27). ────────────
+  - carrier: AIG_AU_TRAVEL
+    corpus_id: au-aig-travel-insurance-pds
+    jurisdiction: AU
+    read_depth: TARGETED_TRAVEL_TERMS
+    expect:
+      - mechanism: TRAVEL.EXCLUSION.EXISTING_CONDITION
+        cite: pre-existing medical conditions are not covered, p.5

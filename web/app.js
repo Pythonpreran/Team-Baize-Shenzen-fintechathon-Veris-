@@ -43,12 +43,59 @@ const esc = v => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").re
 const pct = v => v == null ? "—" : String(v).includes("%") ? v : v + "%";
 const titleCase = s => String(s || "").toLowerCase().split(/[_\s]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 
-const I18N = { en: {} };
+/* Simplified Chinese (T28) covers the OWNER's screens only: portfolio, protection map,
+ * Ask VERIS, claims and their shared pieces. Adviser, insurer and reviewer screens stay in
+ * English, and the app says so on those screens (locale.english_only). A key missing from
+ * the Chinese catalogue falls back to English rather than showing an identifier;
+ * scripts/check_i18n.py fails the build if an owner-facing key is missing. */
+const ZH_LOCALE = "zh-CN";
+const ZH_TRANSLATED_VIEWS = new Set(["sme-portfolio", "sme-protection-map", "sme-ask", "sme-claims"]);
+const I18N = { en: {}, [ZH_LOCALE]: null };
 const I18N_PATH = "/static/i18n/en.json";
+const I18N_ZH_PATH = "/static/i18n/zh-CN.json";
+let I18N_ZH_LOADING = null;
+
+function _lookup(catalogue, key) {
+  return String(key).split(".").reduce((value, part) =>
+    value && typeof value === "object" ? value[part] : undefined, catalogue);
+}
 
 function _message(key) {
-  return String(key).split(".").reduce((value, part) =>
-    value && typeof value === "object" ? value[part] : undefined, I18N.en);
+  if (S.locale === ZH_LOCALE && I18N[ZH_LOCALE]) {
+    const translated = _lookup(I18N[ZH_LOCALE], key);
+    if (typeof translated === "string") return translated;
+  }
+  return _lookup(I18N.en, key);
+}
+
+function htmlLang() {
+  return S.locale === PSEUDO_LOCALE ? "en-x-pseudo" : S.locale === ZH_LOCALE ? ZH_LOCALE : "en";
+}
+
+function loadChineseCatalogue() {
+  if (I18N[ZH_LOCALE]) return Promise.resolve();
+  if (!I18N_ZH_LOADING) {
+    I18N_ZH_LOADING = fetch(I18N_ZH_PATH, { credentials: "same-origin" })
+      .then(response => {
+        if (!response.ok) throw new Error(`translation catalogue HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(catalogue => { I18N[ZH_LOCALE] = catalogue; })
+      .catch(error => {
+        // English stays on screen; the reader is never shown a blank or an identifier.
+        I18N_ZH_LOADING = null;
+        console.error("Unable to load the Chinese translation catalogue.", error);
+      });
+  }
+  return I18N_ZH_LOADING;
+}
+
+/* Shown in zh-CN on a screen the Chinese catalogue does not cover. */
+function localeNotice(role) {
+  if (S.locale !== ZH_LOCALE) return "";
+  if (role === "SME" && ZH_TRANSLATED_VIEWS.has(S.view)) return "";
+  const text = role === "SME" ? t("locale.partly_english") : t("locale.english_only");
+  return `<p class="locale-notice" role="note">${esc(text)}</p>`;
 }
 
 function _pseudo(value) {
@@ -76,16 +123,28 @@ function t(key, params = {}) {
 }
 
 function setLocale(locale) {
-  S.locale = locale === PSEUDO_LOCALE ? PSEUDO_LOCALE : "en";
+  const normalized = locale === PSEUDO_LOCALE ? PSEUDO_LOCALE
+    : locale === ZH_LOCALE ? ZH_LOCALE : "en";
+  // Nothing to repaint when the reader picked the locale they are already reading. The
+  // guard matters because a stray event on the picker used to trigger a full render(),
+  // and render() rewrites #app.innerHTML — see the note on the "set-locale" action.
+  if (normalized === S.locale) return Promise.resolve();
+  S.locale = normalized;
   try { localStorage.setItem(LOCALE_STORAGE_KEY, S.locale); } catch (_) { /* unavailable */ }
-  document.documentElement.lang = S.locale === PSEUDO_LOCALE ? "en-x-pseudo" : "en";
+  document.documentElement.lang = htmlLang();
   render();
+  if (S.locale === ZH_LOCALE && !I18N[ZH_LOCALE]) {
+    // Repaint once the catalogue arrives; until then English is shown, never a key.
+    return loadChineseCatalogue().then(() => { if (S.locale === ZH_LOCALE) render(); });
+  }
+  return Promise.resolve();
 }
 
-function languageSelector() {
-  return `<label class="language-picker" for="language-picker">${esc(t("shell.language"))}
-    <select id="language-picker" data-act="set-locale" aria-label="${esc(t("shell.language"))}">
+function languageSelector(id = "language-picker") {
+  return `<label class="language-picker" for="${esc(id)}">${esc(t("shell.language"))}
+    <select id="${esc(id)}" data-act="set-locale" aria-label="${esc(t("shell.language"))}">
       <option value="en"${S.locale === "en" ? " selected" : ""}>${esc(t("locale.english"))}</option>
+      <option value="${ZH_LOCALE}" lang="${ZH_LOCALE}"${S.locale === ZH_LOCALE ? " selected" : ""}>${esc(t("locale.chinese_simplified"))}</option>
       <option value="${PSEUDO_LOCALE}"${S.locale === PSEUDO_LOCALE ? " selected" : ""}>${esc(t("locale.pseudo"))}</option>
     </select></label>`;
 }
@@ -98,7 +157,8 @@ async function loadI18n() {
   } catch (error) {
     console.error("Unable to load the English translation catalogue.", error);
   }
-  document.documentElement.lang = S.locale === PSEUDO_LOCALE ? "en-x-pseudo" : "en";
+  if (S.locale === ZH_LOCALE) await loadChineseCatalogue();
+  document.documentElement.lang = htmlLang();
 }
 
 const I18N_READY = loadI18n();
@@ -109,6 +169,12 @@ const POLICY_FORMATS = {
   SGD: { locale: "en-SG", currency: "SGD", symbol: "S$" },
   IN: { locale: "en-IN", currency: "INR", symbol: "₹" },
   INR: { locale: "en-IN", currency: "INR", symbol: "₹" },
+  HK: { locale: "en-HK", currency: "HKD", symbol: "HK$" },
+  HKD: { locale: "en-HK", currency: "HKD", symbol: "HK$" },
+  MY: { locale: "en-MY", currency: "MYR", symbol: "RM" },
+  MYR: { locale: "en-MY", currency: "MYR", symbol: "RM" },
+  CN: { locale: "zh-CN", currency: "CNY", symbol: "¥" },
+  CNY: { locale: "zh-CN", currency: "CNY", symbol: "¥" },
 };
 
 function policyCountry(country) {
@@ -227,7 +293,20 @@ function formatPolicyDate(value, country) {
  */
 const ACTIONS = {
   nav: arg => nav8(arg),
-  "set-locale": (_arg, el) => setLocale(el.value),
+  /* MEASURED DEFECT. The native option list used to close within milliseconds of
+   * opening. The delegated CLICK listener fired on the very click that opened the list:
+   * dispatchAction() resolved this <select> as the nearest [data-act], called
+   * preventDefault() and then setLocale() with the value that had not changed yet, and
+   * setLocale()'s render() rewrote #app.innerHTML — destroying the open select. The fix
+   * is in dispatchAction(): a value control acts on `change` only. Changing the locale
+   * does repaint the shell, so the picker is a NEW node afterwards; the keyboard is put
+   * back on it by id rather than left on <body>. */
+  "set-locale": (_arg, el) => {
+    const id = el.id;
+    return setLocale(el.value).then(() => {
+      if (id) document.getElementById(id)?.focus();
+    });
+  },
   logout: () => logout(),
   "delete-case": () => deleteCase(),
   "export-record": () => exportRecord(),
@@ -318,6 +397,13 @@ const ACTIONS = {
   "motor-depreciation": arg => motorDepreciation(arg),
   "protection-map-scenario": () => setProtectionScenario(),
   "life-event": arg => addProtectionEvent(arg),
+  /* Interaction polish. The household tour reuses the tour engine with its own steps;
+   * the demo reset is two clicks by design, because the second one changes stored data. */
+  "tour-household": () => tourStart("HOUSEHOLD"),
+  "skip-main": () => focusMainHeading(true),
+  "demo-reset": () => { S.demoResetConfirm = true; render(); },
+  "demo-reset-cancel": () => { S.demoResetConfirm = false; render(); },
+  "demo-reset-confirm": () => demoReset(),
   /* Landing page: move from marketing to the login form, and jump between sections.
    * `show-login` sets a flag rather than navigating, so the transition needs no round trip
    * and the browser Back button still returns to the landing page. */
@@ -339,17 +425,37 @@ const ACTIONS = {
    * a navigation event buries it. */
   "gap-why": arg => openEvidenceDrawer(arg),
   "drawer-close": () => {
-    S.drawer = null; S.pageFull = null;
+    S.drawer = null; S.pageFull = null; S.pageFullReturn = null;
     document.getElementById("veris-drawer")?.remove();
     document.getElementById("veris-pagefull")?.remove();
   },
   /* The source-page viewer inside the drawer. `drawer-page` switches which citation's
    * page is shown when a finding rests on more than one. */
   "drawer-page": arg => loadDrawerPage(Number(arg)),
+  /* The chosen filenames, written beside a styled file picker whose native input is
+   * visually hidden. A file input is a VALUE control, so this only ever runs on `change`
+   * — see dispatchAction() — which is also why the picker's own click is never cancelled.
+   * textContent, never innerHTML: a filename comes from the reader's own disk and must
+   * not be able to put markup on the page. */
+  "file-name": (_arg, el) => {
+    const out = document.getElementById(el.dataset.fileLabel || "");
+    if (!out) return;
+    const names = el.files && el.files.length ? [...el.files].map(f => f.name) : [];
+    const line = names.length ? names.join(", ") : t("claims.no_file");
+    out.textContent = line;
+    // The line is one row of ellipsised text, so a long or multi-file choice would be
+    // unreadable with nothing but textContent. The full list goes in `title` for a
+    // pointer, and aria-live reads the whole string regardless of where the CSS cuts it.
+    out.title = line;
+  },
   "pagefull-open": () => openPageFullscreen(),
-  "pagefull-close": () => {
-    S.pageFull = null;
-    document.getElementById("veris-pagefull")?.remove();
+  "pagefull-close": () => closePageFullscreen(),
+  /* Fit width is the default because it shows the whole page; actual size is what a
+   * reader reaches for when the type is small. Both are renders of the SAME fetched
+   * image, so toggling costs nothing and cannot show a different page. */
+  "pagefull-zoom": () => {
+    S.pageFullZoom = S.pageFullZoom === "actual" ? "fit" : "actual";
+    paintPageFullscreen();
   },
 };
 
@@ -360,9 +466,24 @@ window.addEventListener("popstate", () => {
   render();
 });
 
+/* One of the two listeners below is a CLICK listener, and a control whose action depends
+ * on its VALUE is clicked before its value changes: opening a <select>, putting a caret
+ * in a text box, dragging a range. Acting on that click read the old value and — because
+ * most actions end in render() — replaced the control while the reader was still using
+ * it. That is what closed the language menu in milliseconds. A value control is therefore
+ * dispatched on `change` only; buttons, checkboxes and radios keep acting on click, where
+ * the click IS the decision. */
+function isValueControl(el) {
+  const tag = el.tagName;
+  if (tag === "SELECT" || tag === "TEXTAREA") return true;
+  return tag === "INPUT"
+    && !/^(button|submit|reset|checkbox|radio|image)$/i.test(el.type || "text");
+}
+
 function dispatchAction(ev) {
   const el = ev.target.closest("[data-act]");
   if (!el) return;
+  if (ev.type === "click" && isValueControl(el)) return;
   const handler = ACTIONS[el.dataset.act];
   if (!handler) return;
   ev.preventDefault();
@@ -613,6 +734,9 @@ async function logout() {
   // The POST used to be fired and forgotten before a re-render; navigating away without
   // waiting would cancel it in flight and leave the case sitting on the server.
   try { await api("/api/auth/logout", { method: "POST" }); } catch (_) { /* going anyway */ }
+  // A shared device keeps nothing of this session. The shell cache holds only public
+  // files, but signing out is the moment a person expects the device to be clean.
+  await clearShellCaches();
   location.assign("/");
 }
 window.logout = logout;
@@ -709,7 +833,7 @@ function render() {
   else if (S.user.role === "CARRIER") renderCarrier();
   else renderLogin();
 }
-function nav8(v) { S.view = v; render(); }
+function nav8(v) { S.view = v; S.focusMain = true; render(); }
 window.nav8 = nav8;
 
 /* Every view is async and starts by painting a spinner. If one then throws — a 403 from a
@@ -720,6 +844,11 @@ async function mount(view, el) {
   try {
     await view(el);
     stageView(el);
+    enhanceKeyboard(el);
+    if (S.focusMain && el && el.id === "main") {
+      S.focusMain = false;
+      focusMainHeading(false);
+    }
   } catch (err) {
     el.innerHTML = `<div class="insight critical"><div class="insight-label">This screen could not load</div>
         <div class="insight-text">${esc(err && err.message ? err.message : String(err))}</div></div>
@@ -1087,6 +1216,33 @@ function tourStepsFor(role) {
   return (TOUR_STEPS[role] || TOUR_STEPS.SME).map(s => ({ ...s }));
 }
 
+/* The household walkthrough. Built when it starts, not at load, so every sentence comes
+ * from the catalogue in the reader's language. It follows the owner's own path: who is in
+ * the household, one plan layout per policy, the exact wording behind a value, the alert,
+ * the whole-portfolio map, a cited question, a claim that stops for consent, and sharing.
+ * Like the business tour, a step whose screen element is absent is skipped, never faked. */
+function householdTourSteps() {
+  return [
+    { view: "sme-portfolio", target: ".portfolio-summary", pad: 10, place: "bottom",
+      title: t("tour.household.members_title"), body: t("tour.household.members_body") },
+    { view: "sme-portfolio", target: ".plan-layout", pad: 8, place: "top",
+      title: t("tour.household.card_title"), body: t("tour.household.card_body") },
+    { view: "sme-portfolio", target: ".plan-layout .portfolio-wording, .plan-layout .portfolio-evidence__health",
+      pad: 8, place: "bottom",
+      title: t("tour.household.evidence_title"), body: t("tour.household.evidence_body") },
+    { view: "sme-portfolio", target: ".plan-layout .insight", pad: 8, place: "top",
+      title: t("tour.household.alert_title"), body: t("tour.household.alert_body") },
+    { view: "sme-protection-map", target: ".protection-map-grid", pad: 8, place: "bottom",
+      title: t("tour.household.map_title"), body: t("tour.household.map_body") },
+    { view: "sme-ask", target: "[data-act='ask-open']", pad: 10, place: "bottom",
+      title: t("tour.household.ask_title"), body: t("tour.household.ask_body") },
+    { view: "sme-claims", target: ".claims-start", pad: 8, place: "bottom",
+      title: t("tour.household.claims_title"), body: t("tour.household.claims_body") },
+    { view: "sme-portfolio", target: "[data-act='demo-reset']", pad: 8, place: "top",
+      title: t("tour.household.reset_title"), body: t("tour.household.reset_body") },
+  ];
+}
+
 /* The invitation. Bottom-right, once per role, dismissable for good. */
 function tourInvite() {
   if (!S.user) return;
@@ -1130,9 +1286,10 @@ function waitForTarget(sel, ms = 2600) {
   });
 }
 
-async function tourStart() {
+async function tourStart(kind) {
+  if (T.on) tourEnd(false);
   tourDismiss(true);
-  T.steps = tourStepsFor(S.user && S.user.role);
+  T.steps = kind === "HOUSEHOLD" ? householdTourSteps() : tourStepsFor(S.user && S.user.role);
   T.i = 0; T.on = true; T.ran = 0;
 
   const host = document.createElement("div");
@@ -1211,17 +1368,17 @@ function tourPaint(quiet = false) {
   const total = shown.length;
   const at = shown.indexOf(step) + 1;
   const pop = host.querySelector(".tour__pop");
-  pop.innerHTML = `<div class="tour__n">${at} of ${total}</div>
+  pop.innerHTML = `<div class="tour__n">${esc(t("tour.progress", { at, total }))}</div>
     <h3 class="tour__t" id="tour-title">${esc(step.title)}</h3>
     <p class="tour__b">${esc(step.body)}</p>
     <div class="tour__dots" aria-hidden="true">${shown.map((s, k) =>
       `<i class="${k + 1 === at ? "on" : k + 1 < at ? "done" : ""}"></i>`).join("")}</div>
     <div class="tour__a">
-      <button class="btn btn-ghost btn-sm" data-act="tour-skip">Skip tour</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-act="tour-skip">${esc(t("tour.skip"))}</button>
       <div class="btn-group">
-        ${at > 1 ? `<button class="btn btn-secondary btn-sm" data-act="tour-back">Back</button>` : ""}
-        <button class="btn btn-primary btn-sm" data-act="tour-next">${
-          at === total ? "Finish" : "Next"}</button>
+        ${at > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-act="tour-back">${esc(t("tour.back"))}</button>` : ""}
+        <button type="button" class="btn btn-primary btn-sm" data-act="tour-next">${
+          esc(at === total ? t("tour.finish") : t("tour.next"))}</button>
       </div>
     </div>`;
 
@@ -1253,7 +1410,7 @@ function tourEnd(completed) {
   if (T.cleanup) { T.cleanup(); T.cleanup = null; }
   document.getElementById("veris-tour")?.remove();
   T.steps.forEach(s => { delete s._el; delete s._skip; });
-  if (completed) toast("That's the tour. Everything you saw is live.");
+  if (completed) toast(t("tour.done"));
 }
 
 window.tourStart = tourStart;
@@ -2066,6 +2223,7 @@ function shell(role, nav) {
   }[role] || role;
   const user = S.user || {};
   let navHtml = "";
+  let mobileHtml = "";
   nav.forEach(s => {
     if (s.section) {
       navHtml += `<div class="nav-section-title">${esc(s.section)}</div>`;
@@ -2076,12 +2234,16 @@ function shell(role, nav) {
     navHtml += `<button type="button" class="nav-item ${active}" data-act="nav"
       data-v="${esc(s.id)}" data-arg="${esc(s.id)}"${active ? ' aria-current="page"' : ""}>
       <span class="icon" aria-hidden="true">${s.icon}</span>${esc(s.label)}${badge}</button>`;
+    mobileHtml += `<button type="button" class="nav-item ${active}" data-act="nav"
+      data-arg="${esc(s.id)}"${active ? ' aria-current="page"' : ""}>${esc(s.label)}</button>`;
   });
-  $("#app").innerHTML = `<div class="shell"><aside class="sidebar">
+  $("#app").innerHTML = `<div class="shell"><button type="button" class="skip-link" data-act="skip-main">${esc(t("shell.skip_to_main"))}</button><aside class="sidebar">
     <div class="sidebar-head"><h2>VERIS</h2><span class="badge">${esc(roleLabel)}</span></div>
     <nav class="sidebar-nav" aria-label="${esc(roleLabel)}">${navHtml}</nav>
-    <div class="sidebar-foot"><div class="name">${esc(user.name || user.email || "")}</div><div class="org">${esc(user.organisation_name || "")}</div>${languageSelector()}<button class="btn btn-secondary btn-sm" data-act="switch-role" title="${esc(t("shell.switch_role_title"))}">${esc(t("shell.switch_role"))}</button><button class="btn btn-ghost btn-sm" data-act="logout" title="${esc(t("shell.sign_out_title"))}">${esc(t("shell.sign_out"))}</button><button class="btn btn-ghost btn-sm" data-act="tour-start" title="${esc(t("shell.take_tour_title"))}">${esc(t("shell.take_tour"))}</button></div>
-  </aside><main class="main" id="main"></main></div>`;
+    <div class="sidebar-foot"><div class="name">${esc(user.name || user.email || "")}</div><div class="org">${esc(user.organisation_name || "")}</div>${languageSelector()}${localeNotice(role)}<div class="sidebar-foot__actions"><button class="btn btn-secondary btn-sm" data-act="switch-role" title="${esc(t("shell.switch_role_title"))}">${esc(t("shell.switch_role"))}</button><button class="btn btn-ghost btn-sm" data-act="logout" title="${esc(t("shell.sign_out_title"))}">${esc(t("shell.sign_out"))}</button><button class="btn btn-ghost btn-sm sidebar-foot__wide" data-act="tour-start" title="${esc(t("shell.take_tour_title"))}">${esc(t("shell.take_tour"))}</button></div></div>
+  </aside><nav class="mobile-nav" aria-label="${esc(t("shell.mobile_navigation", { role: roleLabel }))}">${mobileHtml}${
+    languageSelector("language-picker-mobile")}${localeNotice(role)}<button type="button" class="nav-item" data-act="logout">${esc(t("shell.sign_out"))}</button></nav>
+  <main class="main" id="main" tabindex="-1"></main></div>`;
   // Offered after the shell exists so the invitation has something to point at, and only
   // once per role — see tourInvite(). Never while a tour is already running, which would
   // otherwise re-invite on every step that navigates.
@@ -2694,6 +2856,7 @@ function portfolioMechanismLabel(mechanism) {
   switch (String(mechanism || "").toUpperCase()) {
     case "COVERED.HOSPITALISATION": return t("portfolio.mechanism.hospitalisation");
     case "COVERED.HOME_CONTENTS": return t("portfolio.mechanism.home_contents");
+    case "COVERED.HOME_BUILDING": return t("portfolio.mechanism.home_building");
     case "COVERED.MOTOR_THIRD_PARTY": return t("portfolio.mechanism.motor_third_party");
     case "COVERED.TRAVEL": return t("portfolio.mechanism.travel");
     case "COVERED.FAMILY_FLOATER": return t("portfolio.mechanism.family_floater");
@@ -2739,8 +2902,46 @@ const HEALTH_TEXT = Object.freeze({
   "health.scope.family_floater": () => t("health.scope.family_floater"),
 });
 
+/* Home and travel terms (T26). Literal keys, like HEALTH_TEXT, so the catalogue check can
+ * see every one; a key the server sends that is not listed here renders as nothing. */
+const HOME_TRAVEL_TEXT = Object.freeze({
+  "home.item.contents_clause": () => t("home.item.contents_clause"),
+  "home.item.single_article": () => t("home.item.single_article"),
+  "home.item.settlement_basis": () => t("home.item.settlement_basis"),
+  "home.item.insurance_to_value": () => t("home.item.insurance_to_value"),
+  "home.item.theft_forcible_entry": () => t("home.item.theft_forcible_entry"),
+  "home.item.unoccupancy": () => t("home.item.unoccupancy"),
+  "home.item.claim_notice": () => t("home.item.claim_notice"),
+  "home.item.police_report": () => t("home.item.police_report"),
+  "home.item.cost_of_construction": () => t("home.item.cost_of_construction"),
+  "home.item.underinsurance_waived": () => t("home.item.underinsurance_waived"),
+  "home.item.theft_after_insured_event": () => t("home.item.theft_after_insured_event"),
+  "home.item.immediate_notice": () => t("home.item.immediate_notice"),
+  "home.item.built_in_contents": () => t("home.item.built_in_contents"),
+  "home.item.contents_below_list": () => t("home.item.contents_below_list"),
+  "home.item.contents_within_list": () => t("home.item.contents_within_list"),
+  "home.notice.contents_illustration": () => t("home.notice.contents_illustration"),
+  "home.document.contents_schedule": () => t("home.document.contents_schedule"),
+  "home.document.contents_list": () => t("home.document.contents_list"),
+  "home.document.building_schedule": () => t("home.document.building_schedule"),
+  "home_travel.document.policy_wording": () => t("home_travel.document.policy_wording"),
+  "home_travel.notice.wording_missing": () => t("home_travel.notice.wording_missing"),
+  "home_travel.notice.wording_not_matched": () => t("home_travel.notice.wording_not_matched"),
+  "travel.item.cancellation": () => t("travel.item.cancellation"),
+  "travel.item.cancellation_limit": () => t("travel.item.cancellation_limit"),
+  "travel.item.overseas_medical": () => t("travel.item.overseas_medical"),
+  "travel.item.overseas_medical_limit": () => t("travel.item.overseas_medical_limit"),
+  "travel.item.baggage_delay": () => t("travel.item.baggage_delay"),
+  "travel.item.carrier_report": () => t("travel.item.carrier_report"),
+  "travel.item.existing_condition": () => t("travel.item.existing_condition"),
+  "travel.item.claim_notice": () => t("travel.item.claim_notice"),
+  "travel.item.travellers": () => t("travel.item.travellers"),
+  "travel.document.selected_plan": () => t("travel.document.selected_plan"),
+  "travel.scope.schedule_travellers": () => t("travel.scope.schedule_travellers"),
+});
+
 function healthText(key) {
-  const render = HEALTH_TEXT[String(key || "")];
+  const render = HEALTH_TEXT[String(key || "")] || HOME_TRAVEL_TEXT[String(key || "")];
   return render ? render() : "";
 }
 
@@ -2769,6 +2970,15 @@ function portfolioItemDisplay(policy, item) {
   }
   if (item.display === "MONEY") {
     return `${label}: ${money(item.value, item.unit || policy.country)}`;
+  }
+  if (item.display === "MONEY_GAP") {
+    const unit = item.unit || policy.country;
+    return `${label}: ${t("home.contents_gap", {
+      gap: money(item.value, unit),
+      sum_insured: money(item.params?.sum_insured, unit),
+      contents_list: money(item.params?.contents_list, unit),
+      percent: item.params?.proportion_percent || "",
+    })}`;
   }
   if (item.display === "PERCENT_CONDITION") {
     return `${label}: ${item.value}% ${t("health.each_admissible_claim")}`;
@@ -2864,8 +3074,9 @@ function planLayoutCard(policy) {
   const coverageItems = Array.isArray(policy.coverage_items) ? policy.coverage_items : [];
   const healthItems = Array.isArray(policy.health_items) ? policy.health_items : [];
   const motorItems = Array.isArray(policy.motor_items) ? policy.motor_items : [];
-  const items = [...coverageItems, ...healthItems, ...motorItems];
-  const mapping = policy.health_mapping || {};
+  const propertyTravelItems = Array.isArray(policy.property_travel_items) ? policy.property_travel_items : [];
+  const items = [...coverageItems, ...healthItems, ...motorItems, ...propertyTravelItems];
+  const mapping = policy.health_mapping || policy.property_travel_mapping || {};
   const period = policy.period || {};
   const start = period.start ? formatPolicyDate(period.start, policy.country) : "";
   const end = period.end ? formatPolicyDate(period.end, policy.country) : "";
@@ -2892,6 +3103,7 @@ function planLayoutCard(policy) {
     const body = sectionItems.length ? sectionItems.map(item => `<li class="portfolio-value">
         <span>${esc(portfolioItemDisplay(policy, item))}</span>${evidenceBadge(item.evidence_class)}
         ${item.state ? `<span class="tag">${esc(humanState(item.state))}</span>` : ""}
+        ${item.notice_key ? `<p class="portfolio-evidence__meta">${esc(healthText(item.notice_key))}</p>` : ""}
         ${planEvidenceControl(policy, item)}
       </li>`).join("") : `<li class="portfolio-missing">${evidenceBadge("UNESTABLISHED")}
       <span>${esc(t("portfolio.missing_value", {
@@ -2964,8 +3176,11 @@ async function smePortfolio(el) {
           ${esc(t("portfolio.load_example"))}</button></div>`;
     return;
   }
+  const synthetic = portfolio?.household?.provenance?.kind === "SYNTHETIC_EXAMPLE";
   el.innerHTML = portfolioSyntheticBanner(portfolio)
     + pageTitle(t("portfolio.title"), t("portfolio.lead"))
+    + `<div class="btn-group mb-16"><button type="button" class="btn btn-secondary btn-sm" data-act="tour-household">
+        ${esc(t("tour.household.start"))}</button></div>`
     + `<div class="portfolio-summary">
       ${portfolioCollection(t("portfolio.members"), members, member => `<div class="portfolio-row">
         <strong>${esc(member.name || "")}</strong><span>${esc(titleCase(member.relationship || ""))}</span></div>`, t("portfolio.no_members"))}
@@ -2977,8 +3192,78 @@ async function smePortfolio(el) {
           ${esc(t("portfolio.open_business"))}</button></div>`, t("portfolio.no_businesses"))}
     </div>
     <section class="portfolio-policies" aria-label="${esc(t("portfolio.policies"))}">
-      <h2>${esc(t("portfolio.policies"))}</h2>${policies.map(planLayoutCard).join("")}</section>`;
+      <h2>${esc(t("portfolio.policies"))}</h2>${policies.map(planLayoutCard).join("")}</section>`
+    + (synthetic ? demoResetCard() : "");
 }
+
+/* The demo reset. Two steps, because the second deletes stored records: the first click
+ * only shows what will and will not happen. The server removes only what it stamped as
+ * the synthetic example and refuses outright if an owner upload is involved. */
+function demoResetCard() {
+  if (!S.demoResetConfirm) {
+    return `<section class="card mt-16 demo-reset" aria-labelledby="demo-reset-title">
+      <h3 id="demo-reset-title">${esc(t("demo_reset.title"))}</h3>
+      <p class="text-sm">${esc(t("demo_reset.body"))}</p>
+      <button type="button" class="btn btn-secondary" data-act="demo-reset">${esc(t("demo_reset.start"))}</button>
+    </section>`;
+  }
+  return `<section class="card mt-16 demo-reset" role="alertdialog" aria-labelledby="demo-reset-title"
+      aria-describedby="demo-reset-detail">
+    <h3 id="demo-reset-title">${esc(t("demo_reset.confirm_title"))}</h3>
+    <p class="text-sm" id="demo-reset-detail">${esc(t("demo_reset.confirm_body"))}</p>
+    <div class="btn-group"><button type="button" class="btn btn-primary" data-act="demo-reset-confirm">
+      ${esc(t("demo_reset.confirm"))}</button>
+      <button type="button" class="btn btn-ghost" data-act="demo-reset-cancel">${esc(t("demo_reset.cancel"))}</button></div>
+  </section>`;
+}
+
+async function demoReset() {
+  try {
+    const result = await api("/api/demo/reset", {
+      method: "POST", body: { confirm: "RESET_SYNTHETIC_EXAMPLE" },
+    });
+    if (!result) return;
+    S.demoResetConfirm = false;
+    // Everything the browser remembered about the example goes with it.
+    for (const key of ["claimOpen", "claimRecord", "claimPolicy", "agentPlan", "agentDrafts",
+      "agentConfirmation", "claimDraft", "settlementResult", "reconciliation",
+      "motorIllustration", "portfolioEvidence", "householdProvenance", "pendingHouseholdExample"]) {
+      S[key] = null;
+    }
+    try {
+      sessionStorage.removeItem(EXAMPLE_FLAG);
+      sessionStorage.removeItem(WORDING_NOTICE_KEY);
+    } catch (_) { /* unavailable */ }
+    const removed = result.removed || {};
+    toast(t("demo_reset.done", { policies: removed.policies || 0, documents: removed.documents || 0 }));
+    announce(t("demo_reset.done", { policies: removed.policies || 0, documents: removed.documents || 0 }));
+    nav8("sme-portfolio");
+  } catch (error) {
+    S.demoResetConfirm = false;
+    toast(error.message || String(error), "err");
+    render();
+  }
+}
+
+/* The five states this map can report, each with a GLYPH and a sentence.
+ *
+ * MEASURED DEFECT: the cell showed the raw engine code (`NOT_FOUND_IN_DOCUMENTS`,
+ * `COMPULSORY_GAP`) in a 10.5px uppercase pill, and the only thing separating them was
+ * the pill's colour. A reader had to translate the code and see the hue to read their own
+ * map.
+ *
+ * THE STATE SEMANTICS ARE NOT RE-MAPPED, only named. "Not found in the documents we read"
+ * is a statement about OUR READING and never about cover; NOT_ASSESSED is a neutral grey
+ * because nothing has been looked at yet; COMPULSORY_GAP is the one red state, and it is
+ * red only because a sourced statute makes the cover compulsory and no in-force policy
+ * was found. The derivation lives in src/proven/protection_map.py and is untouched. */
+const PM_STATES = {
+  DOCUMENTED_TERMS: { glyph: "●", label: () => t("protection_map.states.DOCUMENTED_TERMS") },
+  CONDITIONAL_TERMS: { glyph: "◐", label: () => t("protection_map.states.CONDITIONAL_TERMS") },
+  NOT_FOUND_IN_DOCUMENTS: { glyph: "○", label: () => t("protection_map.states.NOT_FOUND_IN_DOCUMENTS") },
+  NOT_ASSESSED: { glyph: "◌", label: () => t("protection_map.states.NOT_ASSESSED") },
+  COMPULSORY_GAP: { glyph: "▲", label: () => t("protection_map.states.COMPULSORY_GAP") },
+};
 
 async function smeProtectionMap(el) {
   el.innerHTML = spinner(t("protection_map.loading"));
@@ -2991,12 +3276,25 @@ async function smeProtectionMap(el) {
   if (!mapped || !events) return;
   const cells = mapped.cells || [];
   const overlaps = mapped.overlaps || [];
+  const states = [...new Set(cells.map(cell => String(cell.state || "")))]
+    .filter(state => PM_STATES[state]);
   el.innerHTML = portfolioSyntheticBanner() + pageTitle(t("protection_map.title"), t("protection_map.lead"))
-    + `<div class="card mb-16"><table><thead><tr><th>${esc(t("protection_map.entity"))}</th><th>${esc(t("protection_map.risk"))}</th><th>${esc(t("protection_map.state"))}</th><th>${esc(t("protection_map.why"))}</th></tr></thead><tbody>
-      ${cells.map(cell => `<tr><td>${esc(cell.entity || "")}</td><td>${esc(titleCase(cell.risk || ""))}</td>
-        <td><span class="tag ${cell.state === "COMPULSORY_GAP" ? "tag-danger" : ""}">${esc(cell.state || "")}</span></td>
-        <td class="text-sm">${esc(cell.reason || "")}</td></tr>`).join("")}
-    </tbody></table></div>`
+    + `<div class="card mb-16 protection-map-grid">
+      ${states.length ? `<ul class="pm__legend" aria-label="${esc(t("protection_map.legend"))}">${states.map(state => `<li data-s="${esc(state)}">
+        <i class="pm__mk" aria-hidden="true">${PM_STATES[state].glyph}</i>
+        <span>${esc(PM_STATES[state].label())}</span></li>`).join("")}</ul>` : ""}
+      <div class="table-scroll" role="region" tabindex="0"
+        aria-label="${esc(t("protection_map.title"))}"><table><caption class="visually-hidden">${esc(t("protection_map.title"))}</caption>
+      <thead><tr><th scope="col">${esc(t("protection_map.entity"))}</th><th scope="col">${esc(t("protection_map.risk"))}</th><th scope="col">${esc(t("protection_map.state"))}</th><th scope="col">${esc(t("protection_map.why"))}</th></tr></thead><tbody>
+      ${cells.map(cell => {
+        const mark = PM_STATES[String(cell.state || "")];
+        return `<tr><td>${esc(cell.entity || "")}</td><td>${esc(titleCase(cell.risk || ""))}</td>
+        <td data-s="${esc(cell.state || "")}"><span class="pm__state">
+          <i class="pm__mk" aria-hidden="true">${mark ? mark.glyph : "·"}</i>
+          <span>${esc(mark ? mark.label() : cell.state || "")}</span></span></td>
+        <td class="text-sm">${esc(cell.reason || "")}</td></tr>`;
+      }).join("")}
+    </tbody></table></div></div>`
     + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("protection_map.next_document"))}</h3></div>
       <p class="text-sm">${esc(mapped.next_document?.document || "")} — ${esc(mapped.next_document?.reason || "")}</p></div>`
     + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("protection_map.overlaps"))}</h3></div>
@@ -3096,11 +3394,35 @@ async function smeClaims(el) {
   S.claimRecord = active;
   const selectedPolicy = policies.find(policy => policy.id === active?.policy_id) || policies[0] || null;
   S.claimPolicy = selectedPolicy;
-  const sourceRows = (active?.checklist || []).map(item => {
+  /* Each item's OWN source. A missing one says so and names the document that would
+   * establish it; an item that genuinely rests on the same clause as the one above says
+   * "same as above" rather than printing the quotation twice. The defect this replaces
+   * showed "the policy schedule" under all four items, which was the server's unmatched
+   * fallback rather than four readings of a schedule — see claims._citation_for(). */
+  const sameSource = (a, b) => Boolean(a && b && a.document === b.document
+    && a.page === b.page && a.quote === b.quote);
+  const checklist = active?.checklist || [];
+  const sourceRows = checklist.map((item, i) => {
     const source = item.source || {};
+    const previous = i > 0 ? (checklist[i - 1].source || {}) : null;
+    let provenance;
+    /* `INFORMATION_MISSING` is the state string the rest of the product already uses for
+     * "nothing we read establishes this". `!source.document` keeps claims drafted before
+     * this fix honest too: their stored snapshot carries no state, and a source with no
+     * document names nothing. */
+    if (source.state === "INFORMATION_MISSING" || !source.document) {
+      provenance = `<p class="claim-src claim-src--missing">${esc(t("claims.source_missing", {
+        document: source.required_document || t("claims.source_unnamed_document") }))}</p>`;
+    } else if (sameSource(source, previous)) {
+      provenance = `<p class="claim-src">${esc(t("claims.source_same_as_above"))}</p>`;
+    } else {
+      provenance = `${source.quote
+        ? `<blockquote class="portfolio-evidence__quote">${esc(source.quote)}</blockquote>` : ""}
+        <p class="claim-src">${esc(source.document || "")}${source.page
+          ? ` · ${esc(t("claims.source_page", { page: source.page }))}` : ""}</p>`;
+    }
     return `<li><strong>${esc(item.item || "")}</strong><p class="text-sm">${esc(item.reason || "")}</p>
-      ${source.quote ? `<blockquote class="portfolio-evidence__quote">${esc(source.quote)}</blockquote>` : ""}
-      <p class="text-xs text-muted">${esc(source.document || "")}${source.page ? ` · ${esc(source.page)}` : ""}</p></li>`;
+      ${provenance}</li>`;
   }).join("");
   const deadline = active?.deadline || {};
   const plan = S.agentPlan;
@@ -3115,12 +3437,41 @@ async function smeClaims(el) {
       <button type="button" class="btn btn-primary btn-sm" data-act="agent-confirm" data-arg="${esc(item.id)}">${esc(t("agent.confirm"))}</button>
     </div>`).join("");
   const draftSummary = (S.agentDrafts || []).map(draft => `<p class="text-sm">${esc(draft.summary || "")}</p>`).join("");
-  const actionPanel = !active ? "" : `<div class="btn-group mt-12">
-      ${active.state === "DRAFTING" ? `<div class="form-group"><label for="claim-document-kind">${esc(t("claims.document_kind"))}</label>
+  /* The DRAFTING controls were three raw native widgets and three buttons in one flex
+   * row: an unstyled grey "Choose File" box, a second one for the camera, and a select,
+   * all of different heights. They are now a labelled group — document type, file
+   * picker, camera — laid out on a grid, with the buttons on their own row below. The
+   * inputs keep their ids (`claimUpload` reads them), their `accept` lists, `multiple`
+   * and `capture="environment"`, and the photo note is unchanged: encrypted with the
+   * claim documents, capped at 2 MB, never sent to an AI provider. */
+  const claimDocs = `<fieldset class="claim-docs mt-12">
+      <legend>${esc(t("claims.add_documents"))}</legend>
+      <div class="claim-docs__grid">
+        <div class="form-group"><label for="claim-document-kind">${esc(t("claims.document_kind"))}</label>
           <select id="claim-document-kind"><option value="HOSPITAL_DISCHARGE_SUMMARY">${esc(t("claims.discharge_summary"))}</option>
             <option value="HOSPITAL_BILL">${esc(t("claims.itemised_bill"))}</option></select></div>
-        <input id="claim-files" type="file" multiple accept="application/pdf,image/jpeg,image/png" aria-label="${esc(t("claims.upload"))}">
-        <button type="button" class="btn btn-ghost" data-act="claim-upload" data-arg="${esc(active.id)}">${esc(t("claims.upload"))}</button>
+        <div class="form-group"><span class="form-label">${esc(t("claims.upload"))}</span>
+          <div class="file-pick">
+            <input id="claim-files" type="file" multiple accept="application/pdf,image/jpeg,image/png"
+              class="file-pick__input" data-act="file-name" data-file-label="claim-files-name"
+              aria-label="${esc(t("claims.upload"))}" aria-describedby="claim-files-name">
+            <label for="claim-files" class="btn btn-secondary btn-sm file-pick__btn">${esc(t("claims.choose_files"))}</label>
+            <span id="claim-files-name" class="file-pick__name" aria-live="polite">${esc(t("claims.no_file"))}</span>
+          </div></div>
+        <div class="form-group camera-capture"><label for="claim-camera">${esc(t("claims.take_photo"))}</label>
+          <div class="file-pick">
+            <input id="claim-camera" type="file" accept="image/*" capture="environment"
+              class="file-pick__input" data-act="file-name" data-file-label="claim-camera-name"
+              aria-describedby="claim-camera-note claim-camera-name">
+            <label for="claim-camera" class="btn btn-secondary btn-sm file-pick__btn">${esc(t("claims.choose_photo"))}</label>
+            <span id="claim-camera-name" class="file-pick__name" aria-live="polite">${esc(t("claims.no_file"))}</span>
+          </div>
+          <p class="text-xs text-muted" id="claim-camera-note">${esc(t("claims.photo_notice"))}</p></div>
+      </div>
+    </fieldset>`;
+  const actionPanel = !active ? "" : `${active.state === "DRAFTING" ? claimDocs : ""}
+    <div class="btn-group mt-12">
+      ${active.state === "DRAFTING" ? `<button type="button" class="btn btn-ghost" data-act="claim-upload" data-arg="${esc(active.id)}">${esc(t("claims.upload"))}</button>
         <button type="button" class="btn btn-secondary" data-act="claim-packet" data-arg="${esc(active.id)}">${esc(t("claims.packet"))}</button>
         <button type="button" class="btn btn-primary" data-act="claim-ready" data-arg="${esc(active.id)}">${esc(t("claims.ready"))}</button>` : ""}
       ${active.state === "READY" ? `<button type="button" class="btn btn-primary" data-act="claim-submit" data-arg="${esc(active.id)}">${esc(t("claims.submit"))}</button>` : ""}
@@ -3147,7 +3498,7 @@ async function smeClaims(el) {
     + (!agentStatus.consent?.granted ? `<div class="card mb-16"><h3>${esc(t("agent.consent_title"))}</h3>
       <p class="text-sm">${esc(t("agent.consent_body"))}</p>
       <button type="button" class="btn btn-primary" data-act="agent-consent">${esc(t("agent.consent_grant"))}</button></div>` : "")
-    + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("claims.start"))}</h3></div>
+    + `<div class="card mb-16 claims-start"><div class="card-head"><h3>${esc(t("claims.start"))}</h3></div>
       <div class="form-group"><label for="claim-incident">${esc(t("claims.incident_at"))}</label>
         <input id="claim-incident" type="datetime-local"></div>
       <div class="form-group"><label for="claim-incident-offset">${esc(t("claims.incident_offset"))}</label>
@@ -3165,13 +3516,44 @@ async function smeClaims(el) {
       ${(S.settlementResult?.check?.notice || "") ? `<p class="text-sm mt-12">${esc(S.settlementResult.check.notice)}</p>` : ""}
       ${(S.reconciliation?.notice || "") ? `<p class="text-sm mt-12">${esc(S.reconciliation.notice)}</p>` : ""}
     </div>` : "")
-    + `<div class="card mb-16"><div class="card-head"><h3>${esc(t("agent.trace_title"))}</h3></div>${trace}${draftSummary}</div>
+    + `<div class="card mb-16 agent-trace" id="agent-trace" role="log" aria-live="polite" aria-relevant="additions text"
+        aria-labelledby="agent-trace-title"><div class="card-head"><h3 id="agent-trace-title">${esc(t("agent.trace_title"))}</h3></div>${trace}${draftSummary}</div>
       <div class="card mb-16"><div class="card-head"><h3>${esc(t("agent.confirmations_title"))}</h3></div>
         ${confirmations || `<p class="text-sm text-muted">${esc(t("agent.confirmations_empty"))}</p>`}
         ${(inbox.confirmations || []).length ? `<div class="form-group"><label for="agent-stepup">${esc(t("agent.password"))}</label>
           <input id="agent-stepup" type="password" autocomplete="current-password" maxlength="200">
           <p class="text-xs text-muted">${esc(t("agent.step_up"))}</p></div>` : ""}</div>
       <p class="text-xs text-muted">${esc(t("claims.synthetic_notice"))}</p>`;
+  announceTrace(plan);
+}
+
+/* The trace panel is repainted with its screen, and a live region that is replaced
+ * wholesale is often not announced by a screen reader. So each change is also spoken
+ * through one persistent live region: how many steps the plan has and where it stopped. */
+function announceTrace(plan) {
+  const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+  if (!steps.length) return;
+  const last = steps[steps.length - 1] || {};
+  const signature = `${steps.length}|${last.summary || ""}|${last.state || ""}`;
+  if (S.traceAnnounced === signature) return;
+  S.traceAnnounced = signature;
+  announce(t("agent.trace_announce", { count: steps.length, last: last.summary || "" }));
+}
+
+function announce(message) {
+  if (!message || !document.body) return;
+  let region = document.getElementById("veris-live");
+  if (!region) {
+    region = document.createElement("div");
+    region.id = "veris-live";
+    region.className = "visually-hidden";
+    region.setAttribute("role", "status");
+    region.setAttribute("aria-live", "polite");
+    document.body.appendChild(region);
+  }
+  region.textContent = "";
+  // Writing on the next frame is what makes a repeated sentence announce again.
+  requestAnimationFrame(() => { region.textContent = String(message); });
 }
 
 async function agentGrantConsent() {
@@ -3226,10 +3608,27 @@ async function claimStart() {
   } catch (error) { toast(error.message || String(error), "err"); }
 }
 
+/* The same limits the server enforces on a claim upload, checked first so a photo that
+ * cannot be accepted is explained before it is sent. The server remains the boundary: it
+ * re-checks the size and the file signature, encrypts the bytes and never sends an image
+ * to a model provider. */
+const CLAIM_UPLOAD_MAX_BYTES = 2_000_000;
+const CLAIM_UPLOAD_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+
+function claimFileProblem(file) {
+  const name = String(file?.name || "");
+  if (Number(file?.size || 0) > CLAIM_UPLOAD_MAX_BYTES) return t("claims.photo_too_large", { name });
+  const type = String(file?.type || "").toLowerCase();
+  if (type && !CLAIM_UPLOAD_TYPES.has(type)) return t("claims.photo_type", { name });
+  return "";
+}
+
 async function claimUpload(claimId) {
-  const files = [...($("#claim-files")?.files || [])];
+  const files = [...($("#claim-files")?.files || []), ...($("#claim-camera")?.files || [])];
   const kind = $("#claim-document-kind")?.value || "";
   if (!files.length || !kind) return;
+  const problem = files.map(claimFileProblem).find(Boolean);
+  if (problem) { toast(problem, "err"); return; }
   const form = new FormData();
   files.forEach(file => {
     form.append("files", file, file.name);
@@ -3379,7 +3778,22 @@ async function smeUpload(el) {
         <p class="dropzone-hint">or drag them here</p>
         <input type="file" id="finput" multiple accept=".pdf,application/pdf" hidden>
       </div>
-      <ul class="file-list" id="flist"></ul>
+      <!-- Same styled picker as the claim screen. DECIDED, and deliberately different
+           from the two claim pickers: no filename line here. The photo is converted and
+           joins the queue below the moment it is chosen, and the input is emptied in the
+           same handler, so a "selected" label would describe an input that no longer
+           holds anything. The queue IS the confirmation, which is why the file list
+           below is the aria-live region: a screen-reader user hears the photo arrive
+           rather than hearing nothing. The input keeps its capture attribute and its
+           accept list. -->
+      <div class="form-group mt-12 camera-capture"><label for="camera-input">${esc(t("upload.camera_label"))}</label>
+        <div class="file-pick">
+          <input type="file" id="camera-input" accept="image/*" capture="environment"
+            class="file-pick__input" aria-describedby="camera-note">
+          <label for="camera-input" class="btn btn-secondary btn-sm file-pick__btn">${esc(t("upload.camera_choose"))}</label>
+        </div>
+        <p class="text-xs text-muted" id="camera-note">${esc(t("upload.camera_notice"))}</p></div>
+      <ul class="file-list" id="flist" aria-live="polite"></ul>
       <div class="form-group mt-16"><label>Your business name (optional)</label>
         <input type="text" id="bname" placeholder="e.g. Hock Lee Foods Pte Ltd" maxlength="120"></div>
       <button class="btn btn-primary mt-16" id="ubtn" disabled>Read my documents</button>
@@ -3410,6 +3824,20 @@ async function smeUpload(el) {
   dz.onclick = () => fi.click();
   dz.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fi.click(); } };
   fi.onchange = e => { addFiles(e.target.files); fi.value = ""; };
+  // A camera photo joins the same queue as a dropped PDF: it is wrapped as a one-page PDF
+  // in this browser, then read by the same upload pipeline with the same limits.
+  const ci = $("#camera-input");
+  if (ci) ci.onchange = async e => {
+    const photo = e.target.files && e.target.files[0];
+    ci.value = "";
+    if (!photo) return;
+    try {
+      files.push({ file: await photoToPdf(photo), status: "queued", note: t("upload.camera_converted") });
+      renderList();
+    } catch (err) {
+      toast(err && err.message ? err.message : t("upload.camera_failed"), "err");
+    }
+  };
   dz.ondragover = e => { e.preventDefault(); dz.classList.add("dragover"); };
   dz.ondragleave = e => { e.preventDefault(); dz.classList.remove("dragover"); };
   dz.ondrop = e => { e.preventDefault(); dz.classList.remove("dragover"); addFiles(e.dataTransfer?.files); };
@@ -3610,23 +4038,44 @@ function exampleWordingNotice() {
  * sends owner-facing entries here; anything else is dropped again on this side so a
  * CANDIDATE can never be drawn as a source. Server-derived throughout, so escaped, and a
  * link is drawn only for an https address. */
+/* The two owner-facing verification statuses, each with a GLYPH as well as words.
+ *
+ * MEASURED DEFECT: the status used to be a pink uppercase banner plus a second pill
+ * carrying the raw code (`SOURCE_QUOTED`), and on the cream card both were illegible. A
+ * status now reads as a sentence, so it survives greyscale, achromatopsia and a
+ * black-and-white print; the glyph is decorative and hidden from assistive technology
+ * because the words already say it. CANDIDATE has no entry here on purpose — it is
+ * filtered out before this map is consulted and must never reach an owner. */
+const PACK_STATUS = {
+  SOURCE_QUOTED: { glyph: "❝", cls: "src-badge--quoted",
+    label: () => t("evidence.status_source_quoted") },
+  HUMAN_VERIFIED: { glyph: "✓", cls: "src-badge--verified",
+    label: () => t("evidence.status_human_verified") },
+};
+
 function packSources(sources) {
   const list = (sources || []).filter(s => s && s.owner_facing);
   if (!list.length) return "";
-  return `<div class="mt-12"><div class="text-xs text-muted mb-8">Where this comes from</div>
+  return `<div class="pack-src mt-12"><h4 class="pack-src__h">${esc(t("evidence.where_from"))}</h4>
     ${list.map(s => {
       const url = typeof s.source_url === "string" && /^https:\/\//i.test(s.source_url)
         ? s.source_url : "";
-      const how = s.status === "SOURCE_QUOTED" ? "Quoted from the primary source"
-        : `Verified by ${s.verified_by || "a named reviewer"}`;
+      const badge = PACK_STATUS[s.status];
+      const title = s.title || s.entry_id || "";
+      // The law's own sentence comes FIRST and in the largest ink on the card: it is the
+      // authority, and everything beside it is a label on the authority.
       return `<div class="verbatim mb-8">
-        <div class="verbatim__tag"><i></i>${esc(how)}</div>
-        ${s.quote ? `<div class="verbatim__q">${esc(s.quote)}</div>` : ""}
+        ${s.quote ? `<blockquote class="verbatim__q">${esc(s.quote)}</blockquote>` : ""}
+        ${badge ? `<p class="src-badge ${badge.cls}"><span class="src-badge__g"
+          aria-hidden="true">${badge.glyph}</span>${esc(badge.label())}</p>` : ""}
+        ${s.status === "HUMAN_VERIFIED" && s.verified_by
+          ? `<p class="verbatim__by">${esc(t("evidence.verified_by", { who: s.verified_by }))}</p>`
+          : ""}
         <div class="verbatim__src">
-          <span><b>${esc(s.title || s.entry_id || "")}</b></span>
-          <span class="tag">${esc(s.status || "")}</span>
-          ${s.retrieved_on ? `<span><b>Retrieved</b> ${esc(s.retrieved_on)}</span>` : ""}
-          ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Open the source</a>` : ""}
+          <span><b>${esc(title)}</b></span>
+          ${s.retrieved_on ? `<span>${esc(t("evidence.retrieved", { date: s.retrieved_on }))}</span>` : ""}
+          ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer"
+            aria-label="${esc(t("evidence.open_source_named", { title }))}">${esc(t("evidence.open_source"))} ↗</a>` : ""}
         </div></div>`;
     }).join("")}</div>`;
 }
@@ -3635,8 +4084,8 @@ function packSources(sources) {
  * ways. Rendered on the Overview and in the upload result from the same server record
  * (`brief.jurisdiction`, also on `intake.jurisdiction`), so the two cannot disagree.
  *
- * When no pack applies, the server's notice is the headline: "these read as Malaysia and
- * there is no Malaysia pack yet" is the honest answer, and it must not be smaller than a
+ * When no pack applies, the server's notice is the headline: "these read as Australia and
+ * there is no Australia pack yet" is the honest answer, and it must not be smaller than a
  * Singapore answer would have been. The reasons sit in a native <details>, which is
  * keyboard-operable and announced as expandable without any script. Every value is
  * server-derived and escaped. */
@@ -4562,12 +5011,24 @@ async function smeConsent(el) {
                   title="${esc(p.why || "")}">${esc(p.label || p.recipient)}</button>`).join("")}</div>` : ""}
               <input type="text" id="crecip" value="${esc(recipient)}" maxlength="120">
               <p class="text-xs text-muted mt-8" id="crecipwhy">${esc((presets[0] || {}).why || "")}</p></div>
-            <div class="form-group"><label>Which documents they can read</label>
-              <div class="consent-list">
-                ${shareable.map(k => `<label class="consent-row">
-                  <input type="checkbox" class="cf" value="${esc(k.kind)}" checked>
-                  <span class="consent-row__l">${esc(k.label)}
-                    <span class="consent-row__m">${(k.filenames || []).map(f => esc(f)).join(", ") || `${esc(k.count)} document(s)`}</span>
+            <!-- MEASURED DEFECT. The heading was a bare label element, which labels no
+                 single control and let the .form-group label rule (uppercase, 10.5px)
+                 win on specificity over .consent-row's own flex — so every row lost its
+                 layout and .form-group input stretched each checkbox to full width above
+                 its own text. It is a group heading, so it is marked up as one and named
+                 to the group by aria-labelledby; each row is a real label bound to its
+                 checkbox by id. Same documents, same values, same .cf class the grant
+                 handler reads. -->
+            <div class="form-group"><span class="form-label" id="consent-docs-h">Which documents they can read</span>
+              <div class="consent-list" role="group" aria-labelledby="consent-docs-h">
+                ${shareable.map((k, i) => `<label class="consent-row" for="cf-${i}">
+                  <input type="checkbox" class="cf" id="cf-${i}" value="${esc(k.kind)}" checked>
+                  <span class="consent-row__body">
+                    <span class="consent-row__l">${esc(k.label)}</span>
+                    <span class="consent-row__m">${esc(t("consent.files", { count: k.count }))}</span>
+                    ${(k.filenames || []).length ? `<span class="consent-row__files">${
+                      (k.filenames || []).map(f => `<span class="consent-file"
+                        title="${esc(f)}">${esc(f)}</span>`).join("")}</span>` : ""}
                   </span></label>`).join("")}
               </div>
               <div class="btn-group mt-8">
@@ -5283,6 +5744,11 @@ async function openPageFullscreen() {
   if (!d || !d.finding) return;
   const span = (d.finding.spans || [])[d.spanIndex || 0];
   if (!span) return;
+  // A dialog that does not give the keyboard back is a trap. The trigger is remembered by
+  // SELECTOR, not as a node: the drawer repaints while the page is being fetched, so the
+  // button that was clicked no longer exists by the time this closes.
+  S.pageFullReturn = ".pv__fullbtn";
+  S.pageFullZoom = "fit";
   S.pageFull = { loading: true };
   paintPageFullscreen();
   try {
@@ -5296,25 +5762,102 @@ async function openPageFullscreen() {
 }
 window.openPageFullscreen = openPageFullscreen;
 
+function closePageFullscreen() {
+  const had = Boolean(S.pageFull);
+  S.pageFull = null;
+  document.getElementById("veris-pagefull")?.remove();
+  if (!had) return;
+  const back = S.pageFullReturn && document.querySelector(S.pageFullReturn);
+  S.pageFullReturn = null;
+  if (back) back.focus();
+}
+
+/* Escape closes the full-screen page and Tab stays inside it.
+ *
+ * Registered ONCE at module scope rather than on each open: a listener added per open is a
+ * listener leaked per open, and the CSP (`script-src 'self'`) forbids an inline handler on
+ * the overlay. The guard returns immediately when nothing is open, so this costs a
+ * property read per keystroke. */
+document.addEventListener("keydown", ev => {
+  if (!S.pageFull) return;
+  const host = document.getElementById("veris-pagefull");
+  if (!host) return;
+  if (ev.key === "Escape") { ev.preventDefault(); closePageFullscreen(); return; }
+  if (ev.key !== "Tab") return;
+  const stops = [...host.querySelectorAll("button, [href]")]
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!stops.length) return;
+  const first = stops[0], last = stops[stops.length - 1];
+  if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+  else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+});
+
+/* The ring drawn over a highlight, from `highlight.bounds` the server measured on the
+ * same render that burned the amber in. At drawer width a one-line mark on an A4 page is
+ * three or four pixels tall, which is a highlight the reader cannot find; the ring is
+ * what makes "we marked your quotation" visible at that scale. Decorative — the mark
+ * itself and the status chip beside it carry the meaning — so it is aria-hidden.
+ *
+ * Nothing is drawn when the server reports no bounds. A ring at a guessed position on a
+ * page of legal text points at the wrong clause, which is worse than no ring. */
+function highlightRing(bounds) {
+  const b = bounds || null;
+  if (!b || !Number.isFinite(Number(b.w)) || Number(b.w) <= 0) return "";
+  const n = (v, lo) => Math.max(lo, Math.min(1, Number(v) || 0)) * 100;
+  return `<span class="pv__hlbox" aria-hidden="true" style="left:${n(b.x, 0).toFixed(3)}%;
+    top:${n(b.y, 0).toFixed(3)}%;width:${n(b.w, 0).toFixed(3)}%;height:${n(b.h, 0).toFixed(3)}%"></span>`;
+}
+
 function paintPageFullscreen() {
   document.getElementById("veris-pagefull")?.remove();
   const p = S.pageFull;
   if (!p) return;
   const host = document.createElement("div");
   host.id = "veris-pagefull";
+  const label = t("evidence.page_of_file", {
+    page: p.page_no || "", file: p.filename || t("evidence.the_source_document") });
+  const zoomed = S.pageFullZoom === "actual";
   const body = p.loading
-    ? spinner("Rendering the page at full size")
+    ? spinner(t("evidence.rendering_full"))
     : p.available && p.image
-      ? `<img src="${esc(p.image)}" alt="Page ${esc(p.page_no)} of ${esc(p.filename || "the source document")}, with the quoted passage highlighted">`
-      : `<div class="insight warn"><div class="insight-label">Cannot show the page</div>
+      ? `<div class="pf__stack${zoomed ? " is-actual" : ""}">
+          <img src="${esc(p.image)}" alt="${esc(label)}${(p.highlight || {}).found
+            ? ", " + t("evidence.alt_highlighted") : ""}">
+          ${highlightRing((p.highlight || {}).bounds)}
+        </div>`
+      : `<div class="insight warn"><div class="insight-label">${esc(t("evidence.cannot_show_title"))}</div>
           <div class="insight-text">${esc(p.reason || "")}</div></div>`;
+  host.setAttribute("role", "dialog");
+  host.setAttribute("aria-modal", "true");
+  host.setAttribute("aria-labelledby", "veris-pagefull-t");
   host.innerHTML = `<div class="pf__bar">
-      <div class="pf__t">${esc(p.filename || "Source document")}${p.page_no
-        ? ` — page ${esc(p.page_no)}${p.page_count ? " of " + esc(p.page_count) : ""}` : ""}</div>
-      <button class="btn btn-sm btn-secondary" data-act="pagefull-close">Close</button>
+      <div class="pf__t" id="veris-pagefull-t">${esc(p.filename || t("evidence.the_source_document"))}${p.page_no
+        ? ` — ${esc(t("evidence.page_n_of_m", { page: p.page_no, count: p.page_count || "?" }))}` : ""}</div>
+      ${p.available && p.image ? `<button class="btn btn-sm btn-ghost" data-act="pagefull-zoom"
+        aria-pressed="${zoomed ? "true" : "false"}">${esc(zoomed
+          ? t("evidence.fit_width") : t("evidence.actual_size"))}</button>` : ""}
+      <button class="btn btn-sm btn-secondary pf__close" data-act="pagefull-close">${esc(t("evidence.close"))}</button>
     </div>
     <div class="pf__body">${body}</div>`;
   document.body.appendChild(host);
+  host.querySelector(".pf__close")?.focus();
+  centreOnHighlight(host, p);
+}
+
+/* Bring the marked passage into view once the image has laid out. A full-resolution A4
+ * page is taller than any window, so opening at the top of it hides the very thing the
+ * reader opened it to see. */
+function centreOnHighlight(host, p) {
+  const b = (p.highlight || {}).bounds;
+  const body = host.querySelector(".pf__body");
+  const img = host.querySelector(".pf__stack img");
+  if (!b || !body || !img) return;
+  const go = () => {
+    const centre = img.offsetTop + img.offsetHeight * ((Number(b.y) || 0) + (Number(b.h) || 0) / 2);
+    body.scrollTo({ top: Math.max(0, centre - body.clientHeight / 2),
+      behavior: REDUCED_MOTION() ? "auto" : "smooth" });
+  };
+  if (img.complete) requestAnimationFrame(go); else img.addEventListener("load", go, { once: true });
 }
 
 /* The page pane. FIRST thing in the drawer, above "What we found", because it is the
@@ -5335,7 +5878,7 @@ function drawerPagePane(d) {
   // reason the finding is UNESTABLISHED is precisely that no document supports it.
   if (!withDoc.length) {
     return `<div class="pv-block">
-      <div class="pv-block__h">The page it came from</div>
+      <h4 class="pv-block__h">${esc(t("evidence.page_heading_plain"))}</h4>
       <div class="pv pv--none">
         <p class="pv__note">No document supports this one, so there is no page to show.
           That is the finding, not a gap in the viewer: it is reported as unestablished
@@ -5355,39 +5898,58 @@ function drawerPagePane(d) {
 
   let inner;
   if (!p || p.loading) {
-    inner = `<div class="pv__frame pv__frame--busy">${spinner("Opening the page")}</div>`;
+    inner = `<div class="pv__frame pv__frame--busy">${spinner(t("evidence.opening_page"))}</div>`;
   } else if (p.display === "EXCERPT") {
     inner = drawerExcerpt(p);
   } else if (p.available && p.image) {
     const h = p.highlight || {};
-    // The full-screen control is an ICON in the bottom-right of the page itself, so it
-    // reads as "expand this" rather than as another row of interface below it.
+    const hlClass = h.found ? (h.method === "EXACT" ? "ok" : "part") : "no";
+    const hlGlyph = h.found ? (h.method === "EXACT" ? "✓" : "◐") : "✕";
+    const hlWords = h.found
+      ? (h.rect_count > 1
+        ? t("evidence.highlighted_places", { count: h.rect_count })
+        : t("evidence.highlighted"))
+      : t("evidence.not_highlighted");
+    /* The PAGE is the primary element now, at full drawer width and with no scroller of
+     * its own. It used to sit inside a 300px-tall internal scroll box, so on an A4 page
+     * the reader saw the letterhead and had to find the highlight by scrolling a window
+     * inside a window — and the full-screen control was an unlabelled 32px icon floating
+     * on the paper. The drawer scrolls; the page does not. */
     inner = `<div class="pv__frame">
-        <img src="${esc(p.image)}" alt="Page ${esc(p.page_no)} of ${esc(p.filename || "the source document")}${h.found ? ", with the quoted passage highlighted" : ""}">
-        <button class="pv__full" data-act="pagefull-open" title="Open full screen"
-          aria-label="Open page ${esc(p.page_no)} full screen">
+        <img src="${esc(p.image)}" alt="${esc(t("evidence.page_of_file", {
+          page: p.page_no, file: p.filename || t("evidence.the_source_document") }))}${h.found
+            ? ", " + esc(t("evidence.alt_highlighted")) : ""}">
+        ${highlightRing(h.bounds)}
+      </div>
+      <div class="pv__meta">
+        <span class="pv__pageno">${esc(t("evidence.page_n_of_m", {
+          page: p.page_no, count: p.page_count || "?" }))}</span>
+        <span class="pv__hl ${hlClass}"><span aria-hidden="true">${hlGlyph}</span> ${esc(hlWords)}</span>
+      </div>
+      <div class="pv__acts">
+        <button type="button" class="btn btn-sm btn-secondary pv__fullbtn" data-act="pagefull-open"
+          aria-label="${esc(t("evidence.open_full_screen_page", { page: p.page_no }))}">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path
             d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4" fill="none"
             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        </button>
-      </div>
-      <div class="pv__meta">
+          ${esc(t("evidence.open_full_screen"))}</button>
         <span class="pv__file">${esc(p.filename || "")}</span>
-        <span>page ${esc(p.page_no)}${p.page_count ? " of " + esc(p.page_count) : ""}</span>
-        <span class="pv__hl ${h.found ? (h.method === "EXACT" ? "ok" : "part") : "no"}">${h.found
-          ? `Highlighted${h.rect_count > 1 ? ` in ${esc(h.rect_count)} places` : ""}`
-          : "Not highlighted"}</span>
       </div>
       ${h.method === "EXACT" ? "" : `<p class="pv__note">${esc(h.note || "")}</p>`}`;
   } else {
     inner = `<div class="pv--none">
-      <p class="pv__note">${esc((p && p.reason) || "This page cannot be shown.")}</p>
+      <p class="pv__note">${esc((p && p.reason) || t("evidence.cannot_show_page"))}</p>
       ${(p && p.reason || "").indexOf("demo data") >= 0 ? `<button class="btn btn-sm btn-secondary"
         data-act="load-example">Load the example business →</button>` : ""}</div>`;
   }
 
+  const heading = p && p.display === "EXCERPT"
+    ? t("evidence.excerpt_heading")
+    : p && p.available && p.image
+      ? t("evidence.page_heading", { page: p.page_no })
+      : t("evidence.page_heading_plain");
   return `<div class="pv-block">
-    <div class="pv-block__h">${p && p.display === "EXCERPT" ? "The paragraph it came from" : "The page it came from"}</div>
+    <h4 class="pv-block__h">${esc(heading)}</h4>
     ${picker}
     <div class="pv">${inner}</div>
   </div>`;
@@ -5406,27 +5968,79 @@ function drawerPagePane(d) {
 function drawerExcerpt(p) {
   const x = p.excerpt;
   const pub = p.publisher || {};
-  let para;
+  const pageNo = (x && x.page_no) || p.page_no;
+  const count = p.page_count || "?";
+  // The CITATION leads: which document, whose, and where in it. A reader who cannot see a
+  // page has to be told precisely what they are being shown a paragraph of, and the
+  // screenshot behind this defect had that line as 11.5px grey.
+  const header = `<div class="pv__cite">
+      <p class="pv__cite-t">${esc(pub.title || p.filename || "")}</p>
+      ${pub.publisher ? `<p class="pv__cite-p">${esc(pub.publisher)}</p>` : ""}
+      <p class="pv__cite-pg">${esc(t("evidence.page_n_of_m", { page: pageNo, count }))}</p>
+    </div>`;
+  let para = "";
   if (x && typeof x.text === "string") {
     const a = Math.max(0, Math.min(x.text.length, Number(x.quote_start) || 0));
     const b = Math.max(a, Math.min(x.text.length, Number(x.quote_end) || 0));
-    para = `<blockquote class="pv__excerpt">${x.cut_before ? "… " : ""}${esc(x.text.slice(0, a))}<mark>${esc(x.text.slice(a, b))}</mark>${esc(x.text.slice(b))}${x.cut_after ? " …" : ""}</blockquote>
-      <div class="pv__meta">
-        <span class="pv__file">${esc(pub.title || p.filename || "")}</span>
-        <span>page ${esc(x.page_no || p.page_no)}${p.page_count ? " of " + esc(p.page_count) : ""}</span>
-      </div>`;
-  } else {
-    para = "";
+    para = `<blockquote class="pv__excerpt">${x.cut_before ? "… " : ""}${esc(x.text.slice(0, a))}<mark>${esc(x.text.slice(a, b))}</mark>${esc(x.text.slice(b))}${x.cut_after ? " …" : ""}</blockquote>`;
   }
-  const safeUrl = typeof pub.url === "string" && /^https?:\/\//i.test(pub.url) ? pub.url : "";
-  const link = pub.available && safeUrl
-    ? `<a class="btn btn-sm btn-secondary" href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer">Read it on the publisher's site →</a>`
-    : `<p class="pv__note">${esc(pub.note || "No publisher link is recorded for this document.")}</p>`;
+  /* A RIGHTS BOUNDARY, said in one sentence a reader can act on, not an apology for a
+   * missing feature. The pages of a published wording are not VERIS's to reproduce, so
+   * the cited paragraph is the most this screen may ever show of it — and the publisher's
+   * own copy is therefore the primary action, not a footnote.
+   *
+   * `https:` only, tightened from `https?:`. The manifest accepts http(s), and sending a
+   * reader to a plaintext copy of the document their cover depends on is not a link this
+   * product should draw. */
+  const safeUrl = typeof pub.url === "string" && /^https:\/\//i.test(pub.url) ? pub.url : "";
+  const action = pub.available && safeUrl
+    ? `<a class="btn btn-primary pv__pub" href="${esc(safeUrl)}" target="_blank"
+        rel="noopener noreferrer">${esc(t("evidence.read_on_publisher", { page: pageNo }))} ↗</a>`
+    : `<p class="pv__unrecorded">${esc(pub.note || t("evidence.no_publisher_link"))}</p>`;
   return `<div class="pv--excerpt">
+      ${header}
       ${para}
-      <p class="pv__note">${esc(p.reason || "")}</p>
-      ${link}
+      <p class="pv__rights">${esc(t("evidence.rights_boundary", {
+        publisher: pub.publisher || t("evidence.its_publisher") }))}</p>
+      ${action}
+      <details class="pv__why"><summary>${esc(t("evidence.why_paragraph"))}</summary>
+        <p class="pv__note">${esc(p.reason || "")}</p></details>
     </div>`;
+}
+
+/* The quotations the finding rests on, as text.
+ *
+ * COLLAPSED when the page above it is already showing those same words highlighted on the
+ * page they came from — the reader asked for the document, and repeating its sentence as a
+ * paragraph underneath is the duplication reported in this defect. Left OPEN whenever the
+ * page is not on screen (an excerpt, a structured fixture, a document with no pages),
+ * because then this IS the evidence rather than a second copy of it. Native <details>, so
+ * it is keyboard-operable and announced as expandable with no script at all. */
+function drawerWords(d, f) {
+  const spans = f.spans || [];
+  const showingPage = Boolean(d.page && d.page.display === "PAGE"
+    && d.page.available && d.page.image);
+  const body = spans.length
+    ? spans.map(s => `<div class="verbatim mb-12">
+        <div class="verbatim__tag"><i></i>Verbatim — re-read at these offsets</div>
+        <div class="verbatim__q">${esc(s.quote || "")}</div>
+        <div class="verbatim__src">
+          <span><b>Page</b> ${esc(s.page_no)}</span>
+          <span><b>Offsets</b> ${esc(s.char_start)}–${esc(s.char_end)}</span>
+        </div></div>`).join("")
+    : `<p class="text-sm text-muted">No quotation supports this one — which is
+         exactly why it is reported as unestablished rather than as a finding
+         about your cover.</p>`;
+  if (!showingPage) {
+    return `<div class="v-drawer__section">
+      <h4>The words it rests on</h4>
+      ${body}
+    </div>`;
+  }
+  return `<div class="v-drawer__section">
+    <details class="drawer-words"><summary><h4>The words it rests on</h4></summary>
+      ${body}</details>
+  </div>`;
 }
 
 function paintDrawer() {
@@ -5461,20 +6075,7 @@ function paintDrawer() {
         <p class="text-sm">${esc(d.plain.text)}</p>
         <p class="quote-src">${esc(d.plain.mode || "")}</p>
       </div>` : ""}
-      <div class="v-drawer__section">
-        <h4>The words it rests on</h4>
-        ${(f.spans || []).length
-          ? (f.spans || []).map(s => `<div class="verbatim mb-12">
-              <div class="verbatim__tag"><i></i>Verbatim — re-read at these offsets</div>
-              <div class="verbatim__q">${esc(s.quote || "")}</div>
-              <div class="verbatim__src">
-                <span><b>Page</b> ${esc(s.page_no)}</span>
-                <span><b>Offsets</b> ${esc(s.char_start)}–${esc(s.char_end)}</span>
-              </div></div>`).join("")
-          : `<p class="text-sm text-muted">No quotation supports this one — which is
-               exactly why it is reported as unestablished rather than as a finding
-               about your cover.</p>`}
-      </div>`;
+      ${drawerWords(d, f)}`;
   }
 
   host.innerHTML = `<div class="v-drawer-overlay" data-act="drawer-close"></div>
@@ -5778,6 +6379,20 @@ function renderAdviser() {
  *
  * The table below it is unchanged. This is a way in, not a replacement for the numbers.
  */
+/* The four markers this canvas can draw. SHAPE first, colour second.
+ *
+ * MEASURED DEFECT. The dots differed only by fill colour — clay, amber, jade and a
+ * half-transparent grey — with no legend and no text label, so in greyscale, under
+ * achromatopsia, or printed, a high-priority client and a demonstration row were the same
+ * grey circle. The shape is drawn in CSS (clip-path and border-radius; no image, no
+ * webfont) and the words travel in the accessible name of a real <button>. */
+const PC_MARKS = [
+  { p: "HIGH", label: "High priority", shape: "clay diamond, exclamation mark" },
+  { p: "MEDIUM", label: "Medium priority", shape: "amber square" },
+  { p: "LOW", label: "Low priority", shape: "jade circle" },
+  { p: "DEMO", label: "Demonstration — no documents behind it", shape: "grey dashed ring" },
+];
+
 function priorityCanvas(cases) {
   if (!cases.length) return "";
   const maxNeed = Math.max(1, ...cases.map(c => c.needs_review_count || 0));
@@ -5787,24 +6402,59 @@ function priorityCanvas(cases) {
     // Impact: a lower score means more is at stake, so the axis is inverted.
     y: 8 + 84 * (1 - Math.min(100, Math.max(0, c.score ?? 50)) / 100),
   });
+  /* Two clients with the same urgency and the same score land on the same coordinates,
+   * and one marker then hides the other — a queue that silently under-reports itself.
+   * Collisions are nudged apart on a fixed diagonal, keyed by how many have already
+   * claimed that spot, so the layout is the same on every render and the offset is small
+   * enough that the reading of the quadrant does not change. */
+  const taken = new Map();
+  const points = cases.map(c => {
+    const p = pt(c);
+    const key = `${p.x.toFixed(1)}|${p.y.toFixed(1)}`;
+    const n = taken.get(key) || 0;
+    taken.set(key, n + 1);
+    if (n) {
+      const step = 2.4 * Math.ceil(n / 2) * (n % 2 ? 1 : -1);
+      p.x = Math.max(2, Math.min(96, p.x + step));
+      p.y = Math.max(2, Math.min(96, p.y + step));
+    }
+    return p;
+  });
+  /* The caption says what the axes are AND that a marker may have been moved. Positions
+   * are derived from the queue's own numbers, and two cases with the same urgency and
+   * the same score would land on one point with one marker hiding the other — so
+   * collisions are fanned out above. A reader comparing a dot against the numbers must
+   * be told that, or the canvas quietly overstates how precise it is. */
   return `<div class="pc mb-16" data-rise="zoom">
     <div class="card-head"><h3>Priority canvas</h3>
-      <span class="text-xs text-muted">urgency = findings needing review · impact = inverse of score</span></div>
-    <div class="pc__plot">
-      <div class="pc__q"></div>
+      <span class="text-xs text-muted">urgency = findings needing review · impact = inverse of score ·
+        markers landing on one point are fanned out slightly so none is hidden</span></div>
+    <div class="pc__plot" role="group"
+      aria-label="Priority canvas: urgency by impact, ${cases.length} case(s)">
+      <div class="pc__q" aria-hidden="true"></div>
       ${cases.map((c, i) => {
-        const p = pt(c);
-        return `<div class="pc__dot ${c.demo ? "is-demo" : ""}"
-          data-p="${esc(c.priority || "")}" style="left:${p.x}%;bottom:${p.y}%;--d:${i * 70}ms"
-          ${c.demo ? "" : `data-act="nav" data-arg="adv-review"`}
-          title="${esc(c.business_name || "")} — ${esc(c.priority || "")}">
-          <i></i><span class="pc__tip">${esc((c.business_name || "").slice(0, 22))}
+        const p = points[i];
+        const kind = c.demo ? "DEMO" : String(c.priority || "").toUpperCase();
+        const mark = PC_MARKS.find(m => m.p === kind) || PC_MARKS[2];
+        const name = c.business_name || "";
+        const standing = c.demo
+          ? "demonstration, no documents behind it"
+          : `score ${c.score ?? "unknown"}, ${c.needs_review_count ?? 0} to review`;
+        return `<button type="button" class="pc__dot pc__dot--${kind.toLowerCase()}${
+          c.demo ? " is-demo" : ""}"
+          data-p="${esc(kind)}" style="left:${p.x}%;bottom:${p.y}%;--d:${i * 70}ms"
+          ${c.demo ? 'aria-disabled="true"' : `data-act="nav" data-arg="adv-review"`}
+          aria-label="${esc(`${name} — ${mark.label}, ${standing}`)}"
+          title="${esc(`${name} — ${mark.label}`)}">
+          <i class="pc__mk" aria-hidden="true"></i><span class="pc__tip" aria-hidden="true">${esc(name.slice(0, 22))}
             <span>${c.demo ? "demo · no documents" : `score ${c.score ?? "—"} · ${c.needs_review_count ?? 0} to review`}</span>
-          </span></div>`;
+          </span></button>`;
       }).join("")}
-      <span class="pc__ax pc__ax--x">Urgency</span>
-      <span class="pc__ax pc__ax--y">Impact</span>
+      <span class="pc__ax pc__ax--x" aria-hidden="true">Urgency →</span>
+      <span class="pc__ax pc__ax--y" aria-hidden="true">Impact ↑</span>
     </div>
+    <ul class="pc__legend" aria-label="What each marker means">${PC_MARKS.map(m => `<li data-p="${m.p}">
+      <i class="pc__mk" aria-hidden="true"></i><span>${esc(m.label)}</span></li>`).join("")}</ul>
   </div>`;
 }
 
@@ -7045,6 +7695,167 @@ async function carAccounts(el) {
 
 /* ── Init ─────────────────────────────────────────────────────────────── */
 I18N_READY.finally(() => render());
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INTERACTION POLISH — installable shell, camera capture, keyboard parity
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* The service worker keeps a copy of the public shell files so an installed app opens
+ * offline to an honest notice. It is registered only where a browser has one and the
+ * page is a secure context; the DOM smoke harness and older browsers have neither, and
+ * the product is identical without it. */
+const SHELL_CACHE_PREFIX = "veris-shell-";
+
+function registerShellWorker() {
+  const nav = typeof navigator === "object" && navigator ? navigator : null;
+  if (!nav || !("serviceWorker" in nav)) return;
+  if (typeof window.isSecureContext === "boolean" && !window.isSecureContext) return;
+  nav.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => { /* the app works without it */ });
+}
+
+async function clearShellCaches() {
+  try {
+    const nav = typeof navigator === "object" && navigator ? navigator : null;
+    nav?.serviceWorker?.controller?.postMessage({ type: "veris:clear-caches" });
+  } catch (_) { /* no worker */ }
+  if (typeof caches === "undefined" || !caches || typeof caches.keys !== "function") return;
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => String(key).startsWith(SHELL_CACHE_PREFIX))
+      .map(key => caches.delete(key)));
+  } catch (_) { /* storage unavailable */ }
+}
+
+registerShellWorker();
+
+/* Move focus to the screen's heading, so a keyboard or screen-reader user lands where the
+ * new screen starts instead of on a control that no longer exists. `explicit` comes from
+ * the skip link and falls back to the main region when a screen has no heading yet. */
+function focusMainHeading(explicit) {
+  const main = document.getElementById("main");
+  if (!main) return;
+  const target = main.querySelector("h1") || (explicit ? main : null);
+  if (!target) return;
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  try { target.focus({ preventScroll: !explicit }); } catch (_) { target.focus(); }
+}
+
+/* Some older screens put data-act on a card or a row rather than on a button. A pointer
+ * reached those; a keyboard did not. After every paint each such element becomes
+ * focusable and is announced as a button, and Enter or Space runs the same action a click
+ * would. Native controls are left alone because they already behave this way, and
+ * decorative overlays stay out of the tab order. */
+const NATIVE_CONTROLS = new Set(["BUTTON", "A", "INPUT", "SELECT", "TEXTAREA", "SUMMARY", "OPTION", "LABEL"]);
+
+function keyboardTarget(node) {
+  if (!node || NATIVE_CONTROLS.has(node.tagName)) return false;
+  if (node.getAttribute && node.getAttribute("aria-hidden") === "true") return false;
+  const cls = String(node.className || "");
+  return !/overlay|backdrop/.test(cls);
+}
+
+function enhanceKeyboard(root) {
+  if (!root || typeof root.querySelectorAll !== "function") return;
+  root.querySelectorAll("[data-act]").forEach(node => {
+    if (!keyboardTarget(node)) return;
+    if (!node.hasAttribute("tabindex")) node.setAttribute("tabindex", "0");
+    if (!node.hasAttribute("role")) node.setAttribute("role", "button");
+  });
+}
+
+document.addEventListener("keydown", event => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const target = event.target;
+  if (!target || typeof target.matches !== "function" || !target.matches("[data-act]")) return;
+  if (!keyboardTarget(target)) return;
+  dispatchAction(event);
+});
+
+(function keepActionsKeyboardReachable() {
+  if (typeof MutationObserver === "undefined" || !document.body) return;
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; enhanceKeyboard(document.body); });
+  }).observe(document.body, { childList: true, subtree: true });
+})();
+
+/* A camera photo of a document, made into a one-page PDF in the browser.
+ *
+ * The upload pipeline reads PDFs, so a photo becomes one: drawn onto a canvas (which drops
+ * EXIF metadata, including any location), re-encoded as JPEG, scaled so its long edge is
+ * at most PHOTO_MAX_EDGE pixels, and wrapped in a minimal PDF whose only page is that
+ * image. The server then applies its ordinary limits, isolated parsing and page-quality
+ * check. A photo is never sent to a model provider: the model layer receives text only. */
+const PHOTO_MAX_EDGE = 2000;
+
+async function photoToPdf(file) {
+  if (typeof createImageBitmap !== "function") throw new Error(t("upload.camera_unsupported"));
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext && canvas.getContext("2d");
+  if (!context) throw new Error(t("upload.camera_unsupported"));
+  context.drawImage(bitmap, 0, 0, width, height);
+  if (typeof bitmap.close === "function") bitmap.close();
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.85));
+  if (!blob) throw new Error(t("upload.camera_failed"));
+  const pdf = jpegPdf(new Uint8Array(await blob.arrayBuffer()), width, height);
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "-");
+  return new File([pdf], `photo-${stamp}.pdf`, { type: "application/pdf" });
+}
+
+function asciiBytes(text) {
+  return Uint8Array.from(String(text), ch => ch.charCodeAt(0) & 0x7f);
+}
+
+function joinBytes(parts) {
+  const out = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let at = 0;
+  for (const part of parts) { out.set(part, at); at += part.length; }
+  return out;
+}
+
+/* The smallest valid PDF around one baseline JPEG: catalogue, page tree, one page whose
+ * box matches the photo's proportions inside an A4 outline, the image as a DCTDecode
+ * XObject, the drawing operators, and a real cross-reference table. */
+function jpegPdf(jpeg, width, height) {
+  const landscape = width > height;
+  const boxWidth = landscape ? 842 : 595;
+  const boxHeight = landscape ? 595 : 842;
+  const scale = Math.min(boxWidth / width, boxHeight / height);
+  const pageWidth = Math.max(1, Math.round(width * scale));
+  const pageHeight = Math.max(1, Math.round(height * scale));
+  const drawing = asciiBytes(`q ${pageWidth} 0 0 ${pageHeight} 0 0 cm /Im0 Do Q`);
+  const objects = [
+    asciiBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+    asciiBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+    asciiBytes(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] `
+      + "/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"),
+    joinBytes([asciiBytes(`<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} `
+      + `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`),
+    jpeg, asciiBytes("\nendstream")]),
+    joinBytes([asciiBytes(`<< /Length ${drawing.length} >>\nstream\n`), drawing, asciiBytes("\nendstream")]),
+  ];
+  const parts = [asciiBytes("%PDF-1.4\n")];
+  const offsets = [];
+  let length = parts[0].length;
+  objects.forEach((body, index) => {
+    offsets.push(length);
+    const chunk = joinBytes([asciiBytes(`${index + 1} 0 obj\n`), body, asciiBytes("\nendobj\n")]);
+    parts.push(chunk);
+    length += chunk.length;
+  });
+  const xref = [`xref\n0 ${objects.length + 1}\n`, "0000000000 65535 f \n",
+    ...offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`)].join("");
+  parts.push(asciiBytes(`${xref}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`));
+  return joinBytes(parts);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PREMIUM ELEVATION — INTERACTION LAYER

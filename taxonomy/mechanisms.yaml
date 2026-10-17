@@ -50,6 +50,10 @@ meta:
     - my-qbe-retail-package-wording          # never hand-mapped
     - my-qbe-industrial-all-risk-wording     # never hand-mapped
     - my-aig-all-risks-and-bi-wording        # never hand-mapped
+    - sg-aig-homes-advantage-wording         # T26 home mechanisms, hand-checked
+    - in-hdfc-ergo-bharat-griha-raksha-wording   # T26 India home mechanisms, hand-checked
+    - sg-aig-travel-guard-direct-wording     # T26 travel mechanisms, hand-checked
+    - hk-vhis-standard-plan-template         # T27 VHIS Standard Plan mechanisms, hand-checked
   note: >
     Malaysian wordings are included to test whether the method generalises to a
     carrier nobody has read. They must never be cited as Singapore market positions.
@@ -465,3 +469,288 @@ mechanisms:
         any_of: ['B1\s+standard\s+ward']
       public_hospital:
         any_of: ['public\s+hospital']
+  # ───────────────────────────────────────────────────────────────────────────
+  # Home and travel mechanisms (T26). Same propose -> verify -> bind discipline as the
+  # SME and health entries: each one names the operative STRUCTURE of the sentence, never
+  # a heading or a clause number. Tested against the three public home and travel
+  # wordings in the corpus, and against every other corpus wording for false positives.
+  HOME.COVERED.CONTENTS:
+    label: Household contents insuring clause
+    taxonomy_code: HOME.COVERED.CONTENTS
+    known_names: [Household Contents, Home Contents, General Contents]
+    mandatory_slots:
+      contents_subject:
+        any_of:
+          - 'loss or damage to (?:the )?Household Contents in Y\s?our Residence'
+          - 'physical loss or damage to\s*or\s*destruction of the General Contents of Y\s?our Home'
+      limit_reference:
+        any_of:
+          - 'up to the maximum annual limit as specified in the policy'
+          - 'caused by an Insured Event'
+  HOME.LIMIT.SINGLE_ARTICLE:
+    label: Single-article limit for contents
+    taxonomy_code: HOME.LIMIT.SINGLE_ARTICLE
+    known_names: [per article]
+    mandatory_slots:
+      per_article_cap:
+        any_of: ['no more than \$?\s?[\d,]+ per article']
+      itemised_exception:
+        any_of: ['unless specifically itemi[sz]ed']
+    optional_slots:
+      amount:
+        scope: clause
+        capture: 'no more than \$?\s?([\d,]+) per article'
+  HOME.ADEQ.INSURANCE_TO_VALUE:
+    label: Insurance to value (proportion of sum insured to replacement value)
+    taxonomy_code: ADEQ.AVERAGE_CONDITION
+    known_names: [Insurance to Value, Average, Underinsurance]
+    mandatory_slots:
+      sum_insured_below_value:
+        any_of:
+          - 'sum insured as specified in the policy schedule[\s\S]{0,220}?is lower than the actual value to replace'
+      proportionate_consequence:
+        any_of:
+          - 'based on the proportion of the sum insured to the actual replacement value'
+    negative_slots:
+      other_insurance_apportionment:
+        any_of: ['any other insurance', 'double insurance', 'contribute more than its rate-?able proportion']
+  HOME.CONDITION.SETTLEMENT_BASIS:
+    label: Basis of settlement (repair or replacement as new)
+    taxonomy_code: HOME.CONDITION.SETTLEMENT_BASIS
+    known_names: [Basis of Settlement]
+    mandatory_slots:
+      partial_loss_basis:
+        any_of: ['cost of repairs following (?:a )?partial damage']
+      total_loss_basis:
+        any_of: ['replacement as new following total loss']
+  HOME.EXCL.THEFT_FORCIBLE_ENTRY:
+    label: Theft covered only on violent and forcible entry
+    # The existing taxonomy mechanism, reused: a theft peril that depends on forcible
+    # entry. The structural slots below are the residential form of it.
+    taxonomy_code: EXCL.THEFT_FORCIBLE_ENTRY
+    known_names: [Theft, Forcible Entry]
+    mandatory_slots:
+      forcible_entry_theft:
+        any_of: ['theft by violent and forcible entry']
+      occupancy_proviso:
+        any_of: ['not left unoccupied for more than']
+    optional_slots:
+      days:
+        scope: clause
+        capture: 'unoccupied for more than\s*(\d{1,3})\s*consecutive\s*days'
+  HOME.DEADLINE.CLAIM_NOTICE:
+    label: Written notice of an occurrence within a stated period
+    taxonomy_code: HOME.DEADLINE.CLAIM_NOTICE
+    known_names: [Notification and Claims Procedures]
+    mandatory_slots:
+      written_notice:
+        any_of: ['written notice to Us of the occurrence']
+      time_limit:
+        any_of: ['no later than [a-z]+ \(\d+\) days', 'no later than \d+ days']
+    optional_slots:
+      days:
+        scope: clause
+        capture: 'no later than [a-z]+ \((\d+)\) days'
+  HOME.CONDITION.POLICE_REPORT:
+    label: Police report for theft
+    taxonomy_code: HOME.CONDITION.POLICE_REPORT
+    known_names: [police report]
+    mandatory_slots:
+      theft_event:
+        any_of: ['in the case of theft']
+      police_report:
+        any_of: ['lodge an official report with the police']
+  HOME.IN.BASIS.COST_OF_CONSTRUCTION:
+    label: Building sum insured on the cost-of-construction basis
+    taxonomy_code: HOME.IN.BASIS.COST_OF_CONSTRUCTION
+    known_names: [Cost of Construction]
+    mandatory_slots:
+      construction_basis:
+        any_of: ['Sum Insured for the Home Building Cover is the\s*prevailing Cost of Construction']
+      total_loss_maximum:
+        any_of: ['maximum amount\s*payable in the event the Home Building is a Total\s*Loss']
+  HOME.IN.CONTENTS.BUILT_IN:
+    label: Built-in general contents cover as a share of the building sum insured
+    taxonomy_code: HOME.IN.CONTENTS.BUILT_IN
+    known_names: [built-in cover]
+    mandatory_slots:
+      built_in_cover:
+        any_of: ['built-in cover for the General\s*Contents']
+      share_of_building:
+        any_of: ['equal to \d+% of the Sum\s*Insured for Home Building']
+    optional_slots:
+      percent:
+        scope: clause
+        capture: 'equal to (\d+)% of the Sum'
+      maximum_lakh:
+        scope: clause
+        capture: 'maximum of\s*\S{0,3}\s*(\d+) Lakh'
+  HOME.IN.WAIVER.UNDERINSURANCE:
+    label: Underinsurance waived
+    taxonomy_code: HOME.IN.WAIVER.UNDERINSURANCE
+    known_names: [Waiver of Underinsurance]
+    mandatory_slots:
+      waiver:
+        any_of: ['Underinsurance does not apply']
+      value_comparison:
+        any_of: ['less than the actual value at\s*risk, the difference will not affect the amount We pay']
+  HOME.IN.THEFT.AFTER_INSURED_EVENT:
+    label: Theft covered only after an insured event
+    taxonomy_code: HOME.IN.THEFT.AFTER_INSURED_EVENT
+    known_names: [Theft]
+    mandatory_slots:
+      theft_window:
+        any_of: ['Theft within \d+ \(\w+\) days']
+      insured_event_cause:
+        any_of: ['proximately caused by any\s*of the above Insured Events']
+    optional_slots:
+      days:
+        scope: clause
+        capture: 'Theft within (\d+) \('
+  HOME.IN.DEADLINE.IMMEDIATE_NOTICE:
+    label: Immediate notice of loss or damage
+    taxonomy_code: HOME.IN.DEADLINE.IMMEDIATE_NOTICE
+    known_names: [Immediate notice]
+    mandatory_slots:
+      trigger:
+        any_of: ['As soon as any physical loss or damage occurs']
+      immediate_notice:
+        any_of: ['Y\s?ou must immediately give notice to\s*Us of the loss or damage']
+  TRAVEL.COVERED.CANCELLATION:
+    label: Trip cancellation before departure
+    taxonomy_code: TRAVEL.COVERED.CANCELLATION
+    known_names: [Cancellation of your trip]
+    mandatory_slots:
+      unavoidable_cancellation:
+        any_of: ['necessary and unavoidable that you have to cancel your trip']
+      covered_events:
+        any_of: ['one \(1\) or more of the covered events', 'covered events']
+  TRAVEL.COVERED.OVERSEAS_MEDICAL:
+    label: Overseas medical expenses
+    taxonomy_code: TRAVEL.COVERED.OVERSEAS_MEDICAL
+    known_names: [Overseas medical expenses]
+    mandatory_slots:
+      reimbursement:
+        any_of: ['reimburse you for the necessary and reasonable medical expenses you incurred and paid overseas']
+      treatment_window:
+        any_of: ['within [a-z]+ \(\d+\) days of an injury or illness']
+    optional_slots:
+      days:
+        scope: clause
+        capture: 'within [a-z]+ \((\d+)\) days of an injury'
+  TRAVEL.CONDITION.BAGGAGE_DELAY:
+    label: Baggage delay threshold
+    taxonomy_code: TRAVEL.CONDITION.BAGGAGE_DELAY
+    known_names: [Baggage delay]
+    mandatory_slots:
+      delayed_baggage:
+        any_of: ['baggage is delayed for collection']
+      threshold:
+        any_of: ['for more than [a-z]+ \(\d+\) continuous\s*hours']
+    optional_slots:
+      hours:
+        scope: clause
+        capture: 'for more than [a-z]+ \((\d+)\) continuous'
+  TRAVEL.CONDITION.CARRIER_REPORT:
+    label: Carrier's property irregularity report
+    taxonomy_code: TRAVEL.CONDITION.CARRIER_REPORT
+    known_names: [Property Irregularity Report]
+    mandatory_slots:
+      carrier_report:
+        any_of: ['property irregularity report']
+      carrier_context:
+        any_of: ['damage by an airline', 'flight tickets and baggage check tags']
+  TRAVEL.EXCLUSION.EXISTING_CONDITION:
+    label: Existing health condition exclusion
+    taxonomy_code: TRAVEL.EXCLUSION.EXISTING_CONDITION
+    known_names: [existing health conditions, pre-existing conditions]
+    mandatory_slots:
+      exclusion:
+        any_of:
+          - 'does not cover any (?:pre-)?existing health conditions?'
+          # The same structure in a second carrier's words (the GENERIC showcase wording).
+          - 'pre-existing medical conditions of you or any other person are not covered'
+  TRAVEL.DEADLINE.CLAIM_NOTICE:
+    label: Claim documents within a stated period
+    taxonomy_code: TRAVEL.DEADLINE.CLAIM_NOTICE
+    known_names: [Notice of Claim]
+    mandatory_slots:
+      submission:
+        any_of: ['Claims documents must be submitted']
+      time_limit:
+        any_of: ['no later than [a-z]+ \(\d+\) days from the date of\s*the incident']
+    optional_slots:
+      days:
+        scope: clause
+        capture: 'no later than [a-z]+ \((\d+)\) days from the date'
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Hong Kong VHIS Standard Plan mechanisms (T27). Structural, like the rest: each names
+  # what the government template's own sentences contain. Tested against the template and
+  # against every other corpus wording for false positives.
+  HEALTH.HK.GUARANTEED_RENEWAL:
+    label: Guaranteed renewal regardless of health changes
+    taxonomy_code: HEALTH.HK.GUARANTEED_RENEWAL
+    known_names: [guaranteed renewal]
+    mandatory_slots:
+      guaranteed_renewal:
+        any_of: ['guaranteed renewal rights, despite changes to the health conditions']
+      age_ceiling:
+        any_of: ['up to the age of \d+']
+    optional_slots:
+      age:
+        scope: clause
+        capture: 'up to the age of (\d+)'
+  HEALTH.HK.UNKNOWN_PRE_EXISTING:
+    label: Unknown pre-existing conditions under a stepped waiting period
+    taxonomy_code: HEALTH.HK.UNKNOWN_PRE_EXISTING
+    known_names: [Pre-existing Condition]
+    mandatory_slots:
+      unknown_condition:
+        any_of: ['Pre-existing Condition\(s\) that the Policy Holder and/or Insured Person\s*was not aware']
+      stepped_arrangement:
+        any_of: ['waiting period and reimbursement arrangement']
+      second_year_share:
+        any_of: ['Second Policy Year \d+% reimbursement']
+    optional_slots:
+      # Candidate scope: the stepped table sits just past the clause's opening sentence,
+      # and each row is labelled by its own policy year, so it cannot be borrowed.
+      second_year_percent:
+        scope: candidate
+        capture: 'Second Policy Year (\d+)% reimbursement'
+  HEALTH.HK.ROOM_AND_BOARD:
+    label: Room and board daily limit with an annual day cap
+    taxonomy_code: HEALTH.HK.ROOM_AND_BOARD
+    known_names: [Room and board]
+    mandatory_slots:
+      room_and_board:
+        any_of: ['Room and board\s*\$[\d,]+ per day']
+      day_cap:
+        any_of: ['Maximum \d+ days per Policy Year']
+    optional_slots:
+      amount:
+        scope: clause
+        capture: 'Room and board\s*\$([\d,]+) per day'
+      days:
+        scope: clause
+        capture: 'Maximum (\d+) days per Policy Year'
+  HEALTH.HK.ANNUAL_LIMIT:
+    label: Annual benefit limit
+    taxonomy_code: HEALTH.HK.ANNUAL_LIMIT
+    known_names: [Annual Benefit Limit]
+    mandatory_slots:
+      # One slot, so the bound region centres on the limit row itself rather than on an
+      # earlier per-year sub-limit in the same table.
+      annual_limit_amount:
+        any_of: ['Annual Benefit Limit for benefit\s*items[^$]{0,30}\$[\d,]+ per Policy Year']
+    optional_slots:
+      amount:
+        scope: clause
+        capture: 'Annual Benefit Limit for benefit\s*items[^$]{0,30}\$([\d,]+) per Policy Year'
+  HEALTH.HK.NO_LIFETIME_LIMIT:
+    label: No lifetime benefit limit
+    taxonomy_code: HEALTH.HK.NO_LIFETIME_LIMIT
+    known_names: [Lifetime Benefit Limit]
+    mandatory_slots:
+      no_lifetime_limit:
+        any_of: ['not subject to any Lifetime Benefit Limit', 'no lifetime benefit limit']

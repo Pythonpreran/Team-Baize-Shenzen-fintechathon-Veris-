@@ -254,7 +254,17 @@ class AgentRuntime:
                 "budgets": {"max_steps": MAX_PLAN_STEPS, "max_seconds": MAX_PLAN_SECONDS,
                             "max_tokens": MAX_PLAN_TOKENS},
             }
-        if "claim" in lowered or "admitted" in lowered or "hospital" in lowered:
+        if ("motor claim" in lowered or "vehicle claim" in lowered
+                or "car accident" in lowered or "motor own damage" in lowered):
+            tools = (
+                ("portfolio.read", "Read the tenant-scoped motor policy and vehicle record."),
+                ("policy.layout", "Read the selected motor policy layout and citations."),
+                ("deadline.compute", "Compute only a documented motor notification timing."),
+                ("claim.prepare", "Prepare the reversible motor checklist and surveyor packet."),
+                ("letter.draft", "Prepare a cover-letter draft for the owner to review."),
+                ("claim.submit", "Submitting to the synthetic insurer needs your OK."),
+            )
+        elif "claim" in lowered or "admitted" in lowered or "hospital" in lowered:
             tools = (
                 ("portfolio.read", "Read the tenant-scoped portfolio."),
                 ("policy.layout", "Read the selected health policy layout and citations."),
@@ -340,17 +350,23 @@ class AgentRuntime:
     @staticmethod
     def _local_result(definition: ToolDefinition, payload: Mapping[str, Any]) -> ToolResult:
         if definition.name == "claim.prepare":
+            motor_claim = str(payload.get("claim_type") or "").upper() == "MOTOR_OWN_DAMAGE"
+            checklist = (
+                [
+                    {"item": "Policy schedule", "reason": "Identifies the motor policy and insured vehicle."},
+                    {"item": "Vehicle registration", "reason": "Records the vehicle identifier for the surveyor packet."},
+                    {"item": "Repair estimate or invoice", "reason": "Records the declared repair evidence for review."},
+                ] if motor_claim else [
+                    {"item": "Policy schedule", "reason": "Identifies the policy and insured member."},
+                    {"item": "Hospital discharge summary", "reason": "Describes the admission record."},
+                    {"item": "Itemised hospital bills", "reason": "Supports the expense record."},
+                ])
             return ToolResult(
                 state="DRAFTED",
-                summary="A reversible health-claim checklist is ready. It has not been submitted.",
-                data={
-                    "policy_id": payload["policy_id"],
-                    "checklist": [
-                        {"item": "Policy schedule", "reason": "Identifies the policy and insured member."},
-                        {"item": "Hospital discharge summary", "reason": "Describes the admission record."},
-                        {"item": "Itemised hospital bills", "reason": "Supports the expense record."},
-                    ],
-                },
+                summary=("A reversible motor-claim checklist is ready; the synthetic surveyor step remains counterparty-owned."
+                         if motor_claim else
+                         "A reversible health-claim checklist is ready. It has not been submitted."),
+                data={"policy_id": payload["policy_id"], "checklist": checklist},
             )
         if definition.name == "letter.draft":
             return ToolResult(

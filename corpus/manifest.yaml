@@ -538,3 +538,85 @@ documents:
     usage_note: >
       Public Integrated Shield Plan wording used only for the matching labelled synthetic
       schedule, including daily room-and-board, deductible, co-insurance and pro-ration terms.
+
+  # ── Home and travel wordings (T26). Public sources; originals remain outside git. ──
+  - id: sg-aig-travel-guard-direct-wording
+    title: "Travel Guard Direct policy wording (Singapore, policies issued on or after 18 January 2025)"
+    publisher: "AIG Asia Pacific Insurance Pte. Ltd."
+    source_url: "https://orgn-aigsg1.dmp.aig.com/content/dam/aig/apac/singapore/travel/travel-guard-direct-policy-wording.pdf.coredownload.pdf"
+    source_url_status: RECORDED
+    country: SG
+    line_of_business: TRAVEL
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/sg-aig-travel-guard-direct-wording.pdf"
+    sha256: "0c9f9b814186e1b9b47e423890f89646b068bc9e069810d52af79f618e5c0f67"
+    text_sha256: "a415a5b5b2335c5d7f6516f1e539cc07371d0d532e7329895cff22c1a80a9464"
+    bytes: 1057164
+    pages: 46
+    redistribute: false
+    usage_note: >
+      Public travel wording used only to map its own trip-cancellation, overseas-medical,
+      baggage-delay threshold, carrier-report, existing-condition and notice-of-claim
+      sentences for the labelled synthetic travel schedule. Plan limits sit in a benefits
+      table that a schedule's selected plan must establish; none is read from here.
+  - id: in-hdfc-ergo-bharat-griha-raksha-wording
+    title: "HDFC ERGO Bharat Griha Raksha policy wording (IRDAI standard home product)"
+    publisher: "HDFC ERGO General Insurance Company Limited"
+    source_url: "https://www.hdfcergo.com/docs/default-source/downloads/policy-wordings/home/bgr-pw.pdf"
+    source_url_status: RECORDED
+    country: IN
+    line_of_business: HOME
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/in-hdfc-ergo-bharat-griha-raksha-wording.pdf"
+    sha256: "b63399ac0f3da2a63e05dfc89a634ec33a10132aa2f0a2499590693305dd3673"
+    text_sha256: "50b3688ff53f86c2f94fd5c340d77f8a6cdca87ece407783eed7ce8d20de1bbf"
+    bytes: 93439
+    pages: 13
+    redistribute: false
+    usage_note: >
+      Public standard home wording used only to map its own cost-of-construction basis,
+      built-in contents cover, theft-after-an-insured-event, waiver-of-underinsurance and
+      immediate-notice sentences for the labelled synthetic India home schedule.
+
+  # ── Hong Kong standard health template and the GENERIC showcase (T27). ─────────
+  - id: hk-vhis-standard-plan-template
+    title: "Voluntary Health Insurance Scheme Standard Plan terms and benefits template (1 July 2022)"
+    publisher: "HKSAR Government, Voluntary Health Insurance Scheme"
+    source_url: "https://www.vhis.gov.hk/doc/en/information_centre/e_standard_plan_template_20220701.pdf"
+    source_url_status: RECORDED
+    country: HK
+    line_of_business: HEALTH
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/hk-vhis-standard-plan-template.pdf"
+    sha256: "e6b04f49b2c6c3ddff1923f9b914d252129d8773db3cc13819921a35950e017c"
+    text_sha256: "fbfdd74382a413df993daaf94ad4401c228da56097e50584627644598e4f3e58"
+    bytes: 510863
+    pages: 64
+    redistribute: false
+    usage_note: >
+      The government's own Standard Plan template, which every certified Standard Plan
+      follows. Used to map its guaranteed-renewal, unknown pre-existing condition,
+      room-and-board, annual-limit and lifetime-limit structures, and as the primary
+      source for the Hong Kong pack's VHIS entry. It is a template, not an issued policy.
+  - id: au-aig-travel-insurance-pds
+    title: "International Gold Travel Insurance combined PDS and policy wording (Australia, 2014)"
+    publisher: "AIG Australia Limited"
+    source_url: "https://www.singaporeair.com/saar5/pdf/Travel-Insurance/Australia/Gold-Travel-Insurance.pdf"
+    source_url_status: RECORDED
+    country: AU
+    line_of_business: TRAVEL
+    document_class: POLICY_WORDING
+    media_type: application/pdf
+    seed_path: "policy-wordings/au-aig-travel-insurance-pds.pdf"
+    sha256: "b06f9992a45febbe1801509431dbf9c40d18c367981046825d810163ded76288"
+    text_sha256: "0851c5a14c98ac953c68401a0f38d93bc1f14e323414e496c791026d566bab27"
+    bytes: 439728
+    pages: 33
+    redistribute: false
+    usage_note: >
+      The GENERIC showcase: a public wording from a country VERIS recognises but holds no
+      pack for. It is read and quoted structurally; no Australian legal statement is made,
+      and the notice names the pack that is missing. Not authority for any other country.

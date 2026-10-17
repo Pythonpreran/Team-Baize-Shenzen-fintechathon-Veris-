@@ -82,6 +82,27 @@ class PolicySpec:
     document_filename: str
     coverage: tuple[CoverageSpec, ...]
     health_schedule: Optional[HealthScheduleSpec] = None
+    #: Exact single lines of the generated schedule that establish a home or travel
+    #: operand, keyed by operand name. The mapper parses every number from these lines
+    #: and cites them; nothing here is a value the mapper may use without its quote.
+    schedule_quotes: tuple[tuple[str, str], ...] = ()
+    #: What the schedule insures when it is a property not modelled as an asset.
+    property_label: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ContentsListSpec:
+    """The owner's own contents list, as written in the self-declared household profile.
+
+    Self-authored, so every figure derived from it is DECLARED. The mapper adds the item
+    lines itself and compares the result with the stated total; a disagreement yields no
+    figure at all rather than either number.
+    """
+
+    document_filename: str
+    for_masked_number: str
+    item_lines: tuple[str, ...]
+    total_line: str
 
 
 DOCUMENTS: tuple[DocumentSpec, ...] = (
@@ -90,7 +111,7 @@ DOCUMENTS: tuple[DocumentSpec, ...] = (
     DocumentSpec("rao-home-contents-schedule.pdf", "Home contents schedule", "SG", "SCHEDULE"),
     DocumentSpec("rao-singapore-motor-travel-schedule.pdf", "Singapore motor and travel schedules", "SG", "SCHEDULE"),
     DocumentSpec("rao-india-health-schedule.pdf", "India family health schedule", "IN", "SCHEDULE"),
-    DocumentSpec("rao-india-motor-schedule.pdf", "India motor schedule", "IN", "SCHEDULE"),
+    DocumentSpec("rao-india-motor-schedule.pdf", "India motor and home schedules", "IN", "SCHEDULE"),
 )
 
 MEMBERS: tuple[MemberSpec, ...] = (
@@ -116,9 +137,9 @@ POLICIES: tuple[PolicySpec, ...] = (
         document_filename="rao-singapore-health-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.HOSPITALISATION", None, None,
-                         "This synthetic schedule lists hospitalisation benefits for Arjun Rao and Meera Rao."),
+                         "Hospitalisation benefits are listed for both insured members."),
             CoverageSpec("LIMIT.SUM_INSURED", "1500000", "SGD",
-                         "Synthetic schedule sum insured: SGD 1,500,000."),
+                         "Synthetic schedule sum insured: SGD 1,500,000"),
         ),
     ),
     PolicySpec(
@@ -129,23 +150,27 @@ POLICIES: tuple[PolicySpec, ...] = (
         document_filename="rao-singapore-health-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.HOSPITALISATION", None, None,
-                         "This synthetic schedule identifies Singlife Shield Standard Plan for Arjun Rao and Meera Rao."),
+                         "Singlife Shield Standard Plan schedule reference: ****-ISP2"),
             CoverageSpec("LIMIT.SUM_INSURED", "1000000", "SGD",
-                         "Synthetic separate plan sum insured: SGD 1,000,000."),
+                         "Synthetic separate plan sum insured: SGD 1,000,000"),
         ),
     ),
     PolicySpec(
-        country="SG", line_of_business="HOME", insurer="Lotus General (Sandbox)",
-        product="Home contents plan (synthetic schedule)", masked_number="****-HOME3",
+        country="SG", line_of_business="HOME", insurer="AIG Asia Pacific Insurance Pte. Ltd.",
+        product="AIG Homes Advantage (synthetic schedule)", masked_number="****-HOME3",
         period_start="2026-02-01", period_end="2027-01-31", status="ACTIVE",
         renewal_date="2027-01-31", member_keys=("arjun", "meera"), asset_keys=("home-contents",),
         document_filename="rao-home-contents-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.HOME_CONTENTS", None, None,
-                         "This synthetic schedule lists Singapore home contents as an insured asset."),
+                         "Cover selected: Household Contents"),
             CoverageSpec("LIMIT.SUM_INSURED", "300000", "SGD",
-                         "Synthetic home contents sum insured: SGD 300,000."),
+                         "Home contents sum insured: SGD 300,000"),
         ),
+        schedule_quotes=(
+            ("contents_sum_insured", "Home contents sum insured: SGD 300,000"),
+        ),
+        property_label="Singapore home contents",
     ),
     PolicySpec(
         country="SG", line_of_business="MOTOR", insurer="Lotus General (Sandbox)",
@@ -155,18 +180,22 @@ POLICIES: tuple[PolicySpec, ...] = (
         document_filename="rao-singapore-motor-travel-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.MOTOR_THIRD_PARTY", None, None,
-                         "This synthetic schedule identifies the Singapore family car and a motor policy period."),
+                         "Insured asset: Singapore family car"),
         ),
     ),
     PolicySpec(
-        country="SG", line_of_business="TRAVEL", insurer="Lotus General (Sandbox)",
-        product="Travel plan (synthetic schedule)", masked_number="****-TRAVEL5",
+        country="SG", line_of_business="TRAVEL", insurer="AIG Asia Pacific Insurance Pte. Ltd.",
+        product="AIG Travel Guard Direct (synthetic schedule)", masked_number="****-TRAVEL5",
         period_start="2026-06-01", period_end="2027-05-31", status="ACTIVE",
         renewal_date="2027-05-31", member_keys=("arjun", "meera", "anya"), asset_keys=(),
         document_filename="rao-singapore-motor-travel-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.TRAVEL", None, None,
-                         "This synthetic schedule lists Arjun Rao, Meera Rao and Anya Rao on a travel plan."),
+                         "Travellers: Arjun Rao, Meera Rao and Anya Rao"),
+        ),
+        schedule_quotes=(
+            ("travellers", "Travellers: Arjun Rao, Meera Rao and Anya Rao"),
+            ("selected_plan", "Selected plan: not stated on this synthetic schedule"),
         ),
     ),
     PolicySpec(
@@ -210,13 +239,43 @@ POLICIES: tuple[PolicySpec, ...] = (
         document_filename="rao-india-motor-schedule.pdf",
         coverage=(
             CoverageSpec("COVERED.MOTOR_THIRD_PARTY", None, None,
-                         "This synthetic schedule records third-party motor insurance for the Bengaluru family car."),
+                         "Insured asset: Bengaluru family car"),
             CoverageSpec("RENEWAL.THIRD_PARTY", None, None,
-                         "This synthetic schedule records a third-party cover expiry on 18 October 2026."),
+                         "Third-party cover expiry: 18 October 2026"),
             CoverageSpec("CONDITION.DEPRECIATION_SCHEDULE", None, None,
                          "Depreciation schedule: plastic parts 50%; metal parts 10% for a vehicle aged up to five years."),
         ),
     ),
+    # Appended, never inserted: a persisted seed binding records each policy's index.
+    PolicySpec(
+        country="IN", line_of_business="HOME", insurer="HDFC ERGO General Insurance Company Limited",
+        product="HDFC ERGO Bharat Griha Raksha (synthetic schedule)", masked_number="****-HOME8",
+        period_start="2026-04-01", period_end="2027-03-31", status="ACTIVE",
+        renewal_date="2027-03-31", member_keys=("raghavan", "lakshmi"), asset_keys=(),
+        document_filename="rao-india-motor-schedule.pdf",
+        coverage=(
+            CoverageSpec("COVERED.HOME_BUILDING", None, None,
+                         "Cover selected: Home Building and General Contents"),
+            CoverageSpec("LIMIT.SUM_INSURED", "4500000", "INR",
+                         "Home Building sum insured (declared cost of construction): INR 4,500,000"),
+        ),
+        schedule_quotes=(
+            ("building_sum_insured",
+             "Home Building sum insured (declared cost of construction): INR 4,500,000"),
+        ),
+        property_label="Bengaluru family home",
+    ),
+)
+
+CONTENTS_LIST = ContentsListSpec(
+    document_filename="rao-household-profile.pdf",
+    for_masked_number="****-HOME3",
+    item_lines=(
+        "Furniture SGD 95,000; electronics and appliances SGD 88,000;",
+        "jewellery and watches SGD 162,000; clothing and personal effects SGD 45,000;",
+        "art and collectibles SGD 30,000.",
+    ),
+    total_line="Contents list total (self-declared): SGD 420,000.",
 )
 
 

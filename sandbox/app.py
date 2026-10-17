@@ -162,6 +162,14 @@ def open_claim_query(claim_id: str, tenant_id: str = Depends(_tenant),
     return {"webhook": _service().open_claim_query(claim_id, tenant_id=tenant_id), "synthetic": True}
 
 
+@app.post("/claims/{claim_id}/events/survey-complete")
+def complete_motor_survey(claim_id: str, tenant_id: str = Depends(_tenant),
+                          _token: _SandboxPrincipal = Depends(_require_token),
+                          _admin: None = Depends(_require_local_admin)):
+    """Emit the local counterparty-owned completion event for a motor survey."""
+    return {"webhook": _service().complete_motor_survey(claim_id, tenant_id=tenant_id), "synthetic": True}
+
+
 @app.post("/claims/{claim_id}/events/decision")
 def decide_claim(claim_id: str, tenant_id: str = Depends(_tenant),
                  _token: _SandboxPrincipal = Depends(_require_token),

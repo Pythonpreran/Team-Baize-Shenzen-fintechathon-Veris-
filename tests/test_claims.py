@@ -140,3 +140,122 @@ def test_escalation_fails_closed_when_the_first_complaint_step_is_not_sourced(re
     assert gate["eligible"] is False
     assert gate["entry"] is None
     assert "first complaint-ladder step" in gate["notice"]
+
+
+# ── checklist citations (regression: every item cited "the policy schedule") ──
+
+def _health_policy_with_reimbursement_wording() -> dict:
+    """The demo health policy plus the claim-procedure clause HEALTH.yaml actually maps."""
+    policy = _policy()
+    policy["health_items"].append({
+        "mechanism_code": "CONDITION.REIMBURSEMENT", "state": "DOCUMENTED",
+        "citation": {"document": "Synthetic policy wording", "page": 12,
+                     "quote": "Procedure for reimbursement of claims: submit the necessary documents."},
+    })
+    return policy
+
+
+def test_each_checklist_item_cites_its_own_source_not_one_shared_label():
+    """MEASURED DEFECT. All four items showed the source "the policy schedule".
+
+    Two causes, both in claims.py: the health branch looked up `CLAIM.REIMBURSEMENT`
+    while HEALTH.yaml emits `CONDITION.REIMBURSEMENT`, so nothing matched; and the
+    unmatched branch then labelled the item with the schedule — a document that
+    establishes none of those requirements. A fabricated citation is the one output this
+    product may not produce (PLAN rule 15).
+    """
+    items = claims.checklist_for(_health_policy_with_reimbursement_wording(), "REIMBURSEMENT")
+    by_item = {item["item"]: item["source"] for item in items}
+    procedure = by_item["Itemised hospital bills"]
+    assert procedure["page"] == 12, "the claim-procedure clause was not matched"
+    assert procedure["quote"].startswith("Procedure for reimbursement")
+    assert by_item["Hospital discharge summary"]["page"] == 12
+    # The schedule item is the one item the schedule genuinely establishes.
+    assert by_item["Policy schedule"]["document"] == "Synthetic schedule"
+    assert by_item["Claim notice details"]["page"] == 7
+    # And no single label is doing the work of the whole list any more.
+    assert len({(s["document"], s["page"]) for s in by_item.values()}) > 1
+    assert not any(s["document"] == "the policy schedule" for s in by_item.values())
+
+
+def test_an_unestablished_checklist_item_says_so_and_names_what_would_establish_it():
+    """A policy whose wording carries no claim procedure. The items that rest on one are
+    reported as open questions, never relabelled onto a document that is silent."""
+    items = claims.checklist_for(_policy(), "REIMBURSEMENT")
+    by_item = {item["item"]: item["source"] for item in items}
+    for name in ("Hospital discharge summary", "Itemised hospital bills"):
+        source = by_item[name]
+        assert source, "the record must stay truthy so callers can keep one check"
+        assert source["state"] == "INFORMATION_MISSING", name
+        assert source["document"] is None and source["quote"] is None, name
+        assert source["required_document"] == "the policy wording's claim procedure", name
+    assert not any(s["document"] == "the policy schedule" for s in by_item.values())
+
+
+def test_a_motor_police_report_is_not_cited_to_the_third_party_cover_entry():
+    """A police report is established by an incident record or a wording clause. Citing
+    the third-party cover entry said a document requires a report when nothing read did."""
+    policy = {"id": "policy-motor", "country": "IN", "line_of_business": "MOTOR",
+              "source": "SYNTHETIC_EXAMPLE", "source_document_ids": ["doc-motor"],
+              "motor_items": [{"mechanism_code": "COVERED.MOTOR_THIRD_PARTY",
+                               "state": "DOCUMENTED", "source_document_id": "doc-motor"}]}
+    items = {item["item"]: item["source"] for item in claims.checklist_for(policy, "REIMBURSEMENT")}
+    report = items["Police report, if one exists"]
+    assert report["state"] == "INFORMATION_MISSING"
+    assert report["document"] is None
+    assert report["required_document"] == "the policy wording's claim procedure"
+    # The schedule item still carries the entry that does establish it.
+    assert items["Policy schedule"]["source_document_id"] == "doc-motor"
+
+
+def test_a_motor_vehicle_registration_is_not_cited_to_the_third_party_cover_entry():
+    """The same mislabel, one item along, and the one the first pass left behind.
+
+    "Vehicle registration" shared the schedule item's citation object, so a third-party
+    COVER entry — quote and page included — was presented as the source for a vehicle
+    identifier requirement. Nothing mapped establishes that requirement, so the item
+    reports an open question and names the document that would close it.
+    """
+    policy = {"id": "policy-motor", "country": "IN", "line_of_business": "MOTOR",
+              "source": "SYNTHETIC_EXAMPLE", "source_document_ids": ["doc-motor"],
+              "motor_items": [{"mechanism_code": "COVERED.MOTOR_THIRD_PARTY",
+                               "state": "DOCUMENTED", "source_document_id": "doc-motor",
+                               "citation": {"document": "Synthetic motor schedule", "page": 2,
+                                            "quote": "Third-party liability is covered."}}]}
+    items = {item["item"]: item["source"] for item in claims.checklist_for(policy, "REIMBURSEMENT")}
+    registration = items["Vehicle registration"]
+    assert registration["state"] == "INFORMATION_MISSING"
+    assert registration["document"] is None and registration["quote"] is None
+    assert registration["page"] is None
+    assert registration["required_document"] == "the vehicle registration certificate"
+    # The cover entry stays where it belongs: on the item it does establish.
+    assert items["Policy schedule"]["quote"] == "Third-party liability is covered."
+    assert registration["quote"] != items["Policy schedule"]["quote"]
+    assert not any(source.get("quote") == "Third-party liability is covered."
+                   for name, source in items.items() if name != "Policy schedule")
+
+
+def test_the_schedule_label_is_never_attached_to_a_wording_clause():
+    """A mapped term that carries a document id but no citation used to be announced as
+    "your uploaded policy schedule" from the generic path, so a claim-procedure or
+    cashless-network clause mapped from the WORDING could be labelled the schedule. That
+    reading belongs to the schedule item alone."""
+    policy = {"id": "policy-health", "country": "SG", "line_of_business": "HEALTH",
+              "source": "SYNTHETIC_EXAMPLE", "source_document_ids": ["doc-schedule"],
+              "health_items": [
+                  {"mechanism_code": "CONDITION.REIMBURSEMENT", "state": "DOCUMENTED",
+                   "source_document_id": "doc-wording"},
+                  {"mechanism_code": "CONDITION.CASHLESS_NETWORK", "state": "DOCUMENTED",
+                   "source_document_id": "doc-wording"}]}
+    items = {item["item"]: item["source"] for item in claims.checklist_for(policy, "REIMBURSEMENT")}
+    for name in ("Hospital discharge summary", "Itemised hospital bills"):
+        source = items[name]
+        assert source["state"] == "INFORMATION_MISSING", name
+        assert source["document"] is None, name
+        # The id the mapped term named is kept; only the assumed label is gone.
+        assert source["source_document_id"] == "doc-wording", name
+    schedule = items["Policy schedule"]
+    assert schedule["state"] == "DOCUMENTED"
+    assert schedule["document"] == "the policy schedule"
+    assert schedule["source_document_id"] == "doc-schedule"
+    assert sum(1 for s in items.values() if s["document"] == "the policy schedule") == 1

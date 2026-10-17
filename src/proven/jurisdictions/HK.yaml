@@ -1,0 +1,200 @@
+# VERIS jurisdiction pack — Hong Kong.
+#
+# Standard depth. Every statement about law or regulation is either backed by a verbatim
+# primary-source quote that scripts/verify_pack_sources.py has checked, or held as
+# CANDIDATE evidence that never reaches an owner. On 2026-10-11 the Hong Kong
+# e-Legislation pages for Cap. 272, Cap. 282 and Cap. 486 returned only a script loader to
+# an automated fetch, and the Insurance Authority's site refused one (HTTP 403), so every
+# statute and regulator entry below is CANDIDATE with the exact human action logged. The
+# one owner-facing entry quotes the government's own Voluntary Health Insurance Scheme
+# Standard Plan template, which the corpus holds hash-verified.
+
+code: HK
+name: Hong Kong
+version: 1
+summary: >
+  Hong Kong. HKD money formatting, Hong Kong public holidays and document authorship; the
+  government's Standard Plan features for the Voluntary Health Insurance Scheme, quoted;
+  and statute, regulator and complaint-route records held back until their primary text is
+  verified.
+locales: [en-HK, zh-HK]
+timezone: Asia/Hong_Kong
+holiday_calendar:
+  provider: holidays
+  country: HK
+  wired: true
+  note: The holidays provider is used for working-day arithmetic from this pack.
+
+currency:
+  code: HKD
+  symbol: "HK$"
+  local_symbol: "$"
+  minor_units: 2
+  group_separator: ","
+  decimal_separator: "."
+  grouping: THREE
+
+regulators:
+  - id: HK-REG-IA
+    title: Insurance Authority
+    statement: The regulator's own statement of its role needs a primary-source quote before VERIS can show it to an owner.
+    values: {short_name: IA}
+    verification: &candidate
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: The regulator's site refused an automated fetch on 2026-10-11 (HTTP 403); a person must record a role sentence from it.
+
+statutes:
+  - id: HK-STAT-ECO-CAP282
+    title: Employees' Compensation Ordinance (Cap. 282)
+    statement: The ordinance's compulsory employer insurance provision needs its current e-Legislation text quoted before VERIS can state it to an owner.
+    values: {chapter: "282", protection: EMPLOYEES_COMPENSATION}
+    verification: &elegislation
+      status: CANDIDATE
+      source_url: "https://www.elegislation.gov.hk/hk/cap282"
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: The e-Legislation page returned only a script loader to an automated fetch; the operative text was not read.
+  - id: HK-STAT-MVITPR-CAP272
+    title: Motor Vehicles Insurance (Third Party Risks) Ordinance (Cap. 272)
+    statement: The ordinance's third-party insurance requirement needs its current e-Legislation text quoted before VERIS can state it to an owner.
+    values: {chapter: "272", protection: MOTOR_THIRD_PARTY}
+    verification:
+      status: CANDIDATE
+      source_url: "https://www.elegislation.gov.hk/hk/cap272"
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: The e-Legislation page returned only a script loader to an automated fetch; the operative text was not read.
+
+compulsory_covers:
+  - id: HK-COMP-EMPLOYEES-COMPENSATION
+    title: Employees' compensation insurance
+    statement: A compulsory employees' compensation statement waits for the Cap. 282 entry to be source-quoted.
+    values: {protection: EMPLOYEES_COMPENSATION, statute: HK-STAT-ECO-CAP282}
+    verification: *candidate
+  - id: HK-COMP-MOTOR-THIRD-PARTY
+    title: Motor third-party insurance
+    statement: A compulsory motor third-party statement waits for the Cap. 272 entry to be source-quoted.
+    values: {protection: MOTOR_THIRD_PARTY, statute: HK-STAT-MVITPR-CAP272}
+    verification: *candidate
+
+regulatory_timelines: []
+
+complaint_ladder:
+  - id: HK-CL-INSURER
+    title: Insurer complaint
+    statement: A primary source is required before VERIS states the insurer complaint step to an owner.
+    values: {order: 1, time_limit_days: null}
+    verification: *candidate
+  - id: HK-CL-INDEPENDENT-BODY
+    title: Independent insurance complaint body
+    statement: The current independent body for insurance complaints, and any time limit, need a primary source before VERIS names them to an owner.
+    values: {order: 2, time_limit_days: null}
+    verification: *candidate
+
+market_conventions:
+  - id: HK-MC-VHIS-STANDARD-PLAN
+    title: Voluntary Health Insurance Scheme Standard Plan
+    statement: The government's Standard Plan template lists guaranteed renewal, no lifetime benefit limit and cover for unknown pre-existing conditions among the Standard Plan's features.
+    values: {scheme: VHIS, corpus_id: hk-vhis-standard-plan-template}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://www.vhis.gov.hk/doc/en/information_centre/e_standard_plan_template_20220701.pdf"
+      retrieved_on: 2026-10-11
+      quote: guaranteed renewal rights, despite changes to the health conditions of the insured, up to the age of 100
+      verified_by: null
+      note: Read from the hash-verified corpus copy of the government's template; a template, not an issued policy.
+
+document_kinds:
+  - kind: BASE_WORDING
+    author_class: INSURER
+    verification: &team_grading
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, evidence-class design (src/proven/grading.py)
+      note: The author class is an evidence model decision, not a regulatory statement.
+  - kind: SCHEDULE
+    author_class: INSURER
+    verification: *team_grading
+  - kind: ENDORSEMENT
+    author_class: INSURER
+    verification: *team_grading
+  - kind: TENANCY
+    author_class: THIRD_PARTY
+    absent_note: Tenancy agreement — premises and permitted use not verified
+    verification: *team_grading
+  - kind: ACCOUNTS
+    author_class: SELF
+    absent_note: Accounts — value at risk for stock not verified
+    verification: *team_grading
+  - kind: SUPPLIER_INVOICE
+    author_class: THIRD_PARTY
+    verification: *team_grading
+  - kind: PROPOSAL
+    author_class: SELF
+    verification: *team_grading
+  - kind: HOSPITAL_DISCHARGE_SUMMARY
+    author_class: THIRD_PARTY
+    author: Hospital
+    verification: *team_grading
+  - kind: HOSPITAL_BILL
+    author_class: THIRD_PARTY
+    author: Hospital
+    verification: *team_grading
+  - kind: SELF_DECLARATION
+    author_class: SELF
+    verification: *team_grading
+  - kind: UNKNOWN
+    author_class: SELF
+    verification: *team_grading
+
+data_protection:
+  id: HK-DP-PDPO
+  title: Personal Data (Privacy) Ordinance (Cap. 486)
+  statement: A primary source is required before VERIS states Hong Kong data-protection obligations to an owner.
+  values: {chapter: "486"}
+  verification:
+    status: CANDIDATE
+    source_url: "https://www.elegislation.gov.hk/hk/cap486"
+    retrieved_on: 2026-10-11
+    quote: null
+    verified_by: null
+    note: The e-Legislation page returned only a script loader to an automated fetch; the operative text was not read.
+
+advice_boundary:
+  product_boundary: >
+    VERIS states what your documents say and where they say it. It does not recommend a
+    product, an insurer or a premium, and it never suggests that you buy, cancel, switch or
+    surrender cover. For advice, speak to a licensed insurance intermediary or to your insurer.
+  regulatory_basis:
+    id: HK-AB-INSURANCE-ADVICE
+    title: Insurance advice boundary
+    statement: A primary source is required before VERIS makes a Hong Kong-specific statement about insurance advice regulation.
+    values: {}
+    verification: *candidate
+
+detection:
+  governing_law:
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of (?:the )?Hong Kong\b'
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bHong Kong [Ll]aw\b'
+  names:
+    - Insurance Authority
+    - Insurance Complaints Bureau
+    - Employees' Compensation Ordinance
+    - Insurance Ordinance
+    - Motor Vehicles Insurance (Third Party Risks) Ordinance
+    - Voluntary Health Insurance Scheme
+    - Personal Data (Privacy) Ordinance
+  currency_codes: [HKD]
+  currency_symbols: ["HK$"]
+  registration_numbers: []
+  postcodes: []
+  phone_numbers:
+    - '\+852[\s-]?\d'

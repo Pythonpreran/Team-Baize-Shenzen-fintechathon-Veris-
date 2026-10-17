@@ -5,6 +5,7 @@ workspaces from one login. These tests are static analysis over the three web fi
 prove selectors resolve, API paths exist, escaping is enforced, and accessibility basics
 are present without needing a browser.
 """
+import json
 import re
 import shutil
 import subprocess
@@ -563,6 +564,49 @@ def test_the_stitch_compositions_exist_and_are_reachable():
     for cls in (".pf__core", ".cv__side--connect", ".cv__side--sentinel", ".wr__step",
                 ".pc__dot", ".lp2__h1", ".glass"):
         assert cls in CSS, f"no style for {cls}"
+
+
+def test_the_priority_canvas_markers_carry_their_meaning_in_words():
+    """Reported as "the dots are not very good looking" and, underneath that, as dots a
+    reader cannot tell apart. Shape and a legend answer it; colour alone never does, and
+    a marker that was nudged off its derived point has to say so in the caption."""
+    canvas = JS[JS.index("function priorityCanvas"):JS.index("async function advQueue")]
+    assert 'class="pc__legend"' in canvas, "no visible legend for the markers"
+    assert 'aria-label=' in canvas.split('class="pc__legend"')[1][:60], "the legend has no name"
+    assert 'role="group"' in canvas and "aria-label=\"Priority canvas" in canvas
+    # Every marker is named, interactive or not, and the shapes stay decorative.
+    assert canvas.count("aria-label=") >= 2 and 'class="pc__mk" aria-hidden="true"' in canvas
+    assert "fanned out" in canvas, "the collision fan-out is not disclosed in the caption"
+
+
+def test_every_protection_map_state_has_a_label_that_never_denies_cover():
+    """T17 state semantics, pinned where they are read rather than where they are set.
+
+    "Not found in the documents we read" is NEVER "not covered", and NOT_ASSESSED is
+    neutral — never the one red state, which is COMPULSORY_GAP alone.
+    """
+    source = (Path(__file__).resolve().parents[1] / "src" / "proven"
+              / "protection_map.py").read_text(encoding="utf-8")
+    states = set(re.findall(r'^[A-Z_]+ = "([A-Z_]+)"', source, flags=re.M))
+    assert {"DOCUMENTED_TERMS", "CONDITIONAL_TERMS", "NOT_FOUND_IN_DOCUMENTS",
+            "NOT_ASSESSED", "COMPULSORY_GAP"} <= states
+    for name in ("en.json", "zh-CN.json"):
+        catalogue = json.loads((WEB / "i18n" / name).read_text(encoding="utf-8"))
+        labels = catalogue["protection_map"]["states"]
+        for state in states:
+            assert state in labels, f"{name} has no label for {state}"
+            assert "not covered" not in labels[state].lower(), f"{name} {state} denies cover"
+        assert catalogue["protection_map"]["legend"]
+    # Each state is told apart by a glyph, so the table reads in greyscale too, and the
+    # neutral state never borrows the compulsory alert's ink.
+    marks = JS[JS.index("const PM_STATES"):JS.index("async function smeProtectionMap")]
+    glyphs = dict(re.findall(r'(\w+): \{ glyph: "(.)"', marks))
+    assert set(glyphs) == states and len(set(glyphs.values())) == len(states)
+    assert '[data-s="COMPULSORY_GAP"] .pm__mk{color:var(--clay)}' in CSS
+    for neutral in ("NOT_ASSESSED", "NOT_FOUND_IN_DOCUMENTS"):
+        rule = re.search(r'\[data-s="%s"\] \.pm__mk\{([^}]*)\}' % neutral, CSS)
+        assert rule and "clay" not in rule.group(1) and "danger" not in rule.group(1), neutral
+    assert 'aria-label="${esc(t("protection_map.legend"))}"' in JS
 
 
 def test_no_figure_from_the_reference_screenshots_is_hard_coded():

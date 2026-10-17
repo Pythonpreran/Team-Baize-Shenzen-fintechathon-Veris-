@@ -93,11 +93,20 @@ class Highlight:
     method: str
     rect_count: int = 0
     note: str = ""
+    #: Where the mark is on the rendered page, as FRACTIONS of the image:
+    #: `{"x", "y", "w", "h"}`, each 0–1, origin top-left. None when nothing was marked.
+    #:
+    #: The viewer needs this because the amber is burned into the bitmap: at drawer width
+    #: a one-line mark on an A4 page is a few pixels tall, and the reader cannot see what
+    #: they were sent to look at. Fractions rather than pixels so the same numbers hold at
+    #: display DPI and at full-screen DPI, which are different renders of the same page.
+    bounds: Optional[dict] = None
 
     def as_dict(self) -> dict:
         return {"found": self.found, "method": self.method,
                 "rect_count": self.rect_count,
-                "note": self.note or METHOD_NOTES.get(self.method, "")}
+                "note": self.note or METHOD_NOTES.get(self.method, ""),
+                "bounds": self.bounds}
 
 
 @dataclass
@@ -126,6 +135,22 @@ class RenderedPage:
             out["image"] = ("data:image/png;base64,"
                             + base64.b64encode(self.image_png).decode("ascii"))
         return out
+
+
+def _bounds_of(image: pdfrender.RenderedImage) -> Optional[dict]:
+    """The rendered page's highlight box as fractions of the image, or None.
+
+    Taken from the renderer's own pixel box rather than recomputed from the page
+    geometry: one mapping, used both to paint the amber and to describe where it is, so
+    the ring the viewer draws cannot drift away from the mark underneath it.
+    """
+    box = getattr(image, "highlight_box", None)
+    if not box or not image.width or not image.height:
+        return None
+    x0, y0, x1, y1 = box
+    return {"x": round(x0 / image.width, 5), "y": round(y0 / image.height, 5),
+            "w": round((x1 - x0) / image.width, 5),
+            "h": round((y1 - y0) / image.height, 5)}
 
 
 def _collapse(text: str) -> str:
@@ -251,7 +276,8 @@ def _render_open(doc: pdfrender.Document, page_no: int, quote: str,
         found=bool(rects),
         method=method if rects else NOT_FOUND,
         rect_count=len(rects),
-        note=off_page_note)
+        note=off_page_note,
+        bounds=_bounds_of(image))
     if not quote:
         highlight = Highlight(
             found=False, method=NOT_FOUND, rect_count=0,

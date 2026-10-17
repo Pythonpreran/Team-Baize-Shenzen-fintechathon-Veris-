@@ -1,56 +1,40 @@
 # How to RECOGNISE a country VERIS holds no pack for yet.
 #
 # Recognising a country and applying its law are different things, and this file only does
-# the first. A Malaysian wording has to be identified as Malaysian so that VERIS can say "this
-# reads as Malaysia and there is no Malaysia pack yet" — rather than either saying nothing about
-# where it comes from, or, far worse, reading it against Singapore law because Singapore is the
-# only country it knows. Nothing here is a legal statement: these are names, currency forms and
-# number shapes that appear on that country's documents.
+# the first. A wording from a country with no pack has to be identified as that country so
+# that VERIS can say "this reads as <country> and there is no <country> pack yet" — rather
+# than either saying nothing about where it comes from, or, far worse, reading it against
+# another country's law because that is a country it knows. Nothing here is a legal
+# statement: these are names, currency forms and number shapes that appear on that
+# country's documents.
 #
 # When a country gets a pack, its entry moves into the pack's own `detection` block and leaves
-# this file. The loader refuses a country that is defined in both places.
+# this file. The loader refuses a country that is defined in both places. Malaysia and Hong
+# Kong moved into MY.yaml and HK.yaml in T27. Australia stays here: it is the GENERIC
+# showcase, read and quoted with no Australian legal statement (corpus id
+# au-aig-travel-insurance-pds).
 
 version: 1
 countries:
-  - code: MY
-    name: Malaysia
+  - code: AU
+    name: Australia
     signals:
       governing_law:
-        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of Malaysia\b'
-        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bMalaysian [Ll]aw\b'
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,80}?\blaws? of (?:the )?(?:Commonwealth of Australia|Australia|Australian state or territory|New South Wales|Victoria|Queensland|Western Australia|South Australia|Tasmania|Australian Capital Territory|Northern Territory)\b'
+        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bAustralian [Ll]aw\b'
       names:
-        - Bank Negara Malaysia
-        - Ombudsman for Financial Services
-        - Financial Services Act 2013
-        - Islamic Financial Services Act 2013
-        - Road Transport Act 1987
-        - Personal Data Protection Act 2010
-        - Companies Commission of Malaysia
-      currency_codes: [MYR]
-      currency_symbols: [RM]
+        - Australian Securities and Investments Commission
+        - Australian Prudential Regulation Authority
+        - Australian Financial Complaints Authority
+        - Insurance Contracts Act 1984
+        - Corporations Act 2001
+      currency_codes: [AUD]
+      currency_symbols: ["A$"]
       registration_numbers:
-        # A company number in the older form printed on most wordings, e.g. "161086-D".
-        - '\b\d{5,7}-[A-Z]\b'
-      postcodes:
-        - '\b\d{5}\s+(?:Kuala Lumpur|Petaling Jaya|Shah Alam|Johor Bahru|George Town|Ipoh|Kota Kinabalu|Kuching|Selangor|Melaka|Putrajaya)\b'
-      phone_numbers:
-        - '\+60[\s-]?\d'
-
-
-  - code: HK
-    name: Hong Kong
-    signals:
-      governing_law:
-        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of (?:the )?Hong Kong\b'
-        - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bHong Kong [Ll]aw\b'
-      names:
-        - Insurance Authority
-        - Insurance Complaints Bureau
-        - Employees' Compensation Ordinance
-        - Insurance Ordinance
-      currency_codes: [HKD]
-      currency_symbols: ["HK$"]
-      registration_numbers: []
+        # Australian Business Number as printed on a product disclosure statement.
+        - '\bABN\s*\d{2}\s?\d{3}\s?\d{3}\s?\d{3}\b'
+        # Australian Financial Services Licence number.
+        - '\bAFSL\s*(?:No\.?\s*)?\d{6}\b'
       postcodes: []
       phone_numbers:
-        - '\+852[\s-]?\d'
+        - '\+61[\s-]?\d'

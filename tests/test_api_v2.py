@@ -647,6 +647,30 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/api/policies/{policy_id}/coverage/{coverage_id}/evidence"),
     ("GET", "/api/portfolio/documents/{document_id}/page/{page_no}"),
     ("POST", "/api/portfolio/example-household"),
+    # Demo reset — covered in test_demo_reset.py: synthetic-only, idempotent, tenant-scoped,
+    # owner uploads kept, hosted mode behind sign-in and CSRF.
+    ("POST", "/api/demo/reset"),
+    # The installable shell's service worker — covered in test_pwa.py.
+    ("GET", "/sw.js"),
+    # Encrypted portfolio privacy controls — covered in test_privacy.py. These are
+    # owner-scoped artifacts, not the legacy case-level field disclosure controls below.
+    ("GET", "/api/privacy/consents"),
+    ("POST", "/api/privacy/consents"),
+    ("DELETE", "/api/privacy/consents/{consent_id}"),
+    ("GET", "/api/privacy/delegates"),
+    ("POST", "/api/privacy/delegates"),
+    ("DELETE", "/api/privacy/delegates/{grant_id}"),
+    ("GET", "/api/privacy/retention"),
+    ("PUT", "/api/privacy/retention"),
+    ("GET", "/api/privacy/notices"),
+    ("GET", "/api/privacy/export"),
+    ("POST", "/api/privacy/erase"),
+    # A delegate can see or prepare only a single-member claim protected by a live,
+    # purpose-scoped health-data consent and time-limited grant (test_privacy.py).
+    ("GET", "/api/delegate/claims"),
+    ("GET", "/api/delegate/claims/{claim_id}"),
+    ("POST", "/api/delegate/claims/{claim_id}/packet"),
+    ("POST", "/api/delegate/claims/{claim_id}/ready"),
     ("GET", "/api/bundle/kinds"),
     ("POST", "/api/bundle"),
     # Jurisdiction packs — reference data, covered in test_jurisdiction.py, where the
@@ -776,8 +800,11 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/api/scheduler/history"),
     # Agent activity feed — covered in test_agents_activity.py.
     ("GET", "/api/agents/activity"),
-    # Renewal comparison — covered in test_renewal.py (engine + endpoint).
+    # Renewal comparison and tenant-held renewal calendar — covered in test_renewal.py
+    # and test_renewals_api.py. Both comparison inputs are repository-resolved document ids.
     ("GET", "/api/renewal/compare"),
+    ("GET", "/api/renewals"),
+    ("POST", "/api/renewals/compare"),
     # Claim scenario simulator — covered in test_scenario.py (arithmetic + endpoint).
     ("GET", "/api/scenario"),
     ("GET", "/api/scenario/presets"),

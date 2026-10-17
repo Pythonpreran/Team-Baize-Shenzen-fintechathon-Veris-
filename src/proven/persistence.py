@@ -23,7 +23,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Optional, Sequence
@@ -81,6 +81,13 @@ class TenantErasureInProgress(PortfolioError):
 
 class PortfolioIntegrityError(PortfolioError):
     http_status = 500
+
+
+class SyntheticResetBlocked(PortfolioError):
+    """The demo reset met a record it did not create and refused to guess."""
+
+    http_status = 409
+    code = "SYNTHETIC_RESET_BLOCKED"
 
 
 ERASURE_PENDING = "PENDING"
@@ -273,6 +280,23 @@ CREATE TABLE IF NOT EXISTS audit (
   at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit(tenant_id, at);
+
+-- Portfolio privacy controls are encrypted with the tenant data key.  They are separate
+-- from the case-level field disclosure table, whose legacy semantics remain intact.
+CREATE TABLE IF NOT EXISTS privacy_delegate (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenant(id),
+  details_encrypted BLOB NOT NULL,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_privacy_delegate_tenant ON privacy_delegate(tenant_id, created_at);
+
+CREATE TABLE IF NOT EXISTS privacy_retention (
+  tenant_id TEXT PRIMARY KEY REFERENCES tenant(id),
+  details_encrypted BLOB NOT NULL,
+  updated_at TEXT NOT NULL
+);
 """
 
 
@@ -860,6 +884,241 @@ class PortfolioRepository:
                 self._audit(conn, scope, "BACKFILL_SYNTHETIC_EXAMPLE", "household", household_id)
             return changed
 
+    def remove_synthetic_example(
+            self, scope: TenantScope, *, seed_id: str,
+            example_documents: Mapping[str, str],
+            example_members: Sequence[Mapping[str, Optional[str]]],
+            example_assets: Sequence[Mapping[str, str]],
+            protected_document_ids: Sequence[str] = ()) -> dict:
+        """Remove the reviewed synthetic example from this tenant only, idempotently.
+
+        This is the demo reset, and it is deliberately narrow. It never accepts a tenant
+        id; it removes nothing the repository did not itself stamp as the example; and it
+        refuses rather than guesses when an owner record depends on the example:
+
+          * only a household whose encrypted provenance is exactly the server-stamped
+            SYNTHETIC_EXAMPLE designation for ``seed_id`` is considered;
+          * inside it, a policy is removed only when its encrypted fixture binding names
+            ``seed_id``, and a member or asset only when it is exactly a fixture member
+            or asset. Anything the owner added there is kept, and the household itself
+            then stays as an ordinary household with its example name and provenance
+            removed. It is deleted only when nothing of the owner's remains in it;
+          * an owner policy that insures a fixture member or asset blocks the reset,
+            because removing either half would leave the other wrong;
+          * a document is removed only when its stored SHA-256 and encrypted filename
+            both match a generated example document, no surviving policy cites it, and
+            the caller did not protect it (the API protects every claim upload);
+          * the built-in SME demonstration bundle is removed only by its durable
+            DEMO_BUNDLE origin on both the business and its single policy.
+
+        Owner-uploaded material therefore stays on the step-up crypto-shred path. Live
+        privacy consents and delegate grants naming a removed synthetic member are revoked
+        rather than deleted, so their history survives. A second call finds nothing and
+        removes nothing.
+        """
+        fixture_seed = _text(seed_id, "synthetic household seed id", limit=160)
+        expected_documents = {str(name): str(digest).lower()
+                              for name, digest in example_documents.items()}
+        expected_members = {
+            (str(item.get("name") or ""), str(item.get("relationship") or ""),
+             item.get("date_of_birth"))
+            for item in example_members
+        }
+        expected_assets = {(str(item.get("kind") or ""), str(item.get("name") or ""))
+                           for item in example_assets}
+        protected = {str(value) for value in protected_document_ids}
+        desired_provenance = {"kind": "SYNTHETIC_EXAMPLE", "seed_id": fixture_seed}
+        removed = {"households": 0, "members": 0, "assets": 0, "policies": 0,
+                   "coverage_items": 0, "documents": 0, "businesses": 0,
+                   "privacy_consents_revoked": 0, "delegate_grants_revoked": 0}
+
+        def blocked(what: str) -> SyntheticResetBlocked:
+            return SyntheticResetBlocked(
+                f"You have {what}, so nothing was reset: removing the example would leave "
+                "that record pointing at nothing. Change or remove it yourself, or use the "
+                "step-up privacy erase for the whole portfolio.")
+
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            tenant_id = scope.tenant_id
+            households: list[str] = []
+            for row in conn.execute(
+                    "SELECT id, details_encrypted FROM household WHERE tenant_id=? "
+                    "ORDER BY created_at, id", (tenant_id,)).fetchall():
+                detail = self._open_json(key, tenant_id, f"household:{row['id']}",
+                                         row["details_encrypted"])
+                if detail.get("provenance") == desired_provenance:
+                    households.append(str(row["id"]))
+
+            synthetic_policies: list[str] = []
+            members: list[str] = []
+            assets: list[str] = []
+            # Households that still hold an owner record after the example leaves them.
+            retained: set[str] = set()
+            for household_id in households:
+                for policy in conn.execute(
+                        "SELECT id, details_encrypted FROM policy WHERE tenant_id=? AND household_id=?",
+                        (tenant_id, household_id)).fetchall():
+                    detail = self._open_json(key, tenant_id, f"policy:{policy['id']}",
+                                             policy["details_encrypted"])
+                    binding = detail.get("_seed_binding")
+                    if isinstance(binding, dict) and binding.get("seed_id") == fixture_seed:
+                        synthetic_policies.append(str(policy["id"]))
+                    else:
+                        retained.add(household_id)
+                for member in conn.execute(
+                        "SELECT * FROM member WHERE tenant_id=? AND household_id=?",
+                        (tenant_id, household_id)).fetchall():
+                    out = self._member_out(member, key, tenant_id)
+                    if (out["name"], out["relationship"], out["date_of_birth"]) in expected_members:
+                        members.append(str(member["id"]))
+                    else:
+                        retained.add(household_id)
+                for asset in conn.execute(
+                        "SELECT * FROM asset WHERE tenant_id=? AND household_id=?",
+                        (tenant_id, household_id)).fetchall():
+                    out = self._asset_out(asset, key, tenant_id)
+                    if (out["kind"], out["name"]) in expected_assets:
+                        assets.append(str(asset["id"]))
+                    else:
+                        retained.add(household_id)
+
+            removing = set(synthetic_policies)
+            member_set, asset_set = set(members), set(assets)
+            for policy in conn.execute(
+                    "SELECT id, insured_member_ids, insured_asset_ids FROM policy WHERE tenant_id=?",
+                    (tenant_id,)).fetchall():
+                if str(policy["id"]) in removing:
+                    continue
+                if (set(_decoded_ids(policy["insured_member_ids"])) & member_set
+                        or set(_decoded_ids(policy["insured_asset_ids"])) & asset_set):
+                    raise blocked("a policy of your own that insures an example member or asset")
+
+            sme_policies: list[str] = []
+            sme_businesses: list[str] = []
+            for row in conn.execute(
+                    "SELECT p.id AS policy_id, p.details_encrypted AS policy_details, "
+                    "b.id AS business_id, b.details_encrypted AS business_details "
+                    "FROM policy p JOIN business b ON b.id=p.business_id AND b.tenant_id=p.tenant_id "
+                    "WHERE p.tenant_id=? AND p.source_case_id=? AND b.source_case_id=?",
+                    (tenant_id, SME_DEMO_SOURCE_CASE_ID, SME_DEMO_SOURCE_CASE_ID)).fetchall():
+                policy_detail = self._open_json(key, tenant_id, f"policy:{row['policy_id']}",
+                                                row["policy_details"])
+                business_detail = self._open_json(key, tenant_id, f"business:{row['business_id']}",
+                                                  row["business_details"])
+                if (policy_detail.get("_sme_bundle_origin") != "DEMO_BUNDLE"
+                        or business_detail.get("_sme_bundle_origin") != "DEMO_BUNDLE"):
+                    continue
+                siblings = conn.execute(
+                    "SELECT COUNT(*) FROM policy WHERE tenant_id=? AND business_id=?",
+                    (tenant_id, row["business_id"])).fetchone()[0]
+                if siblings != 1:
+                    continue
+                sme_policies.append(str(row["policy_id"]))
+                sme_businesses.append(str(row["business_id"]))
+            removing |= set(sme_policies)
+
+            surviving_refs: set[str] = set()
+            for policy in conn.execute(
+                    "SELECT id, source_document_ids FROM policy WHERE tenant_id=?",
+                    (tenant_id,)).fetchall():
+                if str(policy["id"]) not in removing:
+                    surviving_refs.update(_decoded_ids(policy["source_document_ids"]))
+            for row in conn.execute(
+                    "SELECT policy_id, source_document_id FROM coverage_item "
+                    "WHERE tenant_id=? AND source_document_id IS NOT NULL", (tenant_id,)).fetchall():
+                if str(row["policy_id"]) not in removing:
+                    surviving_refs.add(str(row["source_document_id"]))
+
+            documents: list[str] = []
+            kept_documents = 0
+            for row in conn.execute(
+                    "SELECT id, sha256, metadata_encrypted FROM document WHERE tenant_id=?",
+                    (tenant_id,)).fetchall():
+                metadata = self._open_json(key, tenant_id, f"document:{row['id']}",
+                                           row["metadata_encrypted"])
+                filename = str(metadata.get("filename") or "")
+                if expected_documents.get(filename) != str(row["sha256"]).lower():
+                    continue
+                if str(row["id"]) in surviving_refs or str(row["id"]) in protected:
+                    kept_documents += 1
+                    continue
+                documents.append(str(row["id"]))
+
+            now = _now()
+            if member_set:
+                for row in conn.execute(
+                        "SELECT id, details_encrypted FROM consent WHERE tenant_id=? AND revoked_at IS NULL",
+                        (tenant_id,)).fetchall():
+                    detail = self._open_json(key, tenant_id, f"consent:{row['id']}",
+                                             row["details_encrypted"])
+                    if (str(detail.get("purpose") or "").startswith("PORTFOLIO_PRIVACY:")
+                            and detail.get("member_id") in member_set):
+                        conn.execute("UPDATE consent SET revoked_at=? WHERE id=? AND tenant_id=?",
+                                     (now, row["id"], tenant_id))
+                        removed["privacy_consents_revoked"] += 1
+                for row in conn.execute(
+                        "SELECT id, details_encrypted FROM privacy_delegate "
+                        "WHERE tenant_id=? AND revoked_at IS NULL", (tenant_id,)).fetchall():
+                    detail = self._open_json(key, tenant_id, f"privacy-delegate:{row['id']}",
+                                             row["details_encrypted"])
+                    if detail.get("member_id") in member_set:
+                        conn.execute(
+                            "UPDATE privacy_delegate SET revoked_at=? WHERE id=? AND tenant_id=?",
+                            (now, row["id"], tenant_id))
+                        removed["delegate_grants_revoked"] += 1
+
+            # Foreign keys are on, so children go first: coverage, policies, documents,
+            # then the people and things, then the household and the demo business.
+            for policy_id in sorted(removing):
+                removed["coverage_items"] += conn.execute(
+                    "DELETE FROM coverage_item WHERE tenant_id=? AND policy_id=?",
+                    (tenant_id, policy_id)).rowcount
+                removed["policies"] += conn.execute(
+                    "DELETE FROM policy WHERE tenant_id=? AND id=?", (tenant_id, policy_id)).rowcount
+            for document_id in documents:
+                removed["documents"] += conn.execute(
+                    "DELETE FROM document WHERE tenant_id=? AND id=?",
+                    (tenant_id, document_id)).rowcount
+            for member_id in members:
+                removed["members"] += conn.execute(
+                    "DELETE FROM member WHERE tenant_id=? AND id=?", (tenant_id, member_id)).rowcount
+            for asset_id in assets:
+                removed["assets"] += conn.execute(
+                    "DELETE FROM asset WHERE tenant_id=? AND id=?", (tenant_id, asset_id)).rowcount
+            for business_id in sme_businesses:
+                removed["businesses"] += conn.execute(
+                    "DELETE FROM business WHERE tenant_id=? AND id=?",
+                    (tenant_id, business_id)).rowcount
+            households_released = 0
+            for household_id in households:
+                if household_id in retained:
+                    # The owner's records stay where they are. The household goes back to
+                    # the ordinary default it was before the example stamped it.
+                    row = self._row_for_tenant(conn, "household", household_id, tenant_id)
+                    detail = self._open_json(key, tenant_id, f"household:{household_id}",
+                                             row["details_encrypted"])
+                    detail.pop("provenance", None)
+                    detail["name"] = "Household"
+                    conn.execute(
+                        "UPDATE household SET details_encrypted=? WHERE id=? AND tenant_id=?",
+                        (self._seal_json(key, tenant_id, f"household:{household_id}", detail),
+                         household_id, tenant_id))
+                    households_released += 1
+                    continue
+                removed["households"] += conn.execute(
+                    "DELETE FROM household WHERE tenant_id=? AND id=?",
+                    (tenant_id, household_id)).rowcount
+            if any(removed.values()) or households_released:
+                self._audit(conn, scope, "RESET_SYNTHETIC_EXAMPLE", "tenant", tenant_id)
+            return {
+                "removed": removed,
+                "households_released": households_released,
+                "removed_policy_ids": sorted(removing),
+                "removed_member_ids": sorted(member_set),
+                "kept_matching_documents": kept_documents,
+            }
+
     def _member_out(self, row: sqlite3.Row, key: bytes, tenant_id: str) -> dict:
         detail = self._open_json(key, tenant_id, f"member:{row['id']}", row["details_encrypted"])
         return {"id": row["id"], "household_id": row["household_id"],
@@ -1292,6 +1551,293 @@ class PortfolioRepository:
             if revoked:
                 self._audit(conn, scope, "REVOKE_AI_PROCESSING_CONSENT", "consent", "ai-processing")
             return {"revoked": revoked, "granted": False, "health_documents": False}
+
+    @staticmethod
+    def _privacy_date(value: object, field: str) -> date:
+        try:
+            return date.fromisoformat(_text(value, field, limit=40))
+        except ValueError as exc:
+            raise PortfolioValidationError(f"{field} must be an ISO calendar date.") from exc
+
+    def _privacy_consent_out(self, row: sqlite3.Row, key: bytes, tenant_id: str) -> Optional[dict]:
+        detail = self._open_json(key, tenant_id, f"consent:{row['id']}", row["details_encrypted"])
+        purpose = str(detail.get("purpose") or "")
+        if not purpose.startswith("PORTFOLIO_PRIVACY:"):
+            return None
+        return {
+            "id": row["id"], "purpose": purpose.removeprefix("PORTFOLIO_PRIVACY:"),
+            "data_categories": list(detail.get("data_categories") or []),
+            "recipient": detail.get("recipient", ""), "member_id": detail.get("member_id"),
+            "valid_from": detail.get("valid_from"), "valid_until": detail.get("valid_until"),
+            "created_at": row["created_at"], "revoked_at": row["revoked_at"],
+        }
+
+    def create_privacy_consent(self, scope: TenantScope, *, purpose: str,
+                               data_categories: Sequence[str], recipient: str,
+                               valid_from: str, valid_until: str,
+                               member_id: Optional[str] = None) -> dict:
+        """Store a revocable, purpose-limited portfolio consent artifact encrypted at rest."""
+        categories = _json_ids(data_categories, "privacy data categories")
+        if not categories:
+            raise PortfolioValidationError("A privacy consent needs at least one data category.")
+        start = self._privacy_date(valid_from, "consent valid from")
+        end = self._privacy_date(valid_until, "consent valid until")
+        if end < start:
+            raise PortfolioValidationError("A privacy consent cannot end before it starts.")
+        selected_member = _text(member_id, "member id", required=False, limit=160) or None
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            if selected_member:
+                row = self._row_for_tenant(conn, "member", selected_member, scope.tenant_id)
+                member = self._member_out(row, key, scope.tenant_id)
+                if "HEALTH_DATA" in categories:
+                    raw_dob = member.get("date_of_birth")
+                    try:
+                        dob = date.fromisoformat(str(raw_dob or ""))
+                    except ValueError as exc:
+                        raise PortfolioValidationError(
+                            "Adult member health consent needs a verified date of birth.") from exc
+                    today = datetime.now(timezone.utc).date()
+                    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+                    if age < 18:
+                        raise PortfolioValidationError(
+                            "Member-level health consent can be recorded only for an adult member.")
+            consent_id, now = new_id(), _now()
+            detail = {
+                "purpose": "PORTFOLIO_PRIVACY:" + _text(purpose, "privacy consent purpose"),
+                "data_categories": categories, "recipient": _text(recipient, "privacy consent recipient"),
+                "member_id": selected_member, "valid_from": start.isoformat(),
+                "valid_until": end.isoformat(),
+            }
+            conn.execute(
+                "INSERT INTO consent (id, tenant_id, details_encrypted, created_at, revoked_at) VALUES (?,?,?,?,NULL)",
+                (consent_id, scope.tenant_id,
+                 self._seal_json(key, scope.tenant_id, f"consent:{consent_id}", detail), now),
+            )
+            self._audit(conn, scope, "CREATE_PRIVACY_CONSENT", "consent", consent_id)
+            return {"id": consent_id, "purpose": purpose, "data_categories": categories,
+                    "recipient": detail["recipient"], "member_id": selected_member,
+                    "valid_from": start.isoformat(), "valid_until": end.isoformat(),
+                    "created_at": now, "revoked_at": None}
+
+    def list_privacy_consents(self, scope: TenantScope) -> list[dict]:
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            rows = conn.execute(
+                "SELECT id, details_encrypted, created_at, revoked_at FROM consent "
+                "WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall()
+            return [item for row in rows
+                    if (item := self._privacy_consent_out(row, key, scope.tenant_id)) is not None]
+
+    def revoke_privacy_consent(self, scope: TenantScope, consent_id: str) -> dict:
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            row = conn.execute(
+                "SELECT id, details_encrypted, revoked_at FROM consent WHERE id=? AND tenant_id=?",
+                (_text(consent_id, "privacy consent id", limit=160), scope.tenant_id)).fetchone()
+            if row is None:
+                raise PortfolioNotFound("No privacy consent is available for this tenant.")
+            detail = self._open_json(key, scope.tenant_id, f"consent:{row['id']}", row["details_encrypted"])
+            if not str(detail.get("purpose") or "").startswith("PORTFOLIO_PRIVACY:"):
+                raise PortfolioNotFound("No privacy consent is available for this tenant.")
+            now = _now()
+            changed = conn.execute(
+                "UPDATE consent SET revoked_at=? WHERE id=? AND tenant_id=? AND revoked_at IS NULL",
+                (now, row["id"], scope.tenant_id)).rowcount
+            self._audit(conn, scope, "REVOKE_PRIVACY_CONSENT", "consent", str(row["id"]))
+            return {"id": row["id"], "revoked": bool(changed), "revoked_at": now if changed else row["revoked_at"]}
+
+    def _active_member_health_consent(self, conn: sqlite3.Connection, key: bytes,
+                                      tenant_id: str, member_id: str, on: date) -> bool:
+        rows = conn.execute(
+            "SELECT id, details_encrypted, revoked_at FROM consent WHERE tenant_id=? AND revoked_at IS NULL",
+            (tenant_id,)).fetchall()
+        for row in rows:
+            detail = self._open_json(key, tenant_id, f"consent:{row['id']}", row["details_encrypted"])
+            if (not str(detail.get("purpose") or "").startswith("PORTFOLIO_PRIVACY:")
+                    or detail.get("member_id") != member_id
+                    or "HEALTH_DATA" not in list(detail.get("data_categories") or [])):
+                continue
+            try:
+                start = date.fromisoformat(str(detail.get("valid_from") or ""))
+                end = date.fromisoformat(str(detail.get("valid_until") or ""))
+            except ValueError:
+                continue
+            if start <= on <= end:
+                return True
+        return False
+
+    def create_delegate_grant(self, scope: TenantScope, *, member_id: str,
+                              delegate_id: str, scopes: Sequence[str],
+                              valid_from: str, valid_until: str) -> dict:
+        """Create an encrypted, time-limited delegate role for one adult member's claims."""
+        selected_member = _text(member_id, "member id", limit=160)
+        granted_scopes = _json_ids(scopes, "delegate scopes")
+        if not granted_scopes:
+            raise PortfolioValidationError("A delegate grant needs at least one scope.")
+        start = self._privacy_date(valid_from, "delegate valid from")
+        end = self._privacy_date(valid_until, "delegate valid until")
+        if end < start:
+            raise PortfolioValidationError("A delegate grant cannot end before it starts.")
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            self._row_for_tenant(conn, "member", selected_member, scope.tenant_id)
+            if not self._active_member_health_consent(
+                    conn, key, scope.tenant_id, selected_member, datetime.now(timezone.utc).date()):
+                raise PortfolioValidationError(
+                    "A live adult member HEALTH_DATA consent is required before a delegate claim grant is recorded.")
+            grant_id, now = new_id(), _now()
+            detail = {
+                "member_id": selected_member,
+                "delegate_id": _text(delegate_id, "delegate id", limit=160),
+                "scopes": granted_scopes, "valid_from": start.isoformat(),
+                "valid_until": end.isoformat(),
+            }
+            conn.execute(
+                "INSERT INTO privacy_delegate (id, tenant_id, details_encrypted, created_at, revoked_at) VALUES (?,?,?,?,NULL)",
+                (grant_id, scope.tenant_id,
+                 self._seal_json(key, scope.tenant_id, f"privacy-delegate:{grant_id}", detail), now),
+            )
+            self._audit(conn, scope, "CREATE_DELEGATE_GRANT", "privacy_delegate", grant_id)
+            return {"id": grant_id, **detail, "created_at": now, "revoked_at": None}
+
+    def _delegate_out(self, row: sqlite3.Row, key: bytes, tenant_id: str) -> dict:
+        detail = self._open_json(key, tenant_id, f"privacy-delegate:{row['id']}", row["details_encrypted"])
+        return {"id": row["id"], "member_id": detail.get("member_id"),
+                "delegate_id": detail.get("delegate_id"), "scopes": list(detail.get("scopes") or []),
+                "valid_from": detail.get("valid_from"), "valid_until": detail.get("valid_until"),
+                "created_at": row["created_at"], "revoked_at": row["revoked_at"]}
+
+    def list_delegate_grants(self, scope: TenantScope) -> list[dict]:
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            rows = conn.execute(
+                "SELECT id, details_encrypted, created_at, revoked_at FROM privacy_delegate "
+                "WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall()
+            return [self._delegate_out(row, key, scope.tenant_id) for row in rows]
+
+    def revoke_delegate_grant(self, scope: TenantScope, grant_id: str) -> dict:
+        with self._connection() as conn:
+            self._ensure_scope(conn, scope)
+            now = _now()
+            changed = conn.execute(
+                "UPDATE privacy_delegate SET revoked_at=? WHERE id=? AND tenant_id=? AND revoked_at IS NULL",
+                (now, _text(grant_id, "delegate grant id", limit=160), scope.tenant_id)).rowcount
+            if not changed:
+                raise PortfolioNotFound("No active delegate grant is available for this tenant.")
+            self._audit(conn, scope, "REVOKE_DELEGATE_GRANT", "privacy_delegate", grant_id)
+            return {"id": grant_id, "revoked": True, "revoked_at": now}
+
+    def delegate_allowed(self, scope: TenantScope, *, delegate_id: str, member_id: str,
+                         required_scope: str, on: Optional[date] = None) -> bool:
+        """Evaluate a delegate role with tenant, member, consent, scope, window and revocation gates."""
+        when = on or datetime.now(timezone.utc).date()
+        try:
+            requested_member = _text(member_id, "member id", limit=160)
+            requested_delegate = _text(delegate_id, "delegate id", limit=160)
+            requested_scope = _text(required_scope, "delegate scope", limit=160)
+        except PortfolioValidationError:
+            return False
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            if not self._active_member_health_consent(
+                    conn, key, scope.tenant_id, requested_member, when):
+                return False
+            rows = conn.execute(
+                "SELECT id, details_encrypted, created_at, revoked_at FROM privacy_delegate "
+                "WHERE tenant_id=? AND revoked_at IS NULL ORDER BY created_at, id",
+                (scope.tenant_id,)).fetchall()
+            for row in rows:
+                grant = self._delegate_out(row, key, scope.tenant_id)
+                if grant["delegate_id"] != requested_delegate or grant["member_id"] != requested_member:
+                    continue
+                if requested_scope not in grant["scopes"]:
+                    continue
+                try:
+                    start = date.fromisoformat(str(grant["valid_from"]))
+                    end = date.fromisoformat(str(grant["valid_until"]))
+                except ValueError:
+                    continue
+                if start <= when <= end:
+                    return True
+        return False
+
+    @staticmethod
+    def _retention_days(value: object, field: str) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 3650:
+            raise PortfolioValidationError(f"{field} must be a whole number of days from 1 to 3650.")
+        return value
+
+    def set_retention_settings(self, scope: TenantScope, *, portfolio_days: int,
+                               claim_days: int, audit_days: int) -> dict:
+        detail = {
+            "portfolio_days": self._retention_days(portfolio_days, "portfolio retention"),
+            "claim_days": self._retention_days(claim_days, "claim retention"),
+            "audit_days": self._retention_days(audit_days, "audit retention"),
+        }
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            now = _now()
+            conn.execute(
+                "INSERT INTO privacy_retention (tenant_id, details_encrypted, updated_at) VALUES (?,?,?) "
+                "ON CONFLICT(tenant_id) DO UPDATE SET details_encrypted=excluded.details_encrypted, updated_at=excluded.updated_at",
+                (scope.tenant_id, self._seal_json(key, scope.tenant_id, f"privacy-retention:{scope.tenant_id}", detail), now),
+            )
+            self._audit(conn, scope, "SET_RETENTION", "privacy_retention", scope.tenant_id)
+            return {"configured": True, **detail, "updated_at": now,
+                    "notice": "Retention settings record the owner-approved lifecycle; no data is deleted automatically by this local build."}
+
+    def retention_settings(self, scope: TenantScope) -> dict:
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            row = conn.execute(
+                "SELECT details_encrypted, updated_at FROM privacy_retention WHERE tenant_id=?", (scope.tenant_id,)).fetchone()
+            if row is None:
+                return {"configured": False, "portfolio_days": None, "claim_days": None,
+                        "audit_days": None, "updated_at": None,
+                        "notice": "No retention setting is recorded for this tenant."}
+            detail = self._open_json(key, scope.tenant_id, f"privacy-retention:{scope.tenant_id}", row["details_encrypted"])
+            return {"configured": True, "portfolio_days": detail.get("portfolio_days"),
+                    "claim_days": detail.get("claim_days"), "audit_days": detail.get("audit_days"),
+                    "updated_at": row["updated_at"],
+                    "notice": "Retention settings record the owner-approved lifecycle; no data is deleted automatically by this local build."}
+
+    def export_portfolio_data(self, scope: TenantScope) -> dict:
+        """Produce a tenant-only portable export, including encrypted-at-rest document bytes after owner authentication."""
+        with self._connection() as conn:
+            key = self._ensure_scope(conn, scope)
+            household_row = conn.execute(
+                "SELECT * FROM household WHERE tenant_id=? ORDER BY created_at, id LIMIT 1", (scope.tenant_id,)).fetchone()
+            documents = []
+            for row in conn.execute("SELECT * FROM document WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall():
+                metadata = self._open_json(key, scope.tenant_id, f"document:{row['id']}", row["metadata_encrypted"])
+                blob = self._open(key, scope.tenant_id, f"document-blob:{row['id']}", row["encrypted_blob"])
+                documents.append({
+                    "id": row["id"], "kind": row["kind"], "author_class": row["author_class"],
+                    "sha256": row["sha256"], "filename": metadata.get("filename", ""),
+                    "language": row["language"], "country": row["country"],
+                    "created_at": row["created_at"], "blob_base64": base64.b64encode(blob).decode("ascii"),
+                })
+            members = [self._member_out(row, key, scope.tenant_id) for row in conn.execute(
+                "SELECT * FROM member WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall()]
+            assets = [self._asset_out(row, key, scope.tenant_id) for row in conn.execute(
+                "SELECT * FROM asset WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall()]
+            businesses = [self._business_out(row, key, scope.tenant_id) for row in conn.execute(
+                "SELECT * FROM business WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall()]
+            policies = [self._policy_out(conn, row, key, scope.tenant_id) for row in conn.execute(
+                "SELECT * FROM policy WHERE tenant_id=? ORDER BY created_at, id", (scope.tenant_id,)).fetchall()]
+            portfolio = {
+                "household": self._household_out(household_row, key, scope.tenant_id) if household_row else None,
+                "members": members, "assets": assets, "businesses": businesses, "policies": policies,
+            }
+        return {
+            "format": "veris.portfolio-export.v1", "tenant_id": scope.tenant_id,
+            "exported_at": _now(), "portfolio": portfolio, "documents": documents,
+            "privacy_consents": self.list_privacy_consents(scope),
+            "delegate_grants": self.list_delegate_grants(scope),
+            "retention": self.retention_settings(scope),
+            "notice": "This export contains the tenant's decrypted records and document bytes; store it securely. It does not include a key or claim a deletion of backups.",
+        }
 
     def wrap_sme_analysis(self, scope: TenantScope, state: Mapping[str, object]) -> Optional[dict]:
         """Represent the existing SME analysis as one business policy bundle.

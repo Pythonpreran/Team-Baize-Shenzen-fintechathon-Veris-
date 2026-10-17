@@ -57,7 +57,19 @@ def _coverage(policy: Mapping[str, Any], code: str) -> Optional[dict[str, Any]]:
     for item in policy.get("motor_items", []) if isinstance(policy.get("motor_items"), list) else []:
         if isinstance(item, Mapping) and item.get("mechanism_code") == code:
             return dict(item)
+    for item in (policy.get("property_travel_items", [])
+                 if isinstance(policy.get("property_travel_items"), list) else []):
+        if isinstance(item, Mapping) and item.get("mechanism_code") == code:
+            return dict(item)
     return None
+
+
+def _property_entity(policy: Mapping[str, Any], assets: Mapping[str, str]) -> str:
+    names = [assets[str(asset_id)] for asset_id in policy.get("insured_asset_ids") or []
+             if str(asset_id) in assets]
+    if names:
+        return ", ".join(names)
+    return str(policy.get("property_label") or policy.get("product") or "Home")
 
 
 def _documented_coverage(policy: Mapping[str, Any], code: str) -> Optional[dict[str, Any]]:
@@ -167,14 +179,44 @@ def build(portfolio: Mapping[str, Any], *, scenario_loss: Optional[str] = None,
                            reason=str(alert.get("alert") or alert.get("notice") or ""),
                            source=alert.get("source")))
 
-    home_candidates = [(policy, _documented_coverage(policy, "COVERED.HOME_CONTENTS"))
-                       for policy in _policies(portfolio, line="HOME")]
-    home = next(((policy, item) for policy, item in home_candidates if item is not None), None)
-    if home is not None:
-        cells.append(_cell("Singapore home contents", "home_contents", DOCUMENTED,
-                           policy_ids=[str(home[0]["id"])], evidence_class=str(home[1]["evidence_class"]),
-                           reason="A documented home-contents schedule term was read.",
-                           source=_item_source(home[1])))
+    assets = {str(asset.get("id")): str(asset.get("name") or "")
+              for asset in portfolio.get("assets", []) if isinstance(asset, Mapping) and asset.get("id")}
+    for policy in _policies(portfolio, line="HOME"):
+        entity = _property_entity(policy, assets)
+        contents = _documented_coverage(policy, "COVERED.HOME_CONTENTS")
+        building = _documented_coverage(policy, "COVERED.HOME_BUILDING")
+        if building is not None:
+            cells.append(_cell(entity, "home_structure", DOCUMENTED,
+                               policy_ids=[str(policy["id"])], evidence_class=str(building["evidence_class"]),
+                               reason="A documented home-building schedule term was read.",
+                               source=_item_source(building)))
+        if contents is None and building is None:
+            continue
+        # A contents sum insured below the owner's own list is a documented condition
+        # that needs attention, never a statement about what a claim would receive.
+        gap = _coverage(policy, "LIMIT.CONTENTS_BELOW_LIST")
+        short = (gap is not None and gap.get("state") == "DOCUMENTED"
+                 and gap.get("value") not in (None, ""))
+        cells.append(_cell(entity, "home_contents", CONDITIONAL if short else DOCUMENTED,
+                           policy_ids=[str(policy["id"])],
+                           evidence_class=str((gap if short else (contents or building))["evidence_class"]),
+                           reason=("The schedule's contents sum insured is below the self-declared contents "
+                                   "list; the wording's insurance-to-value sentence is quoted on the card."
+                                   if short else "A documented home-contents term was read."),
+                           source=_item_source(gap if short else (contents or building))))
+
+    for policy in _policies(portfolio, line="TRAVEL"):
+        travel = _documented_coverage(policy, "COVERED.TRAVEL")
+        if travel is None:
+            continue
+        for member_id in policy.get("insured_member_ids") or []:
+            member = people.get(str(member_id))
+            if member is None:
+                continue
+            cells.append(_cell(str(member.get("name") or ""), "travel", DOCUMENTED,
+                               policy_ids=[str(policy["id"])], evidence_class=str(travel["evidence_class"]),
+                               reason="A travel schedule names this member as a traveller.",
+                               source=_item_source(travel)))
 
     loss = _scenario_loss(scenario_loss)
     overlaps: list[dict[str, Any]] = []

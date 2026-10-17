@@ -29,12 +29,25 @@ _OUTCOME_OR_ADVICE = re.compile(
     r"\b(?:recommend|buy|cancel|switch|surrender)\b",
     re.IGNORECASE,
 )
+# The same routing for a question asked in Chinese (T28): "会赔吗", "能报销吗", "应该退保吗"
+# go to authorised review, never to a yes/no answer.
+_ZH_OUTCOME_OR_ADVICE = re.compile(
+    r"(?:会|能|可以|将|应该|要不要|是否)[^？?。!！]{0,20}"
+    r"(?:赔|报销|理赔|承保|保障|退保|转保|换保|购买|买|取消)"
+    r"|退保|转保|换保|推荐|值得买")
 
 _MODEL_SYSTEM = (
     "Choose one approved deterministic presentation template for the supplied "
     "evidence-bound answer. Reply with exactly one identifier: DIRECT or CITED. Do not "
     "write an answer, policy condition, conclusion, advice, coverage decision, or "
     "claim-payment statement."
+)
+# The same instruction in Chinese for the China-reachable profiles (deepseek, qwen) when
+# the owner asks in Chinese (T28). The reply contract is unchanged: one ASCII identifier.
+_MODEL_SYSTEM_ZH = (
+    "请为所提供的、以证据为依据的答案选择一个经批准的确定性展示模板。"
+    "只能回复一个标识符：DIRECT 或 CITED。不得撰写答案、保单条件、结论、建议、"
+    "是否承保的判断或任何关于理赔是否赔付的陈述。"
 )
 
 
@@ -170,7 +183,7 @@ def _member_from_question(question: str, members: Sequence[Mapping[str, Any]],
 
 def _intent(question: str) -> str:
     text = _normalise(question)
-    if _OUTCOME_OR_ADVICE.search(text):
+    if _OUTCOME_OR_ADVICE.search(text) or _ZH_OUTCOME_OR_ADVICE.search(question or ""):
         return "authorised_review"
     if any(term in text for term in ("wait", "diabetes", "pre-existing", "ped")):
         return "waiting_period"
@@ -433,8 +446,9 @@ def maybe_model_rephrase(answer: Answer, question: str, *, model_allowed: bool,
     if (not model_allowed or answer.output_state != "DOCUMENTED" or not answer.citations):
         return answer
     evidence = {"deterministic_answer": answer.text}
+    system = llm.localised_system(_MODEL_SYSTEM, _MODEL_SYSTEM_ZH, text=question)
     result = llm.chat(
-        [{"role": "system", "content": _MODEL_SYSTEM},
+        [{"role": "system", "content": system},
          {"role": "user", "content": (
              f"Question: {question}\n\nDeterministic answer: {answer.text}\n\n"
              "Approved template identifiers: DIRECT, CITED.")}],

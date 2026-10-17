@@ -89,19 +89,42 @@ a{color:var(--brand);text-decoration:none}
 .sidebar-head{padding:20px 20px 16px;border-bottom:1px solid var(--border-subtle)}
 .sidebar-head h2{font-size:16px;font-weight:800;letter-spacing:2.5px;color:var(--brand)}
 .sidebar-head .badge{display:inline-block;margin-top:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:4px;background:var(--brand-light);color:var(--brand)}
-.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto}
+/* MEASURED DEFECT. This used to be `overflow-y:auto`, which gave the rail its own
+   scrollbar beside the document's — two scrollbars for one page, and the nav scrolled
+   while its content nearly fitted, because the foot below it was tall enough to squeeze
+   it. The nav is now a plain block that takes the height it needs; the foot is pushed to
+   the bottom with `margin-top:auto`; the page keeps ONE scrolling region, the document.
+   On a genuinely short viewport the WHOLE rail scrolls as one region — see the
+   `max-height` query at the end of the rail block below. */
+/* `flex:0 0 auto` — the nav takes exactly the height its items need and is NEVER
+   compressed. Allowing it to shrink (`0 1 auto`) let the carrier's ten destinations
+   overflow their own box and paint on top of the foot: the reader saw "Book copilot"
+   written across their own name. When the items genuinely do not fit the window, the
+   rail as a whole scrolls instead — see `.sidebar` in the rail block below. */
+.sidebar-nav{flex:0 0 auto;padding:12px 10px;overflow:visible;min-height:0}
 .nav-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-4);padding:4px 12px;margin-bottom:4px;margin-top:12px}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text-3);font:inherit;font-weight:500;font-size:13px;text-align:left;width:100%;cursor:pointer;transition:all var(--transition);margin-bottom:2px}
 .nav-item:hover{background:var(--surface-alt);color:var(--text)}
 .nav-item.active{background:var(--brand-light);color:var(--brand);font-weight:600}
 .nav-item .icon{width:18px;font-size:14px;text-align:center;flex-shrink:0}
 .nav-item .badge-count{margin-left:auto;font-size:11px;font-weight:700;background:var(--danger-light);color:var(--danger);padding:1px 6px;border-radius:10px;min-width:18px;text-align:center}
-.sidebar-foot{padding:14px 16px;border-top:1px solid var(--border-subtle)}
+.sidebar-foot{margin-top:auto;padding:14px 16px;border-top:1px solid var(--border-subtle);flex:0 0 auto}
 .sidebar-foot .name{font-weight:600;font-size:13px;color:var(--text)}
 .sidebar-foot .org{font-size:11px;color:var(--text-4)}
 .language-picker{display:block;margin-top:10px;color:var(--text-4);font-size:11px;font-weight:600}
 .language-picker select{display:block;width:100%;margin-top:4px;padding:5px 7px;border:1px solid var(--border-subtle);border-radius:var(--radius-xs);background:var(--surface);color:var(--text);font:inherit}
-.sidebar-foot .btn{margin-top:8px;width:100%}
+/* T28: shown in zh-CN on a screen the Chinese catalogue does not cover. Uses the darkened
+   muted ink from the T25 contrast pass, never a lighter grey. */
+.locale-notice{margin:8px 0 0;font-size:11px;line-height:1.45;color:var(--text-3)}
+html[lang="zh-CN"] body{line-break:strict;word-break:normal}
+/* Direct children only. The three rail actions now sit inside `.sidebar-foot__actions`
+   and are laid out by it; a full-width stack of three was what squeezed the nav. */
+.sidebar-foot>.btn{margin-top:8px;width:100%}
+.sidebar-foot__actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.sidebar-foot__actions .btn{margin-top:0;width:100%;padding:6px 8px;min-height:30px}
+.sidebar-foot__wide{grid-column:1/-1}
+.sidebar-foot .language-picker{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.sidebar-foot .language-picker select{width:auto;max-width:120px;margin-top:0;flex:0 1 auto}
 .main{flex:1;margin-left:var(--nav-w);padding:28px 36px;max-width:1140px}
 .page-title{margin-bottom:24px}
 .page-title h1{margin-bottom:4px}
@@ -253,11 +276,31 @@ tr:hover td{background:var(--surface-alt)}
 
 /* ── Consent picker ─────────────────────────────────────────────────────
    One row per DOCUMENT the case holds, because the consent gate compares granted values
-   against document kinds. See /api/consent/status. */
-.consent-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-.consent-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer}
+   against document kinds. See /api/consent/status.
+
+   Two columns at wide widths so six kinds are scannable in one viewport instead of a
+   six-row ladder. Every rule below is written to OUT-SPECIFY `.form-group label` and
+   `.form-group input`, which is what flattened these rows: see the note in app.js. */
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em}
+.consent-list{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+@media(min-width:900px){.consent-list{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}}
+.consent-row{display:grid;grid-template-columns:20px 1fr;align-items:start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer}
+/* Same geometry, stated at a specificity that beats `.form-group label` (0,1,1) and
+   un-does the uppercase 10.5px form-label typography these rows used to inherit. */
+.form-group .consent-row{display:grid;grid-template-columns:20px 1fr;align-items:start;gap:10px;margin:0;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--text)}
 .consent-row:hover{border-color:var(--brand-edge)}
-.consent-row input{margin-top:2px;flex:0 0 auto}
+/* Beats `.form-group input{width:100%;padding:12px 14px}`, which turned the checkbox
+   into a full-width field stacked above its own label. */
+.consent-row input[type="checkbox"],.form-group .consent-row input[type="checkbox"]{width:18px;height:18px;padding:0;margin:1px 0 0;flex:0 0 auto;accent-color:var(--brand);cursor:pointer}
+/* The whole row is the label, so the ring belongs on the row: a 18px outline on the box
+   alone is easy to miss, and the row is what the pointer and the caret both hit. */
+.consent-row:focus-within{outline:3px solid var(--brand-bright);outline-offset:2px;border-color:var(--brand-edge)}
+.consent-row__body{display:flex;flex-direction:column;gap:3px;min-width:0}
+.consent-row__files{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+/* A scanned endorsement can be named `13-ILLEGIBLE-ENDORSEMENT-SCAN.PDF`. It truncates
+   rather than widening the row, and the full name stays in `title` and in the chip's own
+   text, so nothing is hidden from a screen reader. */
+.consent-file{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 7px;border-radius:999px;background:var(--surface-alt);font-family:var(--mono);font-size:10.5px;color:var(--text-3)}
 .consent-row__l{display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:600}
 .consent-row__m{font-weight:400;font-size:11px;color:var(--text-4);font-family:var(--mono);word-break:break-all}
 
@@ -529,16 +572,23 @@ tr:hover td{background:var(--surface-alt)}
 .pv__tab{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--text-3);font:inherit;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;cursor:pointer}
 .pv__tab.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .pv__tab:focus-visible{outline:2px solid var(--brand-bright);outline-offset:2px}
-/* `position:relative` anchors the full-screen icon to the page, not to the drawer. */
-.pv__frame{position:relative;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-alt);max-height:300px;overflow-y:auto}
-.pv__frame--busy{display:grid;place-items:center;min-height:120px;max-height:none}
+/* `position:relative` anchors the highlight ring to the page, not to the drawer.
+
+   MEASURED DEFECT. This frame used to be `max-height:300px;overflow-y:auto` — a window
+   inside a window. On an A4 page at drawer width the reader was shown the letterhead and
+   had to scroll an inner pane to reach the highlighted clause, which is the opposite of
+   "show me the page". The page is now drawn whole at the drawer's width and the DRAWER is
+   the only scroller. */
+.pv__frame{position:relative;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-alt)}
+.pv__frame--busy{display:grid;place-items:center;min-height:120px}
 .pv__frame img{display:block;width:100%;height:auto}
-/* Bottom-right of the page image. `sticky` rather than `absolute` so it stays reachable
-   while the reader scrolls a tall page inside the frame. */
-.pv__full{position:sticky;float:right;bottom:8px;right:8px;margin:-40px 8px 8px 0;z-index:2;appearance:none;width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-2);cursor:pointer;box-shadow:var(--shadow);opacity:.9}
-.pv__full svg{width:15px;height:15px}
-.pv__full:hover{opacity:1;color:var(--brand);border-color:var(--brand-edge)}
-.pv__full:focus-visible{outline:2px solid var(--brand-bright);outline-offset:2px;opacity:1}
+/* The ring over the burned-in amber. Two strokes, so it stays visible on both a white
+   margin and a dark scan, and `pointer-events:none` so it never intercepts a click
+   meant for the page. Decorative: the status chip beside the page carries the fact. */
+.pv__hlbox{position:absolute;pointer-events:none;border:2px solid var(--amber,#b3801f);border-radius:3px;box-shadow:0 0 0 1px rgba(43,39,33,.55),0 0 0 4px rgba(255,217,51,.28);min-width:8px;min-height:8px}
+.pv__acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+.pv__fullbtn svg{width:14px;height:14px}
+.pv__fullbtn:focus-visible{outline:2px solid var(--brand-bright);outline-offset:2px}
 .pv__meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;font-size:11px;color:var(--text-4)}
 .pv__file{font-family:var(--mono);color:var(--text-3);word-break:break-all}
 .pv__hl{margin-left:auto;padding:2px 8px;border-radius:999px;font-weight:700}
@@ -551,17 +601,41 @@ tr:hover td{background:var(--surface-alt)}
 .pv__note{font-size:11.5px;color:var(--text-4);line-height:1.5;margin:8px 0 12px}
 .pv--none{border:1px dashed var(--border);border-radius:var(--radius-sm);background:var(--surface-alt);padding:14px}
 .pv--none .pv__note{margin:0 0 10px}
-/* A third party's document: the cited paragraph, not a picture of the page. */
-.pv--excerpt{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-alt);padding:14px}
-.pv__excerpt{margin:0;padding:0 0 0 12px;border-left:3px solid var(--border);font-size:12.5px;line-height:1.6;color:var(--text-2);white-space:pre-wrap;word-break:break-word}
+/* A third party's document: the cited paragraph, not a picture of the page. The citation
+   LEADS, because a reader who is shown a paragraph instead of a page has to be told
+   exactly what the paragraph is a paragraph of. */
+.pv--excerpt{border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-alt);padding:16px}
+.pv__cite{margin-bottom:12px}
+.pv__cite-t{margin:0;font-size:14px;font-weight:600;line-height:1.35;color:var(--text)}
+.pv__cite-p{margin:2px 0 0;font-size:12.5px;color:var(--text-2)}
+.pv__cite-pg{margin:4px 0 0;font-size:13px;font-weight:600;color:var(--text)}
+.pv__excerpt{margin:0;padding:10px 0 10px 12px;border-left:3px solid var(--border);font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word}
 .pv__excerpt mark{background:#ffd933;color:inherit;padding:0 1px;border-radius:2px}
+/* The rights boundary, in one sentence at reading size. Not a caveat in the smallest ink
+   on the screen: it is the reason the page is not here. */
+.pv__rights{margin:12px 0;font-size:13px;line-height:1.55;color:var(--text-2)}
+.pv__pub{width:100%;justify-content:center}
+.pv__unrecorded{margin:0;font-size:13px;line-height:1.55;color:var(--text-2)}
+.pv__why{margin-top:10px}
+.pv__why>summary{font-size:12px;color:var(--text-3);cursor:pointer}
+.pv__why>summary:focus-visible{outline:2px solid var(--brand-bright);outline-offset:2px}
+.pv__why .pv__note{margin:6px 0 0}
+/* Collapsed only when the page above is already showing the same words highlighted. */
+.drawer-words>summary{cursor:pointer;list-style:revert}
+.drawer-words>summary>h4{display:inline}
+.drawer-words>summary:focus-visible{outline:2px solid var(--brand-bright);outline-offset:2px}
 /* Full screen. z-index above the drawer (100) because it is opened FROM the drawer and
    has to cover it. */
 #veris-pagefull{position:fixed;inset:0;z-index:120;background:var(--surface);display:flex;flex-direction:column}
 .pf__bar{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface-alt);flex:0 0 auto}
 .pf__t{font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pf__body{flex:1;overflow:auto;padding:18px;display:flex;justify-content:center;align-items:flex-start}
-.pf__body img{max-width:min(1000px,100%);height:auto;border:1px solid var(--border);box-shadow:var(--shadow)}
+/* The image and its ring share one positioned box so the ring's percentages resolve
+   against the PAGE, not against the scroll area around it. */
+.pf__stack{position:relative;max-width:min(1000px,100%);flex:0 0 auto}
+.pf__stack.is-actual{max-width:none}
+.pf__stack img{display:block;width:100%;height:auto;border:1px solid var(--border);box-shadow:var(--shadow)}
+.pf__stack.is-actual img{width:auto;max-width:none}
 /* ── Badges / Chips ──────────────────────────────────────────────── */
 .v-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
 .v-badge--live{background:var(--success-light);color:var(--success)}
@@ -1082,8 +1156,12 @@ tr:hover td{background:var(--surface-alt)}
   --hairline: rgba(43, 39, 33, 0.08);
   --text: #2b2721;
   --text-2: #4a443b;
-  --text-3: #6e675b;
-  --text-4: #9a9284;
+  /* Both muted inks meet WCAG 2.2 AA (4.5:1) for small text on every light ground in
+     this palette, including the tinted jade, amber and clay panels. The earlier pair
+     measured 2.7:1 for --text-4 on --bg, which failed for the 10-12px meta text it sets.
+     tests/test_accessibility.py recomputes the ratios from this block. */
+  --text-3: #5a5348;
+  --text-4: #6e675b;
 
   /* ── the material palette ───────────────────────────────────────────── */
   /* Connect / internal / resolved */
@@ -1248,8 +1326,40 @@ h4 { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   border-radius: 2px; background: var(--field);
 }
 .nav-item { position: relative; }
-.nav-section-title { letter-spacing: .12em; font-size: 9.5px; color: var(--text-4); }
-.sidebar-foot { border-top: 1px solid var(--hairline); }
+.nav-section-title { letter-spacing: .12em; font-size: 9.5px; color: var(--text-4);
+  margin-top: 10px; }
+.sidebar-foot { border-top: 1px solid var(--hairline); padding: 12px 14px; }
+.sidebar-foot .name { font-size: 12.5px; }
+/* ONE scrolling region, and the rail is not it.
+   MEASURED at 1440x900 and 1366x768: the owner rail needs 406px of nav and gets 406, the
+   adviser 344 and gets 344 — the content fits exactly, so this scroller shows NO
+   scrollbar and the document stays the only thing that scrolls. That is the defect
+   fixed: a scrollbar on the nav while its content nearly fitted.
+   It is `auto` rather than `hidden` because the CARRIER rail — ten destinations under
+   three section headings, 541px of nav — genuinely does not fit a 768px window. Hidden
+   would silently CLIP its last items: present in the DOM, unreachable by mouse or
+   keyboard. A scroller that appears only when the content truly overflows is the honest
+   answer, and it is still ONE region at the outer edge of the page rather than a second
+   scrollbar nested inside the first. `overscroll-behavior` stops that scroll chaining
+   into the document behind it. */
+.sidebar { overflow-y: auto; overscroll-behavior: contain; }
+/* …and below 820px of window the rail tightens until it does fit, so the scroller above
+   never engages on a normal laptop. MEASURED at 1366x768: the carrier rail (ten
+   destinations under three section headings) needed 829px of chrome in a 734px box and
+   scrolled — the reader saw the second scrollbar this whole item was reported for. These
+   metrics give back 116px: 10 nav items at 7px each, three section headings at 8px, and
+   28px across the head, nav padding and foot. Nothing shrinks below 12.5px of type, no
+   item is clipped, and at 900px of window the rail is unchanged. */
+@media (max-height: 820px) {
+  .sidebar-head { padding: 14px 20px 12px; }
+  .sidebar-nav { padding: 8px 10px; }
+  .nav-item { padding: 6px 12px; margin-bottom: 1px; }
+  .nav-section-title { margin-top: 6px; margin-bottom: 2px; padding: 3px 12px; }
+  .sidebar-foot { padding: 10px 14px; }
+  .sidebar-foot .language-picker { margin-top: 8px; }
+  .sidebar-foot__actions { margin-top: 8px; }
+}
+@media (max-height: 700px) { .sidebar-foot { margin-top: 12px; } }
 .main { margin-left: calc(var(--nav-w) + 34px); padding: 34px 40px 64px; max-width: 1180px; }
 
 /* ── controls ───────────────────────────────────────────────────────────── */
@@ -1312,14 +1422,58 @@ h4 { font-size: 10.5px; font-weight: 700; text-transform: uppercase;
 .finding.MONITOR { border-left-color: var(--jade) }
 .finding-title { font-family: var(--font-display); font-weight: 500; font-size: 16px; }
 
-/* ── evidence and quotations ────────────────────────────────────────────── */
+/* ── evidence and quotations ──────────────────────────────────────────────
+   MEASURED DEFECT, reported as "cannot view the text". The base `.verbatim` is a DARK
+   card — #0f172a ground with light inks — and this theme replaced the ground with
+   near-white cream while re-colouring only `.verbatim__src`. Against the cream the
+   quotation stayed #e2e8f0 (1.13:1), the status banner #fca5a5 (1.8:1) and the bold
+   labels #cbd5e1 (1.4:1): present in the DOM, invisible on screen.
+
+   Every ink is restated here against the ACTUAL ground, which is the gradient below over
+   `.card` — effectively #fefdfb at the top stop and #f9f6ee at the bottom. Ratios
+   measured in the browser with getComputedStyle, worst stop first: quote 13.4:1,
+   `__src` 7.1:1, `__src b` 13.4:1, link 5.2:1, `__so` 4.6:1. The quotation carries the
+   darkest ink in the palette because it is the highest-authority text in the product. */
 .verbatim, .v-evidence {
   background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(244,240,230,.5));
-  border: 1px solid var(--hairline); border-left: 2px solid var(--field-edge);
+  border: 1px solid var(--hairline); border-left: 2px solid var(--field);
   border-radius: 4px var(--radius-sm) var(--radius-sm) 4px;
 }
-.verbatim__q { font-family: var(--font-display); font-size: 14.5px; line-height: 1.6; }
-.quote-src, .v-evidence__src, .verbatim__src { color: var(--text-4); letter-spacing: .02em; }
+/* The dark card carried a red-to-amber bar down its left edge. On paper that reads as an
+   ALERT, and a quotation is not an alert — the 2px field-blue border above is the marker. */
+.verbatim::before { content: none; }
+.verbatim__q { font-family: var(--font-display); font-size: 15px; line-height: 1.6;
+  color: var(--text); }
+.verbatim__tag { color: var(--text-2); text-transform: none; letter-spacing: .01em;
+  font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.verbatim__tag i { background: var(--field); }
+.quote-src, .v-evidence__src, .verbatim__src { color: var(--text-3); letter-spacing: .02em;
+  font-size: 11.5px; }
+.verbatim__src { border-top-color: var(--hairline); }
+.verbatim__src b { color: var(--text); font-weight: 600; }
+.verbatim__src a { color: var(--brand); text-decoration: underline; }
+.verbatim__so { color: var(--clay); }
+
+/* The provenance card under a statement about the law: where it comes from. */
+.pack-src__h { font-size: 11px; letter-spacing: .08em; color: var(--text-3);
+  margin-bottom: 8px; }
+.pack-src .verbatim__q { margin: 0 0 10px; }
+/* A status badge whose MEANING is in its words: a SENTENCE at reading size, not a 9.5px
+   uppercase code. Deliberately NOT `.ev-badge`, which is the existing evidence-class pill
+   (`evidenceBadge()`) and is uppercase by design — reusing that name restyled it, and the
+   status here came out shouting in capitals. The tinted ground and the coloured glyph are
+   redundant cues on top, never the only one; the words take the darkest ink so the badge
+   clears 4.5:1 (12.6:1 measured) rather than the ~3.6:1 a tinted `.tag-success` gives. */
+.src-badge { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 8px;
+  padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  text-transform: none; letter-spacing: .01em;
+  color: var(--text); background: rgba(43,39,33,.05); border: 1px solid var(--hairline); }
+.src-badge__g { font-size: 13px; line-height: 1 }
+.src-badge--verified { background: var(--jade-light); border-color: var(--jade-edge) }
+.src-badge--verified .src-badge__g { color: var(--jade) }
+.src-badge--quoted { background: var(--field-light); border-color: var(--field-edge) }
+.src-badge--quoted .src-badge__g { color: var(--brand) }
+.verbatim__by { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--text-2) }
 
 /* ── drawer ─────────────────────────────────────────────────────────────── */
 .v-drawer-overlay { background: rgba(43,39,33,.18); backdrop-filter: blur(3px); }
@@ -1497,21 +1651,40 @@ tbody tr:hover { background: rgba(255,255,255,.5) }
       padding: 26px 30px 34px; backdrop-filter: blur(10px) }
 .pc__plot { position: relative; height: 320px; border-left: 1px solid var(--border);
             border-bottom: 1px solid var(--border) }
+/* Quadrant guides as dashed hairlines rather than solid rules: they divide the plot
+   without competing with the markers sitting on it. */
 .pc__q { position: absolute; inset: 0; pointer-events: none }
-.pc__q::before, .pc__q::after { content: ""; position: absolute; background: var(--border-subtle) }
-.pc__q::before { left: 50%; top: 0; bottom: 0; width: 1px }
-.pc__q::after { top: 50%; left: 0; right: 0; height: 1px }
+.pc__q::before, .pc__q::after { content: ""; position: absolute; border: 0 dashed var(--border) }
+.pc__q::before { left: 50%; top: 0; bottom: 0; border-left-width: 1px }
+.pc__q::after { top: 50%; left: 0; right: 0; border-top-width: 1px }
+/* A real <button>, so a 24px hit area and a visible focus ring are the defaults rather
+   than something bolted on. The padding is the hit area; the marker inside is the ink. */
 .pc__dot { position: absolute; transform: translate(-50%,50%); cursor: pointer;
+           appearance: none; border: 0; background: transparent; padding: 5px; margin: 0;
+           min-width: 26px; min-height: 26px; display: grid; place-items: center;
            animation: pc-in .7s var(--ease-settle) both }
+.pc__dot[aria-disabled="true"] { cursor: default }
+.pc__dot:focus-visible { outline: 2px solid var(--brand-bright); outline-offset: 1px;
+  border-radius: 50% }
 @keyframes pc-in { from { opacity: 0; transform: translate(-50%,50%) scale(.3) } }
-.pc__dot i { display: block; width: 14px; height: 14px; border-radius: 50%;
-             background: var(--field); box-shadow: 0 0 0 0 rgba(111,147,171,.4);
-             transition: box-shadow var(--transition), transform var(--transition) }
-.pc__dot:hover i { transform: scale(1.25); box-shadow: 0 0 0 8px rgba(111,147,171,.14) }
-.pc__dot[data-p="HIGH"] i { background: var(--clay) }
-.pc__dot[data-p="MEDIUM"] i { background: var(--amber) }
-.pc__dot[data-p="LOW"] i { background: var(--jade) }
-.pc__dot.is-demo i { background: var(--text-4); opacity: .5 }
+/* SHAPE carries the priority; colour repeats it. Distinguishable in greyscale, under
+   colour-blind simulation and in print — see PC_MARKS in app.js and the legend below. */
+.pc__mk { display: grid; place-items: center; width: 16px; height: 16px; flex: 0 0 auto;
+          border-radius: 50%; background: var(--field); font-style: normal;
+          font-size: 10px; font-weight: 800; line-height: 1; color: #fff;
+          box-shadow: 0 0 0 0 rgba(111,147,171,.4);
+          transition: box-shadow var(--transition), transform var(--transition) }
+.pc [data-p="HIGH"] > .pc__mk { width: 20px; height: 20px; background: var(--clay);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%) }
+.pc [data-p="HIGH"] > .pc__mk::after { content: "!" }
+.pc [data-p="MEDIUM"] > .pc__mk { background: var(--amber); border-radius: 3px }
+.pc [data-p="LOW"] > .pc__mk { background: var(--jade) }
+.pc [data-p="DEMO"] > .pc__mk { background: transparent; border: 2px dashed var(--text-4) }
+.pc__dot:hover .pc__mk { transform: scale(1.25); box-shadow: 0 0 0 8px rgba(111,147,171,.14) }
+.pc__legend { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 18px;
+  margin: 26px 0 0; padding: 0 }
+.pc__legend li { display: flex; align-items: center; gap: 8px; font-size: 11.5px;
+  color: var(--text-2) }
 .pc__tip { position: absolute; left: 20px; bottom: 2px; white-space: nowrap;
            font-size: 11px; color: var(--text-2); font-weight: 600 }
 .pc__tip span { display: block; font-weight: 400; color: var(--text-4); font-size: 10px }
@@ -1597,6 +1770,19 @@ tbody tr:hover { background: rgba(255,255,255,.5) }
 .dropzone-label { border-radius: 999px; background: linear-gradient(180deg,#35312a,#26231e) }
 .consent-row { border-radius: var(--radius-sm); border-color: var(--hairline);
                background: rgba(255,253,248,.7) }
+/* Ticked is the default here, so UNTICKED has to be the state that reads differently:
+   a selected row keeps the warm paper and gains the field-blue edge, an unticked one
+   goes flat. Never colour alone — the checkbox itself is the primary indicator. */
+.consent-row:has(input:checked) { border-color: var(--field-edge);
+  background: linear-gradient(180deg, rgba(230,239,245,.55), rgba(255,253,248,.8)) }
+.consent-row__l { display: block; font-size: 13px; font-weight: 600; color: var(--text) }
+.consent-row__m { font-family: inherit; color: var(--text-3); font-size: 11.5px }
+/* One height for every card, so the list scans as a list. MEASURED at 1440x900: a kind
+   with one filename came out 86px and a kind with three came out 132px, which is the
+   ragged look reported as "not clean". `1fr` on the auto rows makes each grid row as
+   tall as its tallest card and stretches the rest into it — equal heights WITHOUT
+   hiding a filename, which is the part a reader is deciding about. */
+.consent-list { grid-auto-rows: 1fr }
 #veris-pagefull { background: var(--bg) }
 .pf__pin, .cv__k, .wr__s { font-feature-settings: "tnum" 1 }
 
@@ -2492,10 +2678,13 @@ tbody tr:hover td:first-child {
 .pc__dot {
   transition: all .24s var(--ease-settle);
 }
-.pc__dot:hover {
+.pc__dot:hover, .pc__dot:focus-visible {
   z-index: 10;
 }
-.pc__dot:hover .pc__tip {
+/* The tooltip appears on KEYBOARD focus too. It used to be hover-only, so the name
+   behind a marker was unreachable without a pointer; the accessible name on the button
+   carries the same facts, and this is the sighted keyboard reader's version of it. */
+.pc__dot:hover .pc__tip, .pc__dot:focus-visible .pc__tip {
   opacity: 1; transform: translateY(-4px);
 }
 .pc__tip {
@@ -2830,3 +3019,107 @@ tbody tr:hover td:first-child {
 .portfolio-evidence__quote{margin:7px 0 0;padding:9px 11px;border-left:3px solid var(--field);background:var(--field-light);color:var(--text-2);font-size:12px;line-height:1.55}
 .portfolio-evidence__meta,.portfolio-evidence__status{margin:6px 0 0;color:var(--text-4);font-size:11px}
 @media(max-width:900px){.portfolio-summary{grid-template-columns:1fr}.plan-layout__sections{grid-template-columns:1fr}.plan-layout__section:nth-child(odd){border-right:0}.plan-layout__facts{grid-template-columns:1fr}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INTERACTION POLISH: focus, skip link, live region, camera capture, demo reset,
+   the offline page, mobile navigation and small-screen layout.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* A visible focus ring on everything a keyboard can reach, including the cards and
+   rows that carry an action. :focus-visible keeps it off a mouse click. */
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"]):focus-visible{
+  outline:3px solid var(--brand);outline-offset:2px;border-radius:var(--radius-xs)}
+.card-clickable:focus-visible,.finding:focus-visible,.stat:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
+
+/* Screen-reader text and the persistent live region. */
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* Skip link: off-screen until focused, then the first thing on the page. */
+.skip-link{position:absolute;left:-9999px;top:8px;z-index:1000;padding:10px 14px;border:0;border-radius:var(--radius-sm);
+  background:var(--text);color:var(--paper);font:inherit;font-weight:600;cursor:pointer}
+.skip-link:focus,.skip-link:focus-visible{left:12px}
+.main:focus{outline:none}
+
+/* A wide table scrolls inside its card instead of pushing the page sideways. */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.table-scroll table{min-width:560px}
+
+.camera-capture input[type="file"]{display:block;max-width:100%;font-size:13px;margin-top:4px}
+.camera-capture p{margin-top:6px}
+
+/* ── Claim documents ─────────────────────────────────────────────────────
+   MEASURED DEFECT. The DRAFTING panel put a select, two RAW `<input type=file>` widgets
+   and three buttons in one `.btn-group` flex row, so the browser's own grey "Choose
+   File" boxes sat at a different height from everything around them and the row wrapped
+   raggedly. The pickers are now styled controls on a grid, and the buttons have their
+   own row below. */
+.claim-docs{border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:14px 16px 4px;margin:0}
+.claim-docs>legend{padding:0 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3)}
+.claim-docs__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:start}
+.claim-docs__grid .form-group{margin-bottom:6px;min-width:0}
+/* The native input stays in the accessibility tree and in the tab order — visually
+   hidden, NOT `display:none`/`hidden`, which would take it out of both and leave a
+   label that no keyboard can reach. The ring is drawn on the styled button instead. */
+.file-pick{display:flex;flex-wrap:wrap;align-items:center;gap:10px;position:relative;min-width:0}
+.file-pick__input{position:absolute;opacity:0;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;pointer-events:none}
+.file-pick__btn{cursor:pointer;flex:0 0 auto}
+.file-pick:focus-within .file-pick__btn{outline:2px solid var(--brand-bright);outline-offset:2px}
+.file-pick__name{flex:1 1 120px;min-width:0;font-size:13px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.claim-src{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--text-3)}
+/* Nothing read establishes this item yet. Stated as a question still open, in the same
+   ink weight as a real citation, because an honest absence is evidence too. */
+.claim-src--missing{color:var(--text-2);font-style:italic}
+
+/* ── Protection map states ───────────────────────────────────────────────
+   Shape AND words. The cell used to carry the raw engine code in a coloured pill, so a
+   reader had to decode `NOT_FOUND_IN_DOCUMENTS` and see the hue to read their own map.
+   The glyph is a second, non-colour cue and is hidden from assistive technology because
+   the sentence beside it says the same thing. See PM_STATES in app.js — the state
+   SEMANTICS are not touched, only named. */
+.pm__legend{list-style:none;display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 14px;padding:0}
+.pm__legend li{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-2)}
+.pm__state{display:inline-flex;align-items:flex-start;gap:7px;font-size:12.5px;line-height:1.4;color:var(--text)}
+.pm__mk{font-style:normal;font-size:13px;line-height:1.35;flex:0 0 auto;color:var(--text-3)}
+[data-s="DOCUMENTED_TERMS"] .pm__mk{color:var(--jade)}
+[data-s="CONDITIONAL_TERMS"] .pm__mk{color:var(--amber)}
+/* A statement about OUR READING, not about cover: neutral ink, never a warning colour. */
+[data-s="NOT_FOUND_IN_DOCUMENTS"] .pm__mk{color:var(--text-3)}
+/* Nothing has been looked at yet. Grey — never red. */
+[data-s="NOT_ASSESSED"] .pm__mk{color:var(--text-4)}
+/* The ONLY red state: a sourced statute makes the cover compulsory and no in-force
+   policy was found. */
+[data-s="COMPULSORY_GAP"] .pm__mk{color:var(--clay)}
+[data-s="COMPULSORY_GAP"] .pm__state{font-weight:600}
+.demo-reset h3{margin-bottom:6px}
+.demo-reset .btn-group{margin-top:12px}
+
+/* The installed app's offline page. */
+.offline-page{max-width:520px;margin:12vh auto;padding:32px 28px;background:var(--surface);border:1px solid var(--border-subtle);
+  border-radius:var(--radius);text-align:center}
+.offline-page h1{margin-bottom:10px}
+.offline-page p{color:var(--text-2);margin-bottom:18px}
+
+/* Navigation on a phone. The sidebar is hidden below 900px; this bar carries the same
+   destinations so a small screen is never a dead end. */
+.mobile-nav{display:none}
+@media(max-width:900px){
+  .mobile-nav{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;position:sticky;top:0;z-index:20;
+    background:var(--surface);border-bottom:1px solid var(--border-subtle);-webkit-overflow-scrolling:touch}
+  .mobile-nav .nav-item{flex:0 0 auto;width:auto;white-space:nowrap;padding:8px 10px}
+  .mobile-nav .language-picker{flex:0 0 auto;margin:0}
+  .shell{flex-direction:column}
+  .btn-group{flex-wrap:wrap}
+  .agent-confirmation-preview code{word-break:break-all}
+  .tour__pop{max-width:calc(100vw - 24px)}
+}
+@media(max-width:560px){
+  .main{padding:16px 12px}
+  h1{font-size:22px}
+  .card{padding:16px}
+  .claim-scenario-inputs{display:block}
+  .portfolio-wording{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .skip-link,.mobile-nav{transition:none!important;scroll-behavior:auto!important}
+  html{scroll-behavior:auto}
+}

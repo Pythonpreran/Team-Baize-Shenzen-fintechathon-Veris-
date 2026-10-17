@@ -126,8 +126,11 @@ class Document(BaseModel):
     publisher: str
     source_url: Optional[str]
     source_url_status: Literal["RECORDED", "UNRECORDED"]
-    country: Literal["SG", "MY", "IN", "HK", "CN", "GENERIC"]
-    line_of_business: Literal["SME_PACKAGE", "HEALTH", "HOME", "MARINE", "NOT_APPLICABLE"]
+    #: AU is a country VERIS recognises but holds no pack for: its wording is the GENERIC
+    #: showcase, read and quoted with no country-specific legal statement.
+    country: Literal["SG", "MY", "IN", "HK", "CN", "AU", "GENERIC"]
+    line_of_business: Literal["SME_PACKAGE", "HEALTH", "HOME", "TRAVEL", "MOTOR", "MARINE",
+                              "NOT_APPLICABLE"]
     document_class: Literal[
         "POLICY_WORDING", "BENEFITS_SCHEDULE", "PROPOSAL_FORM", "FACTSHEET",
         "BROCHURE", "WEBPAGE", "STATUTE", "JUDGMENT", "PRACTICE_GUIDE"]

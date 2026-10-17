@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const ENGLISH_CATALOGUE = JSON.parse(readFileSync("web/i18n/en.json", "utf8"));
+const CHINESE_CATALOGUE = JSON.parse(readFileSync("web/i18n/zh-CN.json", "utf8"));
 
 const made = [];
 function el(tag = "div") {
@@ -83,6 +84,9 @@ const sandbox = {
     if (path === "/static/i18n/en.json") {
       return { status: 200, ok: true, json: async () => ENGLISH_CATALOGUE };
     }
+    if (path === "/static/i18n/zh-CN.json") {
+      return { status: 200, ok: true, json: async () => CHINESE_CATALOGUE };
+    }
     throw new Error("network disabled in smoke test");
   },
 };
@@ -148,6 +152,36 @@ tryRun("planLayoutCard renders every section and preserves missing values", () =
   if (!html.includes("No value is shown")) throw new Error("missing-data state was not rendered");
   if (!html.includes('data-act="portfolio-evidence"')) throw new Error("no wording control");
   if (!html.includes('aria-label="Covered"')) throw new Error("section is not labelled");
+});
+tryRun("planLayoutCard renders home and travel terms, the contents gap and withheld plan limits", () => {
+  const html = g.planLayoutCard({
+    id: "policy-home", insurer: "AIG Asia Pacific Insurance Pte. Ltd.",
+    product: "AIG Homes Advantage (synthetic schedule)", country: "SG", masked_number: "****-HOME3",
+    status: "ACTIVE", period: { start: "2026-02-01", end: "2027-01-31" }, coverage_items: [],
+    property_travel_mapping: { mapped: true, notice_key: null },
+    property_travel_items: [
+      { mechanism_code: "LIMIT.CONTENTS_BELOW_LIST", label_key: "home.item.contents_below_list",
+        display: "MONEY_GAP", state: "DOCUMENTED", evidence_class: "DECLARED", value: "120000", unit: "SGD",
+        params: { sum_insured: "300000", contents_list: "420000", proportion_percent: "71.43" },
+        notice_key: "home.notice.contents_illustration",
+        citation: { document: "Homes Advantage", page: 6, quote: "proportion of the sum insured" } },
+      { mechanism_code: "CONDITION.UNOCCUPANCY", label_key: "home.item.unoccupancy",
+        display: "DAYS_CONDITION", state: "DOCUMENTED", evidence_class: "PROVEN", value: "60", unit: "days",
+        citation: { document: "Homes Advantage", page: 1, quote: "unoccupied for more than 60 consecutive days" } },
+      { mechanism_code: "LIMIT.TRIP_CANCELLATION", label_key: "travel.item.cancellation_limit",
+        display: "PLAN_LIMIT", state: "INFORMATION_MISSING", evidence_class: "UNESTABLISHED", value: null,
+        missing_document_key: "travel.document.selected_plan",
+        citation: { document: "Travel Guard", page: 14, quote: "for the plan which you have selected" } },
+    ],
+  });
+  if (!html.includes("S$120,000") || !html.includes("S$420,000") || !html.includes("71.43%"))
+    throw new Error("the contents gap was not rendered with both operands");
+  if (!html.includes(vm.runInContext("esc(t('home.notice.contents_illustration'))", ctx)))
+    throw new Error("the illustration notice is missing");
+  if (!html.includes(vm.runInContext("esc(t('travel.document.selected_plan'))", ctx)))
+    throw new Error("a withheld plan limit does not name the document that would establish it");
+  if (html.includes(vm.runInContext("esc(t('portfolio.generic_notice', { country: 'SG' }))", ctx)))
+    throw new Error("a mapped home card was labelled as not yet mapped");
 });
 tryRun("portfolio synthetic banner uses durable server provenance", () => {
   sandbox.sessionStorage.setItem("veris_household_example_loaded", "1");
@@ -275,15 +309,70 @@ tryRun("drawerExcerpt says when no address was recorded", () => {
   if (!html.includes("was not recorded")) throw new Error("the missing address is not stated");
   if (html.includes("<a ")) throw new Error("a link was invented");
 });
+// ── our own document: the page itself, with the cited span ringed ──────────
+// The other side of the rights boundary. A page image is drawn ONLY for a document the
+// reader uploaded or one of our synthetic samples, and this stub is the shape the server
+// sends for those: an image plus the highlight's bounding box as fractions of it.
+const pagePayload = (highlight) => ({
+  display: "PAGE", available: true, filename: "02-policy-schedule.pdf",
+  page_no: 17, page_count: 28, image: "/api/source/doc-1/page/17.png?span_id=s1",
+  highlight,
+});
+tryRun("drawerPagePane draws the page, rings the cited box and offers full screen", () => {
+  const html = g.drawerPagePane({
+    finding: { spans: [{ document_id: "doc-1", page_no: 17, span_id: "s1" }] },
+    spanIndex: 0,
+    page: pagePayload({ found: true, method: "EXACT", rect_count: 1,
+      bounds: { x: 0.12, y: 0.63, w: 0.74, h: 0.045 } }) });
+  if (!html.includes("<img src=")) throw new Error("no page image for our own document");
+  if (!html.includes("pv__hlbox")) throw new Error("the cited span is not ringed");
+  if (!html.includes("top:63.000%")) throw new Error("the highlight box is not placed from its fractions");
+  if (!html.includes('data-act="pagefull-open"')) throw new Error("no full-screen control");
+  if (!html.includes("aria-label=")) throw new Error("the full-screen control is unnamed");
+  if (!html.includes("Page 17 of 28")) throw new Error("the page citation is missing");
+  if (html.includes("pv__rights")) throw new Error("a rights boundary was claimed for our own page");
+});
+tryRun("drawerPagePane draws no ring when the quotation was not located", () => {
+  const html = g.drawerPagePane({
+    finding: { spans: [{ document_id: "doc-1", page_no: 17, span_id: "s1" }] },
+    spanIndex: 0,
+    page: pagePayload({ found: false, method: "NOT_FOUND", rect_count: 0, bounds: null,
+      note: "The quotation could not be located on this page." }) });
+  if (html.includes("pv__hlbox")) throw new Error("a box was invented for a quotation nobody found");
+  if (!html.includes("could not be located")) throw new Error("the miss is not stated");
+  if (!html.includes("<img src=")) throw new Error("the page itself should still be shown");
+});
+tryRun("drawerPagePane clamps or refuses a hostile highlight box", () => {
+  const ring = (bounds) => g.drawerPagePane({
+    finding: { spans: [{ document_id: "doc-1", page_no: 17, span_id: "s1" }] },
+    spanIndex: 0,
+    page: pagePayload({ found: true, method: "PARTIAL", rect_count: 2, bounds }) });
+  // A width that is not a number is not a box, so no ring is drawn and nothing from the
+  // payload reaches the style attribute.
+  const hostile = ring({ x: 0.1, y: 0.2, w: "12\" onmouseover=alert(1) x=\"", h: 0.1 });
+  if (hostile.includes("onmouseover")) throw new Error("a payload escaped the style attribute");
+  if (hostile.includes("pv__hlbox")) throw new Error("a ring was drawn for a box with no width");
+  // Numbers outside the image are clamped to its edges rather than painting outside it.
+  const wild = ring({ x: -4, y: 99, w: 50, h: 50 });
+  if (!wild.includes("left:0.000%") || !wild.includes("top:100.000%"))
+    throw new Error("out-of-range fractions were not clamped");
+});
 tryRun("drawerPagePane routes an EXCERPT payload to the paragraph view", () => {
   const html = g.drawerPagePane({
     finding: { spans: [{ document_id: "doc-1", page_no: 15, span_id: "s1" }] },
     spanIndex: 0,
     page: excerptPayload({ available: true, url: "https://publisher.example/w.pdf" }) });
-  if (!html.includes("The paragraph it came from")) throw new Error("wrong heading");
+  // The heading used to read "The paragraph it came from". It now names the RIGHTS
+  // BOUNDARY the branch exists for — a published wording, cited paragraph only — and
+  // comes from the catalogue rather than a literal. Same assertion, current copy.
+  if (!html.includes("cited paragraph only")) throw new Error("wrong heading");
   if (!html.includes("<mark>")) throw new Error("no marked quotation");
   if (html.includes("<img") || html.includes("pagefull-open"))
     throw new Error("a page image or full-screen control was drawn");
+  // Still true after the rebuild, and the whole point of the branch: the page count is
+  // stated, the publisher is named, and nothing offers a page view.
+  if (!html.includes("Page 15 of")) throw new Error("the page citation is not prominent");
+  if (!html.includes("pv__rights")) throw new Error("the rights boundary is not stated");
 });
 
 // ── which country's law applies ────────────────────────────────────────────
@@ -303,15 +392,16 @@ const SG_RECORD = {
       document: "02-policy-schedule.pdf", page: 1 }],
   rules_not_applied: [], sentences_dropped: [],
 };
-const MY_RECORD = {
+// T27: Malaysia now has a pack, so the recognised-without-pack example is Australia.
+const NO_PACK_RECORD = {
   pack: "GENERIC", pack_name: "No jurisdiction pack", pack_available: false,
-  detected: "MY", detected_name: "Malaysia", leading: "MY", confidence: "HIGH",
-  summary: "These documents read as Malaysia. VERIS has no Malaysia jurisdiction pack yet.",
-  notice: "These documents read as Malaysia. VERIS has no Malaysia jurisdiction pack yet, so it reads and quotes your documents but makes no statement about the law of <b>Malaysia</b>.",
+  detected: "AU", detected_name: "Australia", leading: "AU", confidence: "HIGH",
+  summary: "These documents read as Australia. VERIS has no Australia jurisdiction pack yet.",
+  notice: "These documents read as Australia. VERIS has no Australia jurisdiction pack yet, so it reads and quotes your documents but makes no statement about the law of <b>Australia</b>.",
   reasons: [
-    { direction: "for", country: "MY", country_name: "Malaysia", signal: "governing_law",
-      signal_label: "governing-law clause", weight: 10, matched: "governed by Malaysian Law",
-      document: "wording.pdf", page: 7 },
+    { direction: "for", country: "AU", country_name: "Australia", signal: "governing_law",
+      signal_label: "governing-law clause", weight: 10,
+      matched: "governed by the laws of New South Wales", document: "wording.pdf", page: 7 },
     { direction: "against", country: "SG", country_name: "Singapore", signal: "currency",
       signal_label: "currency", weight: 3, matched: "<img src=x onerror=alert(1)>",
       document: "wording.pdf", page: 2 }],
@@ -359,9 +449,9 @@ tryRun("jurisdictionPanel shows the pack, the confidence and the reasons", () =>
   if (html.includes("Not applied")) throw new Error("an empty not-applied list was drawn");
 });
 tryRun("jurisdictionPanel leads with the no-pack notice and lists what was not applied", () => {
-  const html = g.jurisdictionPanel(MY_RECORD);
+  const html = g.jurisdictionPanel(NO_PACK_RECORD);
   if (!html.includes("No jurisdiction pack")) throw new Error("the missing pack is not badged");
-  if (!html.includes("no Malaysia jurisdiction pack yet")) throw new Error("the notice is missing");
+  if (!html.includes("no Australia jurisdiction pack yet")) throw new Error("the notice is missing");
   if (!html.includes("Not applied to these documents")) throw new Error("not-applied rules are hidden");
   if (!html.includes("Work injury declaration understated")) throw new Error("the rule is not named");
   if (!html.includes("Pointing elsewhere")) throw new Error("the reasons against are not shown");
@@ -381,10 +471,10 @@ tryRun("jurisdictionPanel keeps the fallback notice for every uncertain path", (
     throw new Error("a malformed generic response reached the reassuring pack branch");
 });
 tryRun("jurisdictionPanel escapes every server-derived value", () => {
-  const html = g.jurisdictionPanel(MY_RECORD);
-  if (html.includes("<img") || html.includes("<b>Malaysia</b>"))
+  const html = g.jurisdictionPanel(NO_PACK_RECORD);
+  if (html.includes("<img") || html.includes("<b>Australia</b>"))
     throw new Error("server text reached the DOM unescaped");
-  if (!html.includes("&lt;img") || !html.includes("&lt;b&gt;Malaysia"))
+  if (!html.includes("&lt;img") || !html.includes("&lt;b&gt;Australia"))
     throw new Error("not escaped through esc()");
 });
 
@@ -407,8 +497,15 @@ tryRun("packSources renders nothing for no sources", () => {
 });
 tryRun("packSources shows each quote, status and an https link", () => {
   const html = g.packSources(SOURCES);
-  if (!html.includes("HUMAN_VERIFIED") || !html.includes("SOURCE_QUOTED"))
+  // This used to assert the RAW CODES `HUMAN_VERIFIED` / `SOURCE_QUOTED` appeared in the
+  // markup. That pill — a 10.5px uppercase engine code in a pale tint — was the defect:
+  // illegible, and meaningless to the reader even when legible. The status is now a
+  // sentence with a glyph, so the equivalent assertion is that each status still reaches
+  // the reader, named rather than coded.
+  if (!html.includes("Confirmed by a named reviewer")
+    || !html.includes("Quoted from the primary source"))
     throw new Error("a status badge is missing");
+  if (!html.includes("src-badge__g")) throw new Error("the status has no non-colour marker");
   if (!html.includes("in any other case — $1 million")) throw new Error("a quote is missing");
   if (!html.includes('href="https://regulator.example/wic"')) throw new Error("no source link");
   if (!html.includes('rel="noopener noreferrer"')) throw new Error("the link keeps an opener");
@@ -787,6 +884,174 @@ tryRun("connected demo controls keep insurer events separate and require owner-e
   for (const required of ["agent-mandate-revoke", "claim-document-kind", "settlement-loss", "protection-scenario-loss"]) {
     if (!code.includes(required)) throw new Error(`missing reviewed control: ${required}`);
   }
+});
+
+/* ── Interaction polish: the shell worker, photo capture, the household tour, demo reset ── */
+
+// The worker runs in its own global scope. This stub records which requests it answers and
+// what it stores, so the rules "never /api/, never a navigation, only the shell list" are
+// exercised as behaviour rather than read as source text.
+async function runWorker() {
+  const handlers = {};
+  const stored = [];
+  const cache = {
+    put: async (key, _response) => { stored.push(String(key)); },
+    match: async () => undefined,
+    addAll: async list => { list.forEach(item => stored.push(`precache:${item}`)); },
+  };
+  const scope = {
+    location: { origin: "https://veris.test" },
+    addEventListener: (type, fn) => { handlers[type] = fn; },
+    skipWaiting: async () => {}, clients: { claim: async () => {} },
+  };
+  const workerContext = vm.createContext({
+    self: scope, URL, console, Promise, Set, Object, String,
+    caches: { open: async () => cache, keys: async () => ["veris-shell-v0", "other-cache"],
+      delete: async key => { stored.push(`delete:${key}`); return true; }, match: async () => undefined },
+    fetch: async () => ({ ok: true, status: 200, type: "basic", redirected: false, clone() { return this; } }),
+  });
+  vm.runInContext(readFileSync("web/sw.js", "utf8"), workerContext, { filename: "sw.js" });
+  const answered = [];
+  async function request(path, { method = "GET", mode = "cors" } = {}) {
+    let promise = null;
+    handlers.fetch({ request: { url: `https://veris.test${path}`, method, mode },
+      respondWith: value => { promise = value; } });
+    answered.push([path, method, mode, Boolean(promise)]);
+    if (promise) await promise;
+    return Boolean(promise);
+  }
+  let installed = null;
+  handlers.install({ waitUntil: value => { installed = value; } });
+  await installed;
+  return { handlers, stored, request, answered };
+}
+
+const worker = await runWorker();
+for (const [path, options, expected] of [
+  ["/api/portfolio", {}, false],
+  ["/api/claims/claim-1", {}, false],
+  ["/static/app.js", { method: "POST" }, false],
+  ["/static/app.js?v=2", {}, false],
+  ["/static/landing/landing.js", {}, false],
+  ["/static/app.js", {}, true],
+  ["/app", { mode: "navigate" }, true],
+]) {
+  const answered = await worker.request(path, options);
+  tryRun(`service worker ${expected ? "answers" : "ignores"} ${options.method || "GET"} ${path}${options.mode ? ` (${options.mode})` : ""}`, () => {
+    if (answered !== expected) throw new Error(`expected respondWith=${expected}, got ${answered}`);
+  });
+}
+tryRun("service worker stores only the public shell list, never a navigation or API body", () => {
+  const writes = worker.stored.filter(item => !item.startsWith("precache:") && !item.startsWith("delete:"));
+  if (writes.some(item => item.startsWith("/api/") || item === "/app")) throw new Error(`stored ${writes.join(", ")}`);
+  if (!writes.includes("/static/app.js")) throw new Error("the shell script was not refreshed into the cache");
+  const precached = worker.stored.filter(item => item.startsWith("precache:")).map(item => item.slice(9));
+  if (!precached.length || precached.some(item => !item.startsWith("/static/")))
+    throw new Error(`precache reaches outside /static/: ${precached.join(", ")}`);
+});
+tryRun("app.js registers the worker only where the browser has one", () => {
+  if (typeof g.registerShellWorker !== "function") throw new Error("registerShellWorker missing");
+  g.registerShellWorker();   // navigator here has no serviceWorker: must be a silent no-op
+});
+tryRun("signing out clears the shell caches without a worker present", () => {
+  const pending = g.clearShellCaches();
+  if (!pending || typeof pending.then !== "function") throw new Error("cache clearing is not awaitable");
+  if (!code.includes("await clearShellCaches();")) throw new Error("logout does not wait for the caches to clear");
+});
+tryRun("jpegPdf wraps a photo as one valid PDF page with a real xref table", () => {
+  const jpeg = Uint8Array.of(0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9);
+  const pdf = g.jpegPdf(jpeg, 640, 480);
+  const text = Array.from(pdf, b => String.fromCharCode(b)).join("");
+  if (!text.startsWith("%PDF-1.4\n")) throw new Error("not a PDF header");
+  if (!text.includes("/Filter /DCTDecode") || !text.includes("/Width 640 /Height 480"))
+    throw new Error("image XObject missing");
+  // 640 x 480 inside a landscape A4 outline (842 x 595 pt): height binds, 793 x 595.
+  if (!text.includes("/MediaBox [0 0 793 595]")) throw new Error("landscape page box not proportional");
+  const xrefAt = Number(/startxref\n(\d+)\n%%EOF\n$/.exec(text)?.[1]);
+  if (text.slice(xrefAt, xrefAt + 4) !== "xref") throw new Error("startxref does not point at the table");
+  const offsets = [...text.slice(xrefAt).matchAll(/(\d{10}) 00000 n /g)].map(m => Number(m[1]));
+  offsets.forEach((offset, index) => {
+    if (!text.startsWith(`${index + 1} 0 obj`, offset)) throw new Error(`object ${index + 1} offset is wrong`);
+  });
+  const imageAt = text.indexOf("stream\n", text.indexOf("/DCTDecode")) + 7;
+  if (pdf[imageAt] !== 0xff || pdf[imageAt + 1] !== 0xd8) throw new Error("JPEG bytes were not embedded verbatim");
+});
+tryRun("household tour steps come from the catalogue and point at real screens", () => {
+  const steps = g.householdTourSteps();
+  if (steps.length < 6) throw new Error("too few household steps");
+  for (const step of steps) {
+    if (!step.title || step.title.startsWith("tour.") || !step.body || step.body.startsWith("tour."))
+      throw new Error(`untranslated step ${step.title}`);
+    if (step.view && !String(step.view).startsWith("sme-")) throw new Error(`foreign view ${step.view}`);
+  }
+});
+tryRun("demo reset is two steps and the second names what is kept", () => {
+  vm.runInContext("S.demoResetConfirm = false", ctx);
+  const first = g.demoResetCard();
+  if (!first.includes('data-act="demo-reset"') || first.includes("demo-reset-confirm"))
+    throw new Error("the first step must not offer the destructive action");
+  vm.runInContext("S.demoResetConfirm = true", ctx);
+  const second = g.demoResetCard();
+  if (!second.includes('data-act="demo-reset-confirm"') || !second.includes('role="alertdialog"'))
+    throw new Error("the confirmation step is not an alert dialog");
+  if (!second.includes(vm.runInContext("esc(t('demo_reset.confirm_body'))", ctx)))
+    throw new Error("the kept-material notice is missing");
+  vm.runInContext("S.demoResetConfirm = false", ctx);
+});
+tryRun("claim photos are checked against the same 2 MB and type limits as the server", () => {
+  if (g.claimFileProblem({ name: "a.jpg", size: 2_000_001, type: "image/jpeg" }) === "")
+    throw new Error("an oversized photo was accepted");
+  if (g.claimFileProblem({ name: "a.heic", size: 1000, type: "image/heic" }) === "")
+    throw new Error("an unsupported type was accepted");
+  if (g.claimFileProblem({ name: "a.jpg", size: 1000, type: "image/jpeg" }) !== "")
+    throw new Error("a valid photo was refused");
+});
+tryRun("the shell offers a skip link and a phone navigation bar", () => {
+  g.setUser({ role: "SME", name: "Demo", email: "demo@example.test", organisation_name: "Demo" });
+  g.shell("SME", [{ id: "sme-portfolio", label: "Portfolio", icon: "◈" }]);
+  const html = doc._app.innerHTML;
+  if (!html.includes('data-act="skip-main"')) throw new Error("no skip link");
+  if (!html.includes('class="mobile-nav"')) throw new Error("no small-screen navigation");
+  if (!html.includes('id="main" tabindex="-1"')) throw new Error("main cannot take focus");
+});
+
+/* Optional: write the PDF jpegPdf makes from a real JPEG, so the Python suite can send it
+   through the actual upload pipeline. `node tools/smoke_frontend.mjs --photo-pdf in out w h` */
+const photoArg = process.argv.indexOf("--photo-pdf");
+if (photoArg >= 0) {
+  const [input, output, width, height] = process.argv.slice(photoArg + 1, photoArg + 5);
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(output, g.jpegPdf(new Uint8Array(readFileSync(input)), Number(width), Number(height)));
+}
+
+/* T28: Simplified Chinese. The catalogue arrives asynchronously, so this check awaits
+   setLocale; English stays on screen until it does and for every English-only key. */
+async function tryRunAsync(label, fn) {
+  try { await fn(); results.push(["ok  ", label]); }
+  catch (e) { results.push(["FAIL", `${label} :: ${e.message}`]); }
+}
+await tryRunAsync("zh-CN translates owner screens, keeps money per policy country and marks English-only screens", async () => {
+  g.setUser({ role: "SME", name: "Demo", email: "demo@example.test", organisation_name: "Demo" });
+  try {
+    await g.setLocale("zh-CN");
+    const label = g.t("nav.sme.portfolio");
+    if (label !== CHINESE_CATALOGUE.nav.sme.portfolio) throw new Error(`nav label was ${label}`);
+    if (doc.documentElement.lang !== "zh-CN") throw new Error("html lang was not zh-CN");
+    g.shell("SME", [{ id: "sme-portfolio", label, icon: "◈" }]);
+    if (!doc._app.innerHTML.includes(label)) throw new Error("Chinese navigation did not render");
+    if (!doc._app.innerHTML.includes('value="zh-CN"')) throw new Error("Chinese option missing");
+    if (g.money("60000", "SG") !== "S$60,000") throw new Error("UI locale changed SGD display");
+    if (g.money("500000", "CN") !== "¥500,000") throw new Error("CNY display is wrong");
+    if (g.t("reviewer.title") !== ENGLISH_CATALOGUE.reviewer.title)
+      throw new Error("an English-only reviewer key was not left in English");
+    const notice = g.localeNotice("ADVISER");
+    if (!notice.includes(CHINESE_CATALOGUE.locale.english_only))
+      throw new Error("adviser screens do not say they are English-only");
+  } finally {
+    await g.setLocale("en");
+  }
+  if (g.t("nav.sme.portfolio") !== ENGLISH_CATALOGUE.nav.sme.portfolio)
+    throw new Error("switching back did not restore English");
 });
 
 let bad = 0;

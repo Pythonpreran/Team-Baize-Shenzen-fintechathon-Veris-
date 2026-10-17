@@ -76,9 +76,11 @@ def _agent_traces() -> list[dict]:
         {"task": 6, "name": "Answer insurer query", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_demo_spine_e2e.py"},
         {"task": 7, "name": "Settlement correction", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_demo_spine_e2e.py"},
         {"task": 8, "name": "Escalate overdue claim", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_claims.py"},
-        {"task": 9, "name": "Renew compulsory motor cover", "status": "NOT_IMPLEMENTED_P1", "evidence": "No local trace; human submission should not claim this."},
-        {"task": 10, "name": "Renewal diff", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_renewal.py"},
-        {"task": 11, "name": "Share and revoke claim file", "status": "NOT_IMPLEMENTED_P1", "evidence": "No local trace; human submission should not claim this."},
+        # T22 and T24 were built after submission v1. Each descriptor names exactly what
+        # the local contract exercises, so nothing beyond the synthetic sandbox is implied.
+        {"task": 9, "name": "Renew compulsory motor cover", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_renewals.py (renewal calendar with the compulsory motor alert; the scheduler's sandbox invoice payment needs a matching live mandate and keeps exact-payload confirmation plus step-up); no real insurer or payment."},
+        {"task": 10, "name": "Renewal diff", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_renewal.py; tests/test_renewals.py (owner-held prior/current document diff, no coverage verdict); tests/test_renewals_api.py (tenant-scoped routes)"},
+        {"task": 11, "name": "Share and revoke claim file", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_delegate_claims.py and tests/test_privacy.py (owner-granted, member-consented, scoped and time-limited delegate access to one claim with no submission or decision authority; consent revocation exercised); hosted delegate identity remains a human action."},
         {"task": 12, "name": "SME adviser escalation", "status": "LOCAL_TEST_CONTRACT", "evidence": "tests/test_adviser_actions.py"},
     ]
 

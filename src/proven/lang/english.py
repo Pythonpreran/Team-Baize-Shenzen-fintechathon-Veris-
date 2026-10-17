@@ -55,6 +55,10 @@ class ParsedMoney:
     currency: str
     start: int
     end: int
+    #: True when the only marker was a bare "$". Singapore and Hong Kong both print their
+    #: dollar that way, so the label "SGD" is the legacy default and a dollar-currency
+    #: pack (HKD) may re-read it; an explicit "S$" or "HK$" is never re-read.
+    dollar_sign_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -221,8 +225,70 @@ class EnglishINRMoneyParser:
         return hit.amount if hit else None
 
 
+class EnglishHKDMoneyParser:
+    """Hong Kong dollars. "HK$" and "HKD" are explicit; under the Hong Kong pack a bare
+    "$" is also the Hong Kong dollar — the government's own Standard Plan template prints
+    its limits as "$750 per day"."""
+
+    currency = "HKD"
+    _marked = re.compile(r"(?:HK\$|HKD)\s*" + _AMOUNT, re.IGNORECASE)
+    _dollar = re.compile(r"(?<![A-Za-z$])\$\s*" + _AMOUNT)
+    _bare = re.compile(_AMOUNT)
+
+    def parse_number(self, text: str) -> Optional[Decimal]:
+        match = self._bare.search(text or "")
+        return _decimal(match.group("amount")) if match else None
+
+    def locate_money(self, text: str, *, allow_bare: bool = False) -> Optional[ParsedMoney]:
+        body = text or ""
+        match = self._marked.search(body) or self._dollar.search(body)
+        if match is None and allow_bare:
+            match = self._bare.search(body)
+        if match is None:
+            return None
+        amount = _decimal(match.group("amount"))
+        return None if amount is None else ParsedMoney(amount, self.currency,
+                                                       match.start(), match.end())
+
+    def parse_money(self, text: str, *, allow_bare: bool = False) -> Optional[Decimal]:
+        hit = self.locate_money(text, allow_bare=allow_bare)
+        return hit.amount if hit else None
+
+
+class EnglishMYRMoneyParser:
+    """Malaysian ringgit, printed "RM 1,000" or "MYR 1,000". Case-sensitive on purpose:
+    "rm" inside an English word is not a currency marker."""
+
+    currency = "MYR"
+    _marked = re.compile(r"(?<![A-Za-z])(?:RM|MYR)\s*" + _AMOUNT)
+    _bare = re.compile(_AMOUNT)
+
+    def parse_number(self, text: str) -> Optional[Decimal]:
+        match = self._bare.search(text or "")
+        return _decimal(match.group("amount")) if match else None
+
+    def locate_money(self, text: str, *, allow_bare: bool = False) -> Optional[ParsedMoney]:
+        match = self._marked.search(text or "")
+        if match is None and allow_bare:
+            match = self._bare.search(text or "")
+        if match is None:
+            return None
+        amount = _decimal(match.group("amount"))
+        return None if amount is None else ParsedMoney(amount, self.currency,
+                                                       match.start(), match.end())
+
+    def parse_money(self, text: str, *, allow_bare: bool = False) -> Optional[Decimal]:
+        hit = self.locate_money(text, allow_bare=allow_bare)
+        return hit.amount if hit else None
+
+
 SGD_MONEY = EnglishSGDMoneyParser()
 INR_MONEY = EnglishINRMoneyParser()
+HKD_MONEY = EnglishHKDMoneyParser()
+MYR_MONEY = EnglishMYRMoneyParser()
+
+#: Currencies whose documents print a bare "$" for their own dollar.
+DOLLAR_SIGN_CURRENCIES = frozenset({"SGD", "HKD"})
 
 
 def money_parser_for(currency: Optional[str]) -> Optional[MoneyParser]:
@@ -231,6 +297,10 @@ def money_parser_for(currency: Optional[str]) -> Optional[MoneyParser]:
         return SGD_MONEY
     if code == "INR":
         return INR_MONEY
+    if code == "HKD":
+        return HKD_MONEY
+    if code == "MYR":
+        return MYR_MONEY
     return None
 
 
@@ -244,11 +314,28 @@ def money_candidates(text: str) -> tuple[ParsedMoney, ...]:
     body = text or ""
     explicit: list[ParsedMoney] = []
 
+    # Hong Kong and Malaysian markers first: the "$" inside "HK$" must not also be read
+    # as a Singapore dollar.
+    for parser in (HKD_MONEY, MYR_MONEY):
+        for match in parser._marked.finditer(body):
+            amount = _decimal(match.group("amount"))
+            if amount is not None:
+                explicit.append(ParsedMoney(amount, parser.currency,
+                                            match.start(), match.end()))
+    foreign = tuple(explicit)
+
     for match in SGD_MONEY._marked.finditer(body):
+        if any(match.start() < hit.end and hit.start < match.end() for hit in foreign):
+            continue
         amount = _decimal(match.group("amount"))
         if amount is not None:
+            marker = match.group(0)[:match.start("amount") - match.start()].strip()
+            # "A$" or "US$" is some other dollar: it keeps the legacy label and is never
+            # re-read as a pack's own dollar.
+            lettered = match.start() > 0 and body[match.start() - 1].isalpha()
             explicit.append(ParsedMoney(amount, SGD_MONEY.currency,
-                                        match.start(), match.end()))
+                                        match.start(), match.end(),
+                                        dollar_sign_only=marker == "$" and not lettered))
 
     for match in INR_MONEY._numeric.finditer(body):
         marker, scale = match.group("marker"), match.group("scale")
@@ -343,8 +430,18 @@ class EnglishINRDateParser(EnglishDateParser):
     pass
 
 
+class EnglishHKDDateParser(EnglishDateParser):
+    """Hong Kong English documents print day-first dates, as Singapore's do."""
+
+
+class EnglishMYRDateParser(EnglishDateParser):
+    """Malaysian English documents print day-first dates, as Singapore's do."""
+
+
 SGD_DATE = EnglishSGDDateParser()
 INR_DATE = EnglishINRDateParser()
+HKD_DATE = EnglishHKDDateParser()
+MYR_DATE = EnglishMYRDateParser()
 
 
 def date_parser_for(currency: Optional[str]) -> Optional[DateParser]:
@@ -353,4 +450,8 @@ def date_parser_for(currency: Optional[str]) -> Optional[DateParser]:
         return SGD_DATE
     if code == "INR":
         return INR_DATE
+    if code == "HKD":
+        return HKD_DATE
+    if code == "MYR":
+        return MYR_DATE
     return None

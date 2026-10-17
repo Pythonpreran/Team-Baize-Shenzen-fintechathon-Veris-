@@ -17,9 +17,10 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 _ITERATIONS = 600_000
 _ALGORITHM = "pbkdf2_sha256"
@@ -28,13 +29,15 @@ SME = "SME"
 ADVISER = "ADVISER"
 CARRIER = "CARRIER"
 REVIEWER = "REVIEWER"
-ROLES = (SME, ADVISER, CARRIER, REVIEWER)
+DELEGATE = "DELEGATE"
+ROLES = (SME, ADVISER, CARRIER, REVIEWER, DELEGATE)
 
 ROLE_LABELS: dict[str, str] = {
     SME: "Business owner",
     ADVISER: "Licensed adviser",
     CARRIER: "Carrier / underwriter",
     REVIEWER: "Independent reviewer",
+    DELEGATE: "Household claim delegate",
 }
 
 ROLE_SCOPES: dict[str, tuple[str, ...]] = {
@@ -43,10 +46,12 @@ ROLE_SCOPES: dict[str, tuple[str, ...]] = {
     ADVISER: ("disclosed_brief", "review_queue", "request_information"),
     CARRIER: ("book_rollup", "market_map", "portfolio_priorities"),
     REVIEWER: ("review_assigned_findings", "record_review_label", "export_review_labels"),
+    DELEGATE: ("delegated_claim_read", "delegated_claim_prepare"),
 }
 
 ROLE_HOME: dict[str, str] = {
     SME: "workspace", ADVISER: "adviser", CARRIER: "carrier", REVIEWER: "reviewer",
+    DELEGATE: "delegate",
 }
 
 HOSTED_AUTH_DB_ENV = "VERIS_AUTH_DB_PATH"
@@ -144,6 +149,13 @@ _SEED: tuple[tuple[Principal, str], ...] = (
         role=CARRIER, organisation_id="org-carrier",
         organisation_name=SANDBOX_INSURER_NAME, job_title="SME Portfolio Underwriter",
     ), DEMO_PASSWORD),
+    # Deliberately not advertised on the login card. It exists only to exercise the
+    # owner-created, time-limited delegate boundary in the local synthetic portfolio.
+    (Principal(
+        id="usr-delegate-001", email="delegate@hockleefoods.demo", name="Synthetic household delegate",
+        role=DELEGATE, organisation_id="org-hocklee",
+        organisation_name="Hock Lee Foods Pte Ltd", job_title="Claim delegate (synthetic)",
+    ), DEMO_PASSWORD),
 )
 
 ACCOUNTS: dict[str, Account] = {
@@ -213,9 +225,9 @@ def _invite_roles() -> dict[str, str]:
             code, sep, role = entry.strip().partition(":")
             if code:
                 values[code] = (role.upper() if sep and role else SME)
-    if not values or any(role not in {SME, ADVISER, REVIEWER} for role in values.values()):
+    if not values or any(role not in {SME, ADVISER, REVIEWER, DELEGATE} for role in values.values()):
         raise AuthConfigurationError(
-            f"{HOSTED_INVITES_ENV} must map non-empty invite codes to SME, ADVISER or REVIEWER.")
+            f"{HOSTED_INVITES_ENV} must map non-empty invite codes to SME, ADVISER, REVIEWER or DELEGATE.")
     return values
 
 
@@ -235,20 +247,32 @@ class HostedAccountStore:
         self.path = Path(path).expanduser()
         self._lock = threading.RLock()
 
-    def _connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        """One connection per operation: commit or roll back, then always close.
+
+        `sqlite3.Connection` used as a context manager only ends the transaction; it does
+        not close the connection. Leaving the close to garbage collection kept the file
+        open on Windows, so a deployer's temporary or rotated auth database could not be
+        removed while the process still ran.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(self.path), timeout=10)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute("PRAGMA secure_delete=ON")
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS hosted_account ("
-            "id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, "
-            "organisation_id TEXT NOT NULL, organisation_name TEXT NOT NULL, job_title TEXT NOT NULL, "
-            "password_hash TEXT NOT NULL, invite_digest TEXT UNIQUE NOT NULL, failed_attempts INTEGER NOT NULL DEFAULT 0, "
-            "first_failed_at REAL, locked_until REAL)")
-        return conn
+        try:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA secure_delete=ON")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS hosted_account ("
+                "id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, "
+                "organisation_id TEXT NOT NULL, organisation_name TEXT NOT NULL, job_title TEXT NOT NULL, "
+                "password_hash TEXT NOT NULL, invite_digest TEXT UNIQUE NOT NULL, failed_attempts INTEGER NOT NULL DEFAULT 0, "
+                "first_failed_at REAL, locked_until REAL)")
+            with conn:                       # same commit/rollback semantics as before
+                yield conn
+        finally:
+            conn.close()
 
     @staticmethod
     def _principal(row: sqlite3.Row) -> Principal:

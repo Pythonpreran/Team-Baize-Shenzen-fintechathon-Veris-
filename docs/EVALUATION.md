@@ -22,6 +22,12 @@ The reviewer console is available at `/reviewer` to an authenticated `REVIEWER` 
 
 It is not a professionally reviewed false-alarm rate, a representative real-policy study, a live-model comparison, a hosted latency claim, proof of real-world claim outcomes, or a claim that every canonical task is complete. Those fields remain null, explicitly not run, or limited to their mapped local checks until a human supplies the required evidence.
 
+## Structural alignment after submission v1
+
+`python -m eval.alignment_metrics` measures whether each bound span contains the structural elements its mechanism requires, against team-read labels in `eval/alignment_labels.yaml`. After the home, travel, Hong Kong, and GENERIC-showcase wordings were added it scores 14 documents: 66 correct alignments, no missed or wrong values, no false positives (precision 1.0, recall 1.0), with 507 of 631 proposals rejected by the verifier. The labels are team-read, not expert-reviewed, and this is not an accuracy rate for findings.
+
+Canonical tasks 9 (renewal payment under a mandate), 10 (renewal diff), and 11 (scoped, time-limited sharing of a claim) now have local test contracts, listed in `evidence/agent-traces/canonical-task-traces.json`. They are not scoreboard benchmark cases, so the scoreboard's canonical-task coverage still counts tasks 1 and 2 only.
+
 ## User-study kit
 
 [USER-STUDY-KIT.md](../eval/USER-STUDY-KIT.md) provides the local opt-in task script, SUS instrument, pseudonymous record format, and analysis command. It produces a median paired time-saving and completion rates only from valid opt-in records. No participant result has been entered in this repository.

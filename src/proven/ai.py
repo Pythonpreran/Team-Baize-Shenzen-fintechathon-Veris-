@@ -42,7 +42,7 @@ from typing import Optional
 from . import config, jurisdiction, llm
 from .gates import norm_ws
 from .ingest import page_text
-from .lang.lexicons import en as english_lexicon
+from .lang import lexicons
 from .retrieval import Hit, Retriever
 
 # Mechanisms the model is permitted to propose. A closed vocabulary, so the model
@@ -449,8 +449,10 @@ def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
                              "passages_used": len(extra)})
 
 
-_OUTCOME_WORDS = english_lexicon.OUTCOME_PATTERN
-_ADVICE_WORDS = english_lexicon.ADVICE_PATTERN
+# Every language's lexicon applies to every output (T28): a model asked in English can
+# answer in Chinese, and a verdict is a verdict in either.
+_OUTCOME_WORDS = lexicons.OUTCOME_GUARD
+_ADVICE_WORDS = lexicons.ADVICE_GUARD
 
 
 def _asserts_outcome(text: str) -> bool:

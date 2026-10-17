@@ -98,6 +98,13 @@ class RenderedImage:
     png: bytes
     width: int
     height: int
+    #: Union of the highlighted rectangles as a pixel box `(x0, y0, x1, y1)` in THIS
+    #: bitmap's coordinates, or None when nothing was marked. Computed while PDFium's own
+    #: position converter is alive, so it already accounts for page rotation, the render
+    #: scale and a crop box that `grow_to_include` enlarged. The alternative — deriving it
+    #: from the page box afterwards — is a second, independent guess at the same mapping,
+    #: and a highlight ring drawn from a guess points at the wrong line.
+    highlight_box: Optional[tuple[int, int, int, int]] = None
 
 
 class Page:
@@ -187,15 +194,17 @@ class Page:
             width, height = int(bitmap.width), int(bitmap.height)
             stride, channels = int(bitmap.stride), int(bitmap.n_channels)
             pixels = bytearray(memoryview(bitmap.buffer).cast("B"))
+            boxes: list[tuple[int, int, int, int]] = []
             if highlights and channels >= 3:
                 convert = bitmap.get_posconv(self._raw)
                 for rect in highlights:
-                    _blend_rect(pixels, stride, channels, width, height,
-                                _device_box(convert, rect))
+                    box = _device_box(convert, rect)
+                    boxes.append(box)
+                    _blend_rect(pixels, stride, channels, width, height, box)
         finally:
             bitmap.close()
         return RenderedImage(encode_png(pixels, width, height, stride, channels),
-                             width, height)
+                             width, height, _union_box(boxes, width, height))
 
     def close(self) -> None:
         if self._text is not None:
@@ -292,6 +301,23 @@ def _device_box(convert, rect: Rect) -> tuple[int, int, int, int]:
     ys = [p[1] for p in points]
     # One pixel of air around the glyph boxes, so the mark does not clip descenders.
     return min(xs) - 1, min(ys) - 1, max(xs) + 1, max(ys) + 1
+
+
+def _union_box(boxes: Sequence[tuple[int, int, int, int]], width: int,
+               height: int) -> Optional[tuple[int, int, int, int]]:
+    """The smallest pixel box containing `boxes`, clamped to the bitmap, or None.
+
+    None when nothing was marked or when the union falls entirely outside the bitmap: an
+    empty box is not a location, and the interface says "not highlighted" rather than
+    ringing a zero-sized area in the corner.
+    """
+    if not boxes:
+        return None
+    x0 = max(0, min(b[0] for b in boxes))
+    y0 = max(0, min(b[1] for b in boxes))
+    x1 = min(width, max(b[2] for b in boxes))
+    y1 = min(height, max(b[3] for b in boxes))
+    return (x0, y0, x1, y1) if x1 > x0 and y1 > y0 else None
 
 
 def _blend_rect(pixels: bytearray, stride: int, channels: int, width: int, height: int,

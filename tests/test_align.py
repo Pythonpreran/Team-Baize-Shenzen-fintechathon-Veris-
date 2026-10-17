@@ -126,7 +126,7 @@ def test_rejections_are_returned_not_swallowed():
     """A verifier whose refusals are hidden cannot be told apart from one that accepts
     everything, so rejections are part of the result."""
     if not _has(CHUBB):
-        pytest.skip("corpus wording not present")
+        pytest.skip(f"corpus wording not present: {CHUBB}")
     res = align.align_pages(_pages(CHUBB), "CHUBB")
     assert res.rejected > 0
     for r in res.rejections:
@@ -142,7 +142,7 @@ def test_the_alignment_accounting_closes_on_every_wording(name):
     the count and the list, and the displayed rejection rate could not be checked by
     arithmetic. Every proposal must now land in exactly one of three buckets."""
     if not _has(name):
-        pytest.skip("corpus wording not present")
+        pytest.skip(f"corpus wording not present: {name}")
     res = align.align_pages(_pages(name), name)
     res.assert_invariant()
     assert res.proposals == res.verified + res.rejected + res.collapsed
@@ -157,7 +157,7 @@ def test_a_broken_accounting_is_refused_rather_than_reported():
 
 # ── per-carrier facts must never collapse to a market default ──────────────
 
-@pytest.mark.skipif(not _has(CHUBB), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(CHUBB), reason=f"corpus wording not present: {CHUBB}")
 def test_chubb_average_is_85_percent_on_an_actual_value_basis():
     """MEASURED DEFECT: settlement_basis was first read from the whole candidate
     window, which reached the next clause, and Chubb cl 4.2 was reported as
@@ -170,7 +170,7 @@ def test_chubb_average_is_85_percent_on_an_actual_value_basis():
     assert not any(a.values.get("settlement_basis") == "REINSTATEMENT" for a in avg)
 
 
-@pytest.mark.skipif(not _has(MSIG), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(MSIG), reason=f"corpus wording not present: {MSIG}")
 def test_msig_average_states_no_threshold():
     """MSIG GC12 has no cushion. Inventing 85% here would under-report every MSIG
     insured whose adequacy sits between 85% and 100% — wrong in the direction that
@@ -181,7 +181,7 @@ def test_msig_average_states_no_threshold():
     assert any(a.values.get("threshold_pct") is None for a in avg)
 
 
-@pytest.mark.skipif(not _has(LIBERTY), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(LIBERTY), reason=f"corpus wording not present: {LIBERTY}")
 def test_liberty_yields_both_average_provisions():
     """Liberty carries an average on a value basis with no threshold AND an 85%
     'Average Relief' on a reinstatement basis. Losing either is a wrong answer in one
@@ -194,7 +194,7 @@ def test_liberty_yields_both_average_provisions():
     assert None in thresholds, "the no-threshold value-basis provision was lost"
 
 
-@pytest.mark.skipif(not _has(LIBERTY), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(LIBERTY), reason=f"corpus wording not present: {LIBERTY}")
 def test_liberty_unoccupancy_keeps_both_seven_and_thirty_days():
     """Same wording, two different day counts in different sections. A carrier-level
     default cannot represent this."""
@@ -204,7 +204,7 @@ def test_liberty_unoccupancy_keeps_both_seven_and_thirty_days():
     assert "30" in days
 
 
-@pytest.mark.skipif(not _has(CHUBB), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(CHUBB), reason=f"corpus wording not present: {CHUBB}")
 def test_chubb_unoccupancy_is_fourteen_days():
     res = align.align_pages(_pages(CHUBB), "CHUBB")
     days = {a.values.get("days") for a in res.by_mechanism(UNOCC)}
@@ -213,7 +213,7 @@ def test_chubb_unoccupancy_is_fourteen_days():
 
 # ── clauses that run across a page break ───────────────────────────────────
 
-@pytest.mark.skipif(not _has(CHUBB), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(CHUBB), reason=f"corpus wording not present: {CHUBB}")
 def test_premium_warranty_found_although_the_clause_spans_a_page_break():
     """MEASURED DEFECT: 'within 60 days' ends one page and 'automatically terminated'
     opens the next, behind a footer. Proposing per page meant no candidate held both
@@ -258,7 +258,7 @@ def test_bound_offsets_reproduce_the_quote_from_the_stored_page_text():
 
 # ── absence is not evidence of absence ─────────────────────────────────────
 
-@pytest.mark.skipif(not _has(CHUBB), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(CHUBB), reason=f"corpus wording not present: {CHUBB}")
 def test_chubb_has_no_general_declaration_clause():
     """Verified absent by hand across all 28 pages. A bound alignment here would be a
     false positive on the most consequential mechanism in the corpus."""
@@ -266,7 +266,7 @@ def test_chubb_has_no_general_declaration_clause():
     assert res.by_mechanism(DECL) == []
 
 
-@pytest.mark.skipif(not _has(MSIG), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(MSIG), reason=f"corpus wording not present: {MSIG}")
 def test_msig_has_a_sweeping_declaration_clause():
     res = align.align_pages(_pages(MSIG), "MSIG")
     assert res.by_mechanism(DECL), "MSIG's declaration clause was not found"
@@ -274,7 +274,7 @@ def test_msig_has_a_sweeping_declaration_clause():
 
 # ── generalisation to a wording nobody has read ────────────────────────────
 
-@pytest.mark.skipif(not _has(QBE_IAR), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(QBE_IAR), reason=f"corpus wording not present: {QBE_IAR}")
 def test_mechanisms_are_found_in_a_never_hand_mapped_wording():
     """The whole point of structural alignment: no clause map exists for this carrier,
     so anything found was found from structure alone."""
@@ -282,7 +282,7 @@ def test_mechanisms_are_found_in_a_never_hand_mapped_wording():
     assert res.by_mechanism(AVERAGE), "no average condition found in an unseen wording"
 
 
-@pytest.mark.skipif(not _has(QBE_IAR), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(QBE_IAR), reason=f"corpus wording not present: {QBE_IAR}")
 def test_no_bound_average_span_contains_other_insurance_language():
     """Across every corpus wording, a bound average must not be a contribution clause.
     The QBE industrial wording is where this first went wrong."""
@@ -298,7 +298,7 @@ def test_no_bound_average_span_contains_other_insurance_language():
 
 # ── proposer is swappable and cannot change what binds ─────────────────────
 
-@pytest.mark.skipif(not _has(CHUBB), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(CHUBB), reason=f"corpus wording not present: {CHUBB}")
 def test_swapping_the_proposer_cannot_change_a_carrier_fact():
     """A proposer may widen or narrow recall. It must never change the VALUE that
     binds — that is what keeps 'no machine-learning model makes a consequential
@@ -320,7 +320,7 @@ def test_swapping_the_proposer_cannot_change_a_carrier_fact():
                 f"{prop.name} bound a day count Chubb's wording does not state"
 
 
-@pytest.mark.skipif(not _has(CHUBB), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(CHUBB), reason=f"corpus wording not present: {CHUBB}")
 def test_a_proposer_that_offers_nothing_binds_nothing_rather_than_guessing():
     """Degraded proposal must degrade recall, never fabricate a fact."""
 
@@ -346,7 +346,7 @@ def test_only_filter_restricts_which_mechanisms_run():
 
 # ── the result contract the API depends on ─────────────────────────────────
 
-@pytest.mark.skipif(not _has(MSIG), reason="corpus wording not present")
+@pytest.mark.skipif(not _has(MSIG), reason=f"corpus wording not present: {MSIG}")
 def test_as_dict_is_json_safe_and_reports_the_rejection_rate():
     import json
 

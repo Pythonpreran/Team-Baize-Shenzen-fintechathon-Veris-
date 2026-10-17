@@ -1,0 +1,51 @@
+# Deterministic travel-policy term profiles (T26).
+#
+# Same contract as HOME.yaml: every term is a structural mechanism verified and bound in
+# the linked public wording, quoted with its page. Benefit LIMITS sit in a per-plan table,
+# so a limit term is shown with no figure and names the schedule's selected plan as the
+# document that would establish it. Nothing here supplies a value.
+version: 1
+profiles:
+  - id: SG-AIG-TRAVEL-GUARD-DIRECT
+    country: SG
+    line_of_business: TRAVEL
+    product_contains: Travel Guard Direct
+    corpus_id: sg-aig-travel-guard-direct-wording
+    terms:
+      - mechanism: TRAVEL.COVERED.CANCELLATION
+        mechanism_code: COVERED.TRIP_CANCELLATION
+        label_key: travel.item.cancellation
+        display: CONDITION
+      - mechanism: TRAVEL.COVERED.CANCELLATION
+        mechanism_code: LIMIT.TRIP_CANCELLATION
+        label_key: travel.item.cancellation_limit
+        display: PLAN_LIMIT
+      - mechanism: TRAVEL.COVERED.OVERSEAS_MEDICAL
+        mechanism_code: COVERED.OVERSEAS_MEDICAL
+        label_key: travel.item.overseas_medical
+        display: DAYS_CONDITION
+        value_slot: days
+      - mechanism: TRAVEL.COVERED.OVERSEAS_MEDICAL
+        mechanism_code: LIMIT.OVERSEAS_MEDICAL
+        label_key: travel.item.overseas_medical_limit
+        display: PLAN_LIMIT
+      - mechanism: TRAVEL.CONDITION.BAGGAGE_DELAY
+        mechanism_code: CONDITION.BAGGAGE_DELAY_THRESHOLD
+        label_key: travel.item.baggage_delay
+        display: HOURS_CONDITION
+        value_slot: hours
+      - mechanism: TRAVEL.CONDITION.CARRIER_REPORT
+        mechanism_code: CONDITION.CARRIER_REPORT
+        label_key: travel.item.carrier_report
+        display: CONDITION
+      - mechanism: TRAVEL.EXCLUSION.EXISTING_CONDITION
+        mechanism_code: EXCLUSION.EXISTING_CONDITION
+        label_key: travel.item.existing_condition
+        display: CONDITION
+      - mechanism: TRAVEL.DEADLINE.CLAIM_NOTICE
+        mechanism_code: DEADLINE.CLAIM_NOTICE
+        label_key: travel.item.claim_notice
+        display: DAYS_CONDITION
+        value_slot: days
+    travellers_quote: travellers
+    selected_plan_quote: selected_plan

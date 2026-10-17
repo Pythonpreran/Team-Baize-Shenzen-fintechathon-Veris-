@@ -1,7 +1,10 @@
 {
   "locale": {
     "english": "English",
-    "pseudo": "Pseudo-locale"
+    "pseudo": "Pseudo-locale",
+    "chinese_simplified": "中文（简体）",
+    "english_only": "This screen is shown in English. Chinese covers the owner's portfolio, protection map, questions and claims; adviser, insurer and reviewer screens stay in English.",
+    "partly_english": "Parts of this screen are shown in English. Chinese covers the owner's portfolio, protection map, questions and claims."
   },
   "currency": {
     "lakh": "lakh",
@@ -20,7 +23,9 @@
     "sign_out_title": "Sign out and remove the case from the server",
     "take_tour": "Take the tour",
     "take_tour_title": "Replay the guided walkthrough of this workspace",
-    "unread": "{count} unread item | {count} unread items"
+    "unread": "{count} unread item | {count} unread items",
+    "skip_to_main": "Skip to main content",
+    "mobile_navigation": "{role} navigation"
   },
   "nav": {
     "sme": {
@@ -70,6 +75,42 @@
     "points_elsewhere": "Pointing elsewhere, or missing:",
     "not_applied": "Not applied to these documents:",
     "page": "page {page}"
+  },
+  "evidence": {
+    "where_from": "Where this comes from",
+    "status_source_quoted": "Quoted from the primary source",
+    "status_human_verified": "Confirmed by a named reviewer",
+    "verified_by": "Checked by {who}.",
+    "retrieved": "Retrieved {date}",
+    "open_source": "Open the source",
+    "open_source_named": "Open the source for {title} in a new tab",
+    "page_heading": "Your document, page {page} — highlighted",
+    "page_heading_plain": "The page it came from",
+    "excerpt_heading": "Published wording — cited paragraph only",
+    "page_n_of_m": "Page {page} of {count}",
+    "page_of_file": "Page {page} of {file}",
+    "the_source_document": "the source document",
+    "alt_highlighted": "with the quoted passage highlighted",
+    "opening_page": "Opening the page",
+    "rendering_full": "Rendering the page at full size",
+    "highlighted": "Highlighted on this page",
+    "highlighted_places": "Highlighted in {count} places",
+    "not_highlighted": "Not highlighted",
+    "open_full_screen": "Open full screen",
+    "open_full_screen_page": "Open page {page} full screen",
+    "fit_width": "Fit width",
+    "actual_size": "Actual size",
+    "close": "Close",
+    "cannot_show_title": "Cannot show the page",
+    "cannot_show_page": "This page cannot be shown.",
+    "read_on_publisher": "Read page {page} on the publisher's site",
+    "no_publisher_link": "The address this document was retrieved from was not recorded, so no link is offered rather than a guessed one.",
+    "rights_boundary": "Published by {publisher}. VERIS holds a reader's copy, not the right to reproduce it, so it may quote the cited paragraph but not show the document's pages — read the full page on the publisher's own site.",
+    "its_publisher": "its publisher",
+    "why_paragraph": "Why only a paragraph"
+  },
+  "consent": {
+    "files": "1 file | {count} files"
   },
   "portfolio": {
     "title": "Portfolio",
@@ -128,7 +169,8 @@
       "waiting_period": "Waiting period",
       "co_payment": "Co-payment",
       "third_party_expiry": "Third-party expiry",
-      "documented_item": "Documented policy item"
+      "documented_item": "Documented policy item",
+      "home_building": "Home building"
     }
   },
   "health": {
@@ -263,7 +305,8 @@
     "mandate_until": "Valid until",
     "mandate_notice": "Advance notice required",
     "mandate_revoke": "Revoke mandate",
-    "mandate_revoked": "Revoked"
+    "mandate_revoked": "Revoked",
+    "trace_announce": "Agent plan updated: {count} steps. Latest: {last}"
   },
   "claims": {
     "title": "Claims",
@@ -301,7 +344,19 @@
     "deductible": "Deductible",
     "proportionate_factor": "Associated-expense factor",
     "packet_missing": "Build the packet before the claim can be marked ready.",
-    "synthetic_notice": "All counterparty activity here is synthetic and remains local."
+    "synthetic_notice": "All counterparty activity here is synthetic and remains local.",
+    "take_photo": "Take a photo for this claim",
+    "photo_notice": "Photos are encrypted with the claim documents, kept to 2 MB, and never sent to an AI provider.",
+    "photo_too_large": "{name} is larger than the 2 MB limit for a claim document or photo.",
+    "photo_type": "{name} is not a PDF, JPEG or PNG.",
+    "add_documents": "Add documents",
+    "choose_files": "Choose files",
+    "choose_photo": "Choose a photo",
+    "no_file": "No file chosen",
+    "source_missing": "No wording we have read establishes this yet — {document} would.",
+    "source_unnamed_document": "a document naming this requirement",
+    "source_same_as_above": "Same source as the item above.",
+    "source_page": "page {page}"
   },
   "motor": {
     "alert_title": "Motor third-party timing",
@@ -350,6 +405,120 @@
     "entity": "Entity",
     "risk": "Risk",
     "state": "State",
-    "why": "Why"
+    "why": "Why",
+    "legend": "What each state means",
+    "states": {
+      "DOCUMENTED_TERMS": "Documented terms",
+      "CONDITIONAL_TERMS": "Documented, with conditions",
+      "NOT_FOUND_IN_DOCUMENTS": "Not found in the documents we read",
+      "NOT_ASSESSED": "Not assessed",
+      "COMPULSORY_GAP": "Compulsory cover — no in-force policy found"
+    }
+  },
+  "tour": {
+    "progress": "{at} of {total}",
+    "skip": "Skip tour",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "done": "That's the tour. Everything you saw is live.",
+    "household": {
+      "start": "Take the household tour",
+      "members_title": "Your household at a glance",
+      "members_body": "Members, assets and businesses come from the documents that were uploaded. Nothing here is typed in by the product.",
+      "card_title": "One plan layout for every policy",
+      "card_body": "Health, motor, home and travel all use the same seven sections. A value with no document behind it shows no number and names the document that would establish it.",
+      "evidence_title": "The exact wording behind a value",
+      "evidence_body": "Each value opens the sentence it came from, with its page. The badge says who wrote that document, which decides how far it can be relied on.",
+      "alert_title": "A compulsory-cover alert",
+      "alert_body": "An alert appears only when its statute entry is source-quoted or human-verified. A penalty is shown only when its current primary text has been verified.",
+      "map_title": "The whole household on one map",
+      "map_body": "Members and assets against risks. Not found in the documents read is never shown as not covered, and not assessed stays grey.",
+      "ask_title": "Ask a question about the policies",
+      "ask_body": "Answers cite their clause. When the documents cannot answer, VERIS says which document would.",
+      "claims_title": "A claim that stops for your OK",
+      "claims_body": "The agent prepares the checklist, the deadline and the packet. Anything with an external effect waits for your confirmation and a password re-entry.",
+      "reset_title": "Start the example again",
+      "reset_body": "The demo reset removes only the synthetic example from this account. Your own uploads are never removed here."
+    }
+  },
+  "demo_reset": {
+    "title": "Reset the synthetic example",
+    "body": "Removes the synthetic household, its generated documents and its claims from this account so the example can be loaded again. Nothing you uploaded yourself is removed.",
+    "start": "Reset the example",
+    "confirm_title": "Reset the synthetic example?",
+    "confirm_body": "Only records the server stamped as the synthetic example are removed, with the example's claims. Documents and photos you uploaded, including any attached to an example claim, are kept; only the step-up privacy erase removes them. The agent ledger keeps its history.",
+    "confirm": "Yes, reset the example",
+    "cancel": "Keep it",
+    "done": "Example reset: {policies} policies and {documents} documents removed."
+  },
+  "upload": {
+    "camera_label": "Take a photo of a document",
+    "camera_notice": "The photo becomes a one-page PDF in this browser and its location data is dropped. It then passes the same upload checks as any PDF: this build reads a document's own text layer, so a photographed page is reported as unreadable rather than guessed at. Photos are never sent to an AI provider.",
+    "camera_converted": "Photo, converted to a one-page PDF in this browser",
+    "camera_failed": "The photo could not be converted. Try again, or upload a PDF.",
+    "camera_unsupported": "This browser cannot convert a photo here. Upload a PDF instead.",
+    "camera_choose": "Choose a photo"
+  },
+  "offline": {
+    "title": "VERIS is offline",
+    "body": "Your policies, answers and claims are read from the server and are never stored on this device. Reconnect to continue.",
+    "retry": "Try again"
+  },
+  "home": {
+    "contents_gap": "{gap} below your contents list ({sum_insured} on the schedule against {contents_list} listed; the wording's proportion would be {percent}% if your list is the replacement value)",
+    "item": {
+      "contents_clause": "Household contents insuring clause",
+      "single_article": "Single-article limit unless itemised",
+      "settlement_basis": "Basis of settlement",
+      "insurance_to_value": "Insurance to value: payment in proportion to the sum insured",
+      "theft_forcible_entry": "Theft only on violent and forcible entry",
+      "unoccupancy": "Unoccupancy period after which a peril stops applying",
+      "claim_notice": "Written notice of an occurrence",
+      "police_report": "Police report for theft",
+      "cost_of_construction": "Building sum insured on the cost-of-construction basis",
+      "underinsurance_waived": "Underinsurance waived",
+      "theft_after_insured_event": "Theft only within days after an insured event",
+      "immediate_notice": "Immediate notice of loss or damage",
+      "built_in_contents": "Built-in general contents cover",
+      "contents_below_list": "Contents sum insured below your contents list",
+      "contents_within_list": "Contents sum insured is not below your contents list"
+    },
+    "notice": {
+      "contents_illustration": "An illustration from your own list, not an amount payable. Only the insurer can establish the replacement value, and the clause quoted below is what the wording says it does with the difference."
+    },
+    "document": {
+      "contents_schedule": "the home contents schedule",
+      "contents_list": "your contents list",
+      "building_schedule": "the home building schedule"
+    }
+  },
+  "home_travel": {
+    "document": {
+      "policy_wording": "the policy wording"
+    },
+    "notice": {
+      "wording_missing": "The public wording for this plan is not in the local corpus, so its terms are not mapped. Fetch the corpus to read them.",
+      "wording_not_matched": "No mapped term was verified in this wording."
+    }
+  },
+  "travel": {
+    "item": {
+      "cancellation": "Trip cancellation before departure",
+      "cancellation_limit": "Trip cancellation limit",
+      "overseas_medical": "Overseas medical expenses, incurred within",
+      "overseas_medical_limit": "Overseas medical expenses limit",
+      "baggage_delay": "Baggage delay counts after",
+      "carrier_report": "Airline's property irregularity report for baggage",
+      "existing_condition": "Existing health conditions excluded",
+      "claim_notice": "Claim documents due within",
+      "travellers": "Travellers named on the schedule"
+    },
+    "document": {
+      "selected_plan": "the schedule's selected plan"
+    },
+    "scope": {
+      "schedule_travellers": "named as travellers on the schedule"
+    }
   }
 }

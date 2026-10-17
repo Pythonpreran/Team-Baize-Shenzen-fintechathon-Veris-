@@ -52,7 +52,11 @@ def test_retrieval_selects_a_tokenizer_from_the_documents_unicode_script():
     assert detect_script("Policy wording") == LATIN
     assert detect_script("保單條款") == CJK
     assert isinstance(tokenizer_for_document("Policy wording"), EnglishTokenizer)
-    assert tokenizer_for_document("保單條款").tokenize("保單條款") == ()
+    # T28 (deliberate, PLAN rule 26): a Han-script document used to receive no tokens
+    # until a Chinese implementation existed; it now gets character bigrams. Selection is
+    # still by the document's own script, never by a caller's assumption.
+    assert tokenizer_for_document("保單條款").tokenize("保單條款") == ("保單", "單條", "條款")
+    assert tokenizer_for_document("保單條款").script == CJK
 
 
 def test_english_money_parsers_preserve_sgd_and_support_indian_notation():
@@ -162,3 +166,31 @@ def test_translation_checker_reports_missing_and_unused_keys(tmp_path):
     result = _i18n_checker().check(tmp_path)
     assert result.missing == ("shell.missing",)
     assert result.unused == ("shell.unused",)
+
+
+def test_translation_checker_holds_zh_cn_to_its_owner_facing_scope(tmp_path):
+    """T28: Chinese must cover every owner-facing key, must not translate an English-only
+    professional screen, must not keep stale keys, and must keep every placeholder."""
+    i18n = tmp_path / "web" / "i18n"
+    i18n.mkdir(parents=True)
+    (i18n / "en.json").write_text(json.dumps({
+        "shell": {"used": "Used {name}", "other": "Other"},
+        "reviewer": {"title": "Reviewer console"}}), encoding="utf-8")
+    (tmp_path / "web" / "app.js").write_text(
+        't("shell.used"); t("shell.other"); t("reviewer.title");', encoding="utf-8")
+    zh = i18n / "zh-CN.json"
+    zh.write_text(json.dumps({"shell": {"used": "已用 {name}", "other": "其他"}}),
+                  encoding="utf-8")
+    assert _i18n_checker().check(tmp_path).ok
+
+    zh.write_text(json.dumps({"shell": {"used": "已用"}, "reviewer": {"title": "审阅"},
+                              "gone": {"key": "旧"}}), encoding="utf-8")
+    problems = " | ".join(_i18n_checker().check(tmp_path).translation_problems)
+    assert "missing owner-facing translation: shell.other" in problems
+    assert "English-only scope: reviewer.title" in problems
+    assert "stale key not in en.json: gone.key" in problems
+    assert "placeholders differ from English: shell.used" in problems
+
+    (i18n / "fr.json").write_text("{}", encoding="utf-8")
+    problems = _i18n_checker().check(tmp_path).translation_problems
+    assert any("fr: no declared translation scope" in p for p in problems)

@@ -28,25 +28,25 @@
     {
       "error": null,
       "id": "canonical.cited_answer",
-      "latency_ms": 0.181,
+      "latency_ms": 0.238,
       "passed": true
     },
     {
       "error": null,
       "id": "canonical.honest_abstention",
-      "latency_ms": 0.131,
+      "latency_ms": 0.161,
       "passed": true
     },
     {
       "error": null,
       "id": "control.agent_read_plan",
-      "latency_ms": 76.528,
+      "latency_ms": 71.411,
       "passed": true
     },
     {
       "error": null,
       "id": "security.redteam",
-      "latency_ms": 205.52,
+      "latency_ms": 193.588,
       "passed": true
     }
   ],
@@ -58,7 +58,7 @@
   "efficiency": {
     "cost_basis": "profile none; no model transport was attempted.",
     "estimated_cost_usd": 0.0,
-    "median_latency_ms": 76.528,
+    "median_latency_ms": 71.411,
     "steps_per_task": {
       "canonical.cited_answer": 1,
       "canonical.honest_abstention": 1,

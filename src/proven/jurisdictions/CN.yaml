@@ -1,0 +1,230 @@
+# VERIS jurisdiction pack — mainland China (T28, standard depth).
+#
+# Every statement about law or regulation is either backed by a verbatim primary-source
+# quote that scripts/verify_pack_sources.py has checked, or held as CANDIDATE evidence that
+# never reaches an owner. On 2026-10-11 the build read the National People's Congress's
+# English texts of the Insurance Law (2009 revision) and the Personal Information
+# Protection Law, but only over plain HTTP: the NPC sites present no valid HTTPS
+# certificate, and the pack validator accepts only HTTPS sources, because a quote read over
+# an unauthenticated connection cannot be shown to be the publisher's. Those entries are
+# CANDIDATE, with the text read kept in each note for the evidence view and the exact human
+# action logged. The State Council page tried for the compulsory motor insurance regulation
+# returned HTTP 404. The one owner-facing entry quotes the National Financial Regulatory
+# Administration's own HTTPS home page: its consumer complaint hotline.
+
+code: CN
+name: Mainland China
+version: 1
+summary: >
+  Mainland China. CNY money formatting, Chinese public holidays and document authorship;
+  the regulator's consumer complaint hotline, quoted from its own site; and the Insurance
+  Law, Personal Information Protection Law and compulsory motor insurance records held
+  back until an HTTPS primary copy of their current text is verified.
+locales: [zh-CN]
+timezone: Asia/Shanghai
+holiday_calendar:
+  provider: holidays
+  country: CN
+  wired: true
+  note: >
+    The holidays provider supplies public holidays. Mainland China also moves some working
+    days onto weekends around holidays; those make-up working days are not represented, so
+    a weekend make-up day counts as a non-working day here. No owner-facing timeline in
+    this pack is measured in working days.
+
+currency:
+  code: CNY
+  symbol: "¥"
+  local_symbol: "¥"
+  minor_units: 2
+  group_separator: ","
+  decimal_separator: "."
+  grouping: THREE
+
+regulators:
+  - id: CN-REG-NFRA
+    title: National Financial Regulatory Administration (国家金融监督管理总局)
+    statement: The regulator's own statement of its insurance supervisory role needs a primary-source quote before VERIS can show it to an owner.
+    values: {short_name: NFRA}
+    verification:
+      status: CANDIDATE
+      source_url: "https://www.nfra.gov.cn/cn/view/pages/index/index.html"
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: The home page was fetched over HTTPS and names the consumer hotline, but carries no sentence stating the regulator's role; a person must record one from its own site.
+
+statutes:
+  - id: CN-STAT-INSURANCE-LAW
+    title: Insurance Law of the People's Republic of China, Article 26
+    statement: The Insurance Law's limitation article needs an HTTPS primary copy of its current text before VERIS can state it to an owner.
+    values: {article: "26"}
+    verification:
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: >
+        The legislature's English text of the Insurance Law (2009 revision) was read on 2026-10-11 over plain HTTP at http://www.npc.gov.cn/zgrdw/englishnpc/Law/2011-02/15/content_1620648.htm; the site offers no valid HTTPS certificate (handshake failure / hostname mismatch), so the pack cannot record it as a verified source. Text read there: "With respect to insurance other than life insurance, the period of limitation of action for an insured or beneficiary to claim indemnification or payment of the insurance benefits against the insurer shall be two years" A person must record an HTTPS primary copy of the current consolidated Chinese text.
+  - id: CN-STAT-PIPL-SENSITIVE
+    title: Personal Information Protection Law, Article 28
+    statement: The Personal Information Protection Law's definition of sensitive personal information needs an HTTPS primary copy before VERIS can state it to an owner.
+    values: {article: "28"}
+    verification:
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: >
+        The legislature's English text of the Personal Information Protection Law was read on 2026-10-11 over plain HTTP at http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559_2.htm; the site offers no valid HTTPS certificate (handshake failure / hostname mismatch), so the pack cannot record it as a verified source. Text read there: "including information such as biometrics, religious belief, specific identity, medical health status, financial accounts, and the person's whereabouts, as well as the personal information of a minor under the age of 14 years" A person must record an HTTPS primary copy of the current consolidated Chinese text.
+  - id: CN-STAT-CTALI
+    title: Regulation on Compulsory Traffic Accident Liability Insurance for Motor Vehicles (机动车交通事故责任强制保险条例)
+    statement: The regulation's compulsory insurance requirement needs its current text quoted before VERIS can state it to an owner.
+    values: {protection: MOTOR_THIRD_PARTY}
+    verification:
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: The State Council page tried on 2026-10-11 returned HTTP 404 and no other primary copy was found; a person must record the current text and its primary URL.
+
+compulsory_covers:
+  - id: CN-COMP-MOTOR-CTALI
+    title: Compulsory motor traffic accident liability insurance (交强险)
+    statement: A compulsory motor insurance statement waits for the regulation entry to be source-quoted.
+    values: {protection: MOTOR_THIRD_PARTY, statute: CN-STAT-CTALI}
+    verification: &candidate
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: Waiting for a primary-source quote; never shown to an owner until then.
+
+regulatory_timelines:
+  - id: CN-TL-CLAIM-DETERMINATION
+    title: Insurance Law, Article 23 — claim determination
+    statement: The Insurance Law's claim-determination article needs an HTTPS primary copy of its current text before VERIS can state any timeline to an owner.
+    values: {article: "23"}
+    verification:
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: >
+        The legislature's English text of the Insurance Law (2009 revision) was read on 2026-10-11 over plain HTTP at http://www.npc.gov.cn/zgrdw/englishnpc/Law/2011-02/15/content_1620648.htm; the site offers no valid HTTPS certificate (handshake failure / hostname mismatch), so the pack cannot record it as a verified source. Text read there: "If the circumstances are complex, the insurer shall determine the matter within 30 days, unless the insurance contract provides otherwise." A person must record an HTTPS primary copy of the current consolidated Chinese text.
+complaint_ladder:
+  - id: CN-CL-INSURER
+    title: Insurer complaint
+    statement: A primary source is required before VERIS states the insurer complaint step to an owner.
+    values: {order: 1, time_limit_days: null}
+    verification: *candidate
+  - id: CN-CL-NFRA-HOTLINE
+    title: Banking and insurance consumer complaint hotline (12378)
+    statement: The regulator's own site lists 12378 as the banking and insurance consumer complaint hotline.
+    values: {order: 2, hotline: "12378", time_limit_days: null}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://www.nfra.gov.cn/cn/view/pages/index/index.html"
+      retrieved_on: 2026-10-11
+      quote: "银行业保险业消费投诉热线： 12378"
+      verified_by: null
+      note: Read from the regulator's own HTTPS home page. No complaint time limit is recorded without its own quote.
+
+market_conventions: []
+
+document_kinds:
+  - kind: BASE_WORDING
+    author_class: INSURER
+    verification: &team_grading
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, evidence-class design (src/proven/grading.py)
+      note: The author class is an evidence model decision, not a regulatory statement.
+  - kind: SCHEDULE
+    author_class: INSURER
+    verification: *team_grading
+  - kind: ENDORSEMENT
+    author_class: INSURER
+    verification: *team_grading
+  - kind: TENANCY
+    author_class: THIRD_PARTY
+    absent_note: Tenancy agreement — premises and permitted use not verified
+    verification: *team_grading
+  - kind: ACCOUNTS
+    author_class: SELF
+    absent_note: Accounts — value at risk for stock not verified
+    verification: *team_grading
+  - kind: SUPPLIER_INVOICE
+    author_class: THIRD_PARTY
+    verification: *team_grading
+  - kind: PROPOSAL
+    author_class: SELF
+    verification: *team_grading
+  - kind: HOSPITAL_DISCHARGE_SUMMARY
+    author_class: THIRD_PARTY
+    author: Hospital
+    verification: *team_grading
+  - kind: HOSPITAL_BILL
+    author_class: THIRD_PARTY
+    author: Hospital
+    verification: *team_grading
+  - kind: SELF_DECLARATION
+    author_class: SELF
+    verification: *team_grading
+  - kind: UNKNOWN
+    author_class: SELF
+    verification: *team_grading
+
+data_protection:
+  id: CN-DP-PIPL
+  title: Personal Information Protection Law (个人信息保护法), Article 29
+  statement: The Personal Information Protection Law's consent rule for sensitive personal information needs an HTTPS primary copy before VERIS can state it to an owner. VERIS's own health-data consent gate applies regardless.
+  values: {article: "29"}
+  verification:
+    status: CANDIDATE
+    source_url: null
+    retrieved_on: 2026-10-11
+    quote: null
+    verified_by: null
+    note: >
+      The legislature's English text of the Personal Information Protection Law was read on 2026-10-11 over plain HTTP at http://en.npc.gov.cn.cdurl.cn/2021-12/29/c_694559_2.htm; the site offers no valid HTTPS certificate (handshake failure / hostname mismatch), so the pack cannot record it as a verified source. Text read there: "For the processing of sensitive personal information, individual's separate consent shall be obtained." A person must record an HTTPS primary copy of the current consolidated Chinese text.
+advice_boundary:
+  product_boundary: >
+    VERIS states what your documents say and where they say it. It does not recommend a
+    product, an insurer or a premium, and it never suggests that you buy, cancel, switch or
+    surrender cover. For advice, speak to a licensed insurance intermediary or to your insurer.
+  regulatory_basis:
+    id: CN-AB-INSURANCE-ADVICE
+    title: Insurance advice boundary
+    statement: A primary source is required before VERIS makes a China-specific statement about insurance sales or advice regulation.
+    values: {}
+    verification: *candidate
+
+detection:
+  governing_law:
+    - '(?:适用|受|依据|按照|依照)[^。；;]{0,30}?中华人民共和国(?:的)?法律'
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of (?:the )?People''s Republic of China\b'
+  names:
+    - 国家金融监督管理总局
+    - 中国银行保险监督管理委员会
+    - 中国保险监督管理委员会
+    - 中华人民共和国保险法
+    - 机动车交通事故责任强制保险
+    - 中国保险行业协会
+    - 个人信息保护法
+    - National Financial Regulatory Administration
+  currency_codes: [CNY, RMB]
+  currency_symbols: ["￥", "人民币"]
+  registration_numbers:
+    # Unified social credit code (统一社会信用代码), 18 characters.
+    - '(?<![0-9A-Z])[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}(?![0-9A-Z])'
+  postcodes: []
+  phone_numbers:
+    - '\+86[\s-]?1\d'

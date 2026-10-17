@@ -41,17 +41,21 @@ class ClaimValidationError(ClaimError):
 
 
 CLAIM_STATES = (
-    "DRAFTING", "READY", "SUBMITTED", "ACKNOWLEDGED", "QUERY_OPEN",
-    "UNDER_ASSESSMENT", "DECIDED", "SETTLED", "DISPUTED", "ESCALATED", "CLOSED",
+    "DRAFTING", "READY", "SUBMITTED", "ACKNOWLEDGED", "SURVEYOR_REQUIRED",
+    "QUERY_OPEN", "UNDER_ASSESSMENT", "DECIDED", "SETTLED", "DISPUTED",
+    "ESCALATED", "CLOSED",
 )
 
 # `(from_state, to_state) -> permitted actor`.  There is deliberately no transition that
 # lets the agent decide a claim outcome: insurer-side sandbox events may only advance the
-# synthetic workflow state, and the owner still sees the state as synthetic.
+# synthetic workflow state, and the owner still sees the state as synthetic.  The motor
+# surveyor step is likewise counterparty-owned and cannot be skipped by VERIS.
 _TRANSITIONS: dict[tuple[str, str], frozenset[str]] = {
-    ("DRAFTING", "READY"): frozenset({"OWNER", "AGENT"}),
+    ("DRAFTING", "READY"): frozenset({"OWNER", "AGENT", "DELEGATE"}),
     ("READY", "SUBMITTED"): frozenset({"AGENT"}),
     ("SUBMITTED", "ACKNOWLEDGED"): frozenset({"INSURER"}),
+    ("SUBMITTED", "SURVEYOR_REQUIRED"): frozenset({"INSURER"}),
+    ("SURVEYOR_REQUIRED", "UNDER_ASSESSMENT"): frozenset({"INSURER"}),
     ("ACKNOWLEDGED", "QUERY_OPEN"): frozenset({"INSURER"}),
     ("ACKNOWLEDGED", "UNDER_ASSESSMENT"): frozenset({"INSURER"}),
     ("QUERY_OPEN", "UNDER_ASSESSMENT"): frozenset({"AGENT", "INSURER"}),
@@ -107,10 +111,13 @@ def _claim_id() -> str:
 
 
 _FIXED_POLICY_TIMEZONES = {
-    # The two in-scope packs use fixed civil offsets.  Windows Python commonly ships
-    # without the IANA database; this keeps the pack-selected timezone deterministic
-    # without adding a runtime dependency or falling back to the server's local clock.
+    # Every in-scope pack uses a fixed civil offset with no daylight saving.  Windows
+    # Python commonly ships without the IANA database; this keeps the pack-selected
+    # timezone deterministic without adding a runtime dependency or falling back to the
+    # server's local clock.
+    "Asia/Hong_Kong": timedelta(hours=8),
     "Asia/Kolkata": timedelta(hours=5, minutes=30),
+    "Asia/Kuala_Lumpur": timedelta(hours=8),
     "Asia/Singapore": timedelta(hours=8),
 }
 
@@ -205,18 +212,30 @@ class ClaimsRepository:
         if incident.tzinfo is None or incident.utcoffset() is None:
             raise ClaimValidationError(
                 "Claim intake needs an explicit UTC offset so timing can be normalised to the policy jurisdiction.")
-        if str(policy.get("line_of_business") or "").upper() != "HEALTH":
-            raise ClaimValidationError("The first claims-copilot path is health only.")
-        if mode not in {"CASHLESS", "REIMBURSEMENT"}:
-            raise ClaimValidationError("Choose CASHLESS or REIMBURSEMENT for health intake.")
+        line = str(policy.get("line_of_business") or "").upper()
+        selected_mode = str(mode or "").upper()
+        if line == "HEALTH":
+            if selected_mode not in {"CASHLESS", "REIMBURSEMENT"}:
+                raise ClaimValidationError("Choose CASHLESS or REIMBURSEMENT for health intake.")
+        elif line == "MOTOR":
+            if selected_mode != "MOTOR_OWN_DAMAGE":
+                raise ClaimValidationError(
+                    "The local motor copilot supports the synthetic MOTOR_OWN_DAMAGE path only.")
+        else:
+            raise ClaimValidationError(
+                "Claim intake is available only for the implemented health and motor copilot paths.")
         incident = incident.astimezone(_policy_timezone(policy))
         claim_id, now = _claim_id(), _now()
-        checklist = checklist_for(policy, mode)
+        checklist = checklist_for(policy, selected_mode)
         deadline = deadline_for(policy, incident)
         details = {
-            "line_of_business": "HEALTH", "country": str(policy.get("country") or ""),
-            "mode": mode, "incident_at": incident.isoformat(), "checklist": checklist,
+            "line_of_business": line, "country": str(policy.get("country") or ""),
+            "mode": selected_mode, "incident_at": incident.isoformat(), "checklist": checklist,
             "deadline": deadline, "packet": None, "query_draft": None,
+            "surveyor": ({
+                "state": "AWAITING_SYNTHETIC_COUNTERPARTY",
+                "notice": "The synthetic motor scenario waits for a counterparty-owned surveyor step after submission.",
+            } if line == "MOTOR" else None),
             "synthetic": bool(policy.get("source") == "SYNTHETIC_EXAMPLE"),
         }
         with self._connection() as conn:
@@ -291,8 +310,21 @@ class ClaimsRepository:
                 raise ClaimTransitionError(
                     f"{actor} cannot move a claim from {current} to {target}.")
             now = _now()
-            conn.execute("UPDATE claim_case SET state=?, updated_at=? WHERE id=? AND tenant_id=?",
-                         (target, now, claim_id, scope.tenant_id))
+            details = self._open(scope.tenant_id, f"details:{claim_id}", bytes(row["details_encrypted"]))
+            if str(details.get("line_of_business") or "").upper() == "MOTOR":
+                if target == "SURVEYOR_REQUIRED":
+                    details["surveyor"] = {
+                        "state": "SURVEYOR_REQUIRED",
+                        "notice": "The local synthetic insurer recorded a counterparty-owned surveyor step.",
+                    }
+                elif target == "UNDER_ASSESSMENT" and current == "SURVEYOR_REQUIRED":
+                    details["surveyor"] = {
+                        "state": "COMPLETED_BY_SYNTHETIC_COUNTERPARTY",
+                        "notice": "A signed local synthetic counterparty event recorded survey completion; VERIS did not determine the result.",
+                    }
+            conn.execute("UPDATE claim_case SET state=?, details_encrypted=?, updated_at=? WHERE id=? AND tenant_id=?",
+                         (target, self._seal(scope.tenant_id, f"details:{claim_id}", details), now,
+                          claim_id, scope.tenant_id))
             self._transition(conn, scope.tenant_id, claim_id, current, target, actor, note)
             updated = conn.execute("SELECT * FROM claim_case WHERE id=?", (claim_id,)).fetchone()
             return self._out(updated)
@@ -399,6 +431,33 @@ class ClaimsRepository:
                           claim_id, scope.tenant_id))
             return dict(draft)
 
+    def remove_synthetic_claims(self, scope: persistence.TenantScope,
+                                policy_ids: Sequence[str]) -> list[str]:
+        """Delete this tenant's claim workflow records on removed synthetic policies.
+
+        Only the demo reset calls this, after the portfolio repository has removed the
+        synthetic policies themselves. The claim row and its transitions describe the
+        synthetic example's workflow. The documents and photos the owner uploaded to it
+        live in the portfolio store and are NOT removed: the API protects every upload
+        id from the reset, so they stay on the step-up erase path.
+        """
+        wanted = {str(value) for value in policy_ids if str(value)}
+        if not wanted:
+            return []
+        removed: list[str] = []
+        with self._connection() as conn:
+            rows = conn.execute("SELECT id, policy_id FROM claim_case WHERE tenant_id=? ORDER BY created_at, id",
+                                (scope.tenant_id,)).fetchall()
+            for row in rows:
+                if str(row["policy_id"]) not in wanted:
+                    continue
+                conn.execute("DELETE FROM claim_transition WHERE tenant_id=? AND claim_id=?",
+                             (scope.tenant_id, row["id"]))
+                conn.execute("DELETE FROM claim_case WHERE tenant_id=? AND id=?",
+                             (scope.tenant_id, row["id"]))
+                removed.append(str(row["id"]))
+        return removed
+
     def set_settlement_check(self, scope: persistence.TenantScope, claim_id: str,
                              check: Mapping[str, Any]) -> dict[str, Any]:
         with self._connection() as conn:
@@ -419,24 +478,127 @@ def hmac_compare(left: str, right: str) -> bool:
     return hmac.compare_digest(left, right)
 
 
-def _citation_for(policy: Mapping[str, Any], mechanism: str) -> dict[str, Any]:
-    for item in policy.get("health_items", []) if isinstance(policy.get("health_items"), list) else []:
-        if isinstance(item, Mapping) and item.get("mechanism_code") == mechanism:
-            citation = item.get("citation")
-            if isinstance(citation, Mapping) and citation.get("quote"):
-                return {"document": citation.get("document"), "page": citation.get("page"),
-                        "quote": citation.get("quote"), "source_url": citation.get("source_url")}
-    source_ids = policy.get("source_document_ids")
-    return {"document": "the policy schedule", "page": None, "quote": None,
-            "source_document_id": source_ids[0] if isinstance(source_ids, list) and source_ids else None}
+def _policy_items(policy: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return mapped policy terms without promoting a caller-selected evidence class."""
+    out: list[Mapping[str, Any]] = []
+    for key in ("health_items", "motor_items", "property_travel_items", "coverage_items"):
+        values = policy.get(key)
+        if isinstance(values, list):
+            out.extend(item for item in values if isinstance(item, Mapping))
+    return out
+
+
+def _missing_source(required_document: str,
+                    source_document_id: str | None = None) -> dict[str, Any]:
+    """An open question about where a requirement comes from, named as one.
+
+    `state` is spelled `INFORMATION_MISSING`, the same string the portfolio payloads,
+    `deadline_for` and the escalation gates already use, so one idea has one spelling.
+    The record stays a truthy mapping: callers keep treating "has a source record" and
+    "has a source" as the same check, and read what it is — a question still open.
+    """
+    return {"state": "INFORMATION_MISSING", "document": None, "page": None, "quote": None,
+            "source_url": None, "source_document_id": source_document_id,
+            "required_document": required_document}
+
+
+def _schedule_source(policy: Mapping[str, Any], mechanism: str,
+                     required_document: str) -> dict[str, Any]:
+    """The source for the "Policy schedule" item, and for no other item on the list.
+
+    The schedule is the one requirement the schedule document itself establishes, so this
+    is the one place the label "the policy schedule" is a reading rather than an
+    assumption. It is a separate helper precisely to keep that label out of the generic
+    path: a claim-procedure or cashless-network clause mapped from the policy WORDING
+    must never be announced as the schedule.
+    """
+    cited = _citation_for(policy, mechanism, required_document)
+    if cited.get("state") == "DOCUMENTED":
+        return cited
+    ids = [str(value) for value in (policy.get("source_document_ids") or []) if value]
+    if ids:
+        return {"state": "DOCUMENTED", "document": "the policy schedule", "page": None,
+                "quote": None, "source_url": None, "source_document_id": ids[0],
+                "required_document": None}
+    return cited
+
+
+def _citation_for(policy: Mapping[str, Any], mechanism: str,
+                  required_document: str) -> dict[str, Any]:
+    """What a checklist item rests on, or an honest record that nothing does yet.
+
+    MEASURED DEFECT. Every item on a health checklist cited "the policy schedule". Two
+    causes, both here. The health branch looked up `CLAIM.REIMBURSEMENT` while the health
+    profile emits `CONDITION.REIMBURSEMENT` (src/proven/lob/HEALTH.yaml), so the lookup
+    never matched; and the unmatched branch then returned `{"document": "the policy
+    schedule"}` for anything it could not find — a document label attached to a
+    requirement that document does not establish, which is a fabricated citation and the
+    one output this product may not produce (PLAN rule 15).
+
+    An unmatched mechanism returns the missing marker above and NAMES the document that
+    would establish the item. No branch here labels anything "the policy schedule": that
+    reading belongs to `_schedule_source()` and to the schedule item alone.
+    """
+    for item in _policy_items(policy):
+        if item.get("mechanism_code") != mechanism:
+            continue
+        citation = item.get("citation")
+        if isinstance(citation, Mapping) and (citation.get("quote") or citation.get("source_document_id")):
+            return {"state": "DOCUMENTED",
+                    "document": citation.get("document"), "page": citation.get("page"),
+                    "quote": citation.get("quote"), "source_url": citation.get("source_url"),
+                    "source_document_id": citation.get("source_document_id"),
+                    "required_document": None}
+        if item.get("source_document_id"):
+            # A mapped term that names its document but carries no citation. The id is
+            # real and travels with the record; the document's NAME is not known here,
+            # and the schedule label this branch used to return was an assumption about
+            # which document it was. So the id is kept and the question stays open.
+            return _missing_source(required_document, str(item["source_document_id"]))
+    return _missing_source(required_document)
 
 
 def checklist_for(policy: Mapping[str, Any], mode: str) -> list[dict[str, Any]]:
-    """A fixed health checklist whose packet roles are bound to persisted document kinds."""
-    procedure = _citation_for(policy, "CLAIM.REIMBURSEMENT")
-    deadline = _citation_for(policy, "DEADLINE.CLAIM_INTIMATION")
-    schedule = _citation_for(policy, "COVERED.FAMILY_FLOATER")
-    cashless = _citation_for(policy, "CONDITION.CASHLESS_NETWORK")
+    """A deterministic checklist whose required packet roles are persisted document kinds."""
+    line = str(policy.get("line_of_business") or "").upper()
+    if line == "MOTOR":
+        schedule = _schedule_source(policy, "COVERED.MOTOR_THIRD_PARTY",
+                                    "the policy schedule's third-party cover entry")
+        depreciation = _citation_for(policy, "CONDITION.DEPRECIATION_SCHEDULE",
+                                     "the policy wording's depreciation schedule")
+        # A police report is established by an incident record or a wording clause, never
+        # by the third-party cover entry. It used to cite that entry, which said a
+        # document requires a report when nothing read said so.
+        report = _citation_for(policy, "CONDITION.POLICE_REPORT",
+                               "the policy wording's claim procedure")
+        # Same class of mislabel, one item along. A vehicle identifier is established by
+        # the registration certificate itself or by a wording clause that names it, and
+        # no mapped motor term does either — there is no mechanism for it in the
+        # vocabulary today. This item used to carry `schedule`, the third-party COVER
+        # entry with its quote and page, which read as a cover clause requiring a vehicle
+        # identifier. It now reports the open question and names what would close it.
+        registration = _missing_source("the vehicle registration certificate")
+        return [
+            {"item": "Policy schedule", "reason": "Identifies the motor policy and insured vehicle.",
+             "source": schedule, "document_kind": "SCHEDULE", "packet_required": True},
+            {"item": "Vehicle registration", "reason": "Records the vehicle identifier for the synthetic own-damage packet.",
+             "source": registration, "document_kind": "RC", "packet_required": True},
+            {"item": "Repair estimate or invoice", "reason": "Records the declared repair evidence used for the surveyor step.",
+             "source": depreciation, "document_kind": "SUPPLIER_INVOICE", "packet_required": True},
+            {"item": "Police report, if one exists", "reason": "A report is not assumed; add it only where the incident record or policy wording establishes it.",
+             "source": report, "document_kind": "FIR", "packet_required": False},
+        ]
+    # CONDITION.REIMBURSEMENT, not CLAIM.REIMBURSEMENT: the first is what HEALTH.yaml
+    # emits, and the second matched nothing — which is how four items came to share one
+    # fabricated source. See _citation_for().
+    procedure = _citation_for(policy, "CONDITION.REIMBURSEMENT",
+                              "the policy wording's claim procedure")
+    deadline = _citation_for(policy, "DEADLINE.CLAIM_INTIMATION",
+                             "the policy wording's claim-notice clause")
+    schedule = _schedule_source(policy, "COVERED.FAMILY_FLOATER",
+                                "the policy schedule's cover entry")
+    cashless = _citation_for(policy, "CONDITION.CASHLESS_NETWORK",
+                             "the policy wording's cashless-network clause")
     mode_reason = cashless if mode == "CASHLESS" else procedure
     return [
         {"item": "Policy schedule", "reason": "Identifies the policy and insured member.",
@@ -455,8 +617,8 @@ def deadline_for(policy: Mapping[str, Any], incident: datetime) -> dict[str, Any
     if incident.tzinfo is None or incident.utcoffset() is None:
         raise ClaimValidationError("A deadline needs an incident time with an explicit UTC offset.")
     incident = incident.astimezone(_policy_timezone(policy))
-    for item in policy.get("health_items", []) if isinstance(policy.get("health_items"), list) else []:
-        if not isinstance(item, Mapping) or item.get("mechanism_code") != "DEADLINE.CLAIM_INTIMATION":
+    for item in _policy_items(policy):
+        if item.get("mechanism_code") != "DEADLINE.CLAIM_INTIMATION":
             continue
         if item.get("state") != "DOCUMENTED" or item.get("value") in (None, ""):
             break
@@ -475,7 +637,9 @@ def deadline_for(policy: Mapping[str, Any], incident: datetime) -> dict[str, Any
         else:
             break
         return {"state": "DOCUMENTED", "due_at": due.isoformat(), "unit": unit,
-                "value": str(value), "source": _citation_for(policy, "DEADLINE.CLAIM_INTIMATION"),
+                "value": str(value),
+                "source": _citation_for(policy, "DEADLINE.CLAIM_INTIMATION",
+                                        "the policy wording's claim-notice clause"),
                 "notice": "This is the policy timing quoted below; VERIS does not state a consequence of delay."}
     return {"state": "INFORMATION_MISSING", "due_at": None, "required_document": "the policy wording",
             "notice": "No timing is calculated until the policy wording establishes it."}

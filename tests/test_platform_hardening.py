@@ -101,6 +101,37 @@ def test_hosted_auth_store_locks_after_repeated_bad_passwords(tmp_path, monkeypa
     assert store.authenticate("owner@example.test", "long-enough-test-password", now=1001).locked
 
 
+def test_hosted_auth_store_closes_every_connection_it_opens(tmp_path, monkeypatch):
+    """A sqlite3 connection's own context manager ends the transaction but does not
+    close it. Left to garbage collection, the auth database stayed open on Windows and
+    the hosted smoke could not remove its temporary directory."""
+    import sqlite3
+
+    opened: list[sqlite3.Connection] = []
+    real_connect = sqlite3.connect
+
+    def tracking_connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(auth.sqlite3, "connect", tracking_connect)
+    monkeypatch.setenv(auth.HOSTED_INVITES_ENV, json.dumps({"single-use": "SME"}))
+    store = auth.HostedAccountStore(tmp_path / "auth.sqlite")
+    store.signup(email="owner@example.test", password="long-enough-test-password",
+                 invite_code="single-use", name="Owner")
+    with pytest.raises(auth.InviteError):           # the rollback path closes too
+        store.signup(email="other@example.test", password="long-enough-test-password",
+                     invite_code="single-use", name="Other")
+    assert store.authenticate("owner@example.test", "long-enough-test-password").principal
+    assert store.authenticate("owner@example.test", "wrong-password").principal is None
+
+    assert opened, "the store opened no connection"
+    for conn in opened:
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")                # raises only on a closed connection
+
+
 def test_login_rate_limiter_is_bounded_per_account_and_trusted_client():
     limiter = auth.LoginRateLimiter(limit=1, window_seconds=60)
     first = auth.login_rate_limit_keys("first@example.test", "198.51.100.1")

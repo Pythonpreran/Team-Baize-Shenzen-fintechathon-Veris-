@@ -1,0 +1,175 @@
+# VERIS jurisdiction pack — Malaysia.
+#
+# Standard depth. Every statement about law or regulation is either backed by a verbatim
+# primary-source quote that scripts/verify_pack_sources.py has checked, or held as
+# CANDIDATE evidence that never reaches an owner. On 2026-10-11 the central bank's site
+# refused an automated fetch (HTTP 403) and the government-hosted Road Transport Act copy
+# timed out, so the regulator and statute entries are CANDIDATE with the exact human action
+# logged. The financial ombudsman's own site was fetched and is quoted.
+#
+# Moving Malaysia from signals.yaml into this pack changes one behaviour on purpose: a
+# Malaysian wording is now read under this pack instead of GENERIC. It still never gets a
+# Singapore rule, and no Malaysian legal statement reaches an owner without a quote.
+
+code: MY
+name: Malaysia
+version: 1
+summary: >
+  Malaysia. MYR money formatting, Malaysian public holidays and document authorship; the
+  financial ombudsman's own description of its dispute-resolution service, quoted; and
+  statute and regulator records held back until their primary text is verified.
+locales: [en-MY, ms-MY]
+timezone: Asia/Kuala_Lumpur
+holiday_calendar:
+  provider: holidays
+  country: MY
+  wired: true
+  note: The holidays provider is used for working-day arithmetic from this pack.
+
+currency:
+  code: MYR
+  symbol: "RM"
+  local_symbol: "RM"
+  minor_units: 2
+  group_separator: ","
+  decimal_separator: "."
+  grouping: THREE
+
+regulators:
+  - id: MY-REG-BNM
+    title: Bank Negara Malaysia
+    statement: The central bank's own statement of its insurance supervisory role needs a primary-source quote before VERIS can show it to an owner.
+    values: {short_name: BNM}
+    verification: &candidate
+      status: CANDIDATE
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: null
+      note: The central bank's site refused an automated fetch on 2026-10-11 (HTTP 403); a person must record a role sentence from it.
+
+statutes:
+  - id: MY-STAT-RTA-1987
+    title: Road Transport Act 1987 (Act 333), Part IV
+    statement: The Act's third-party risks insurance requirement needs its current text quoted before VERIS can state it to an owner.
+    values: {act: "333", protection: MOTOR_THIRD_PARTY}
+    verification:
+      status: CANDIDATE
+      source_url: "https://ppj.gov.my/storage/7472/Act-333---Road-Transport-Act-1987.pdf"
+      retrieved_on: 2026-10-11
+      quote: null
+      verified_by: null
+      note: The government-hosted copy timed out on 2026-10-11 and was not read; the official consolidated text should come from the Attorney General's Chambers.
+  - id: MY-STAT-FSA-2013
+    title: Financial Services Act 2013
+    statement: The Act's insurance provisions need a primary-source quote before VERIS states them to an owner.
+    values: {}
+    verification: *candidate
+
+compulsory_covers:
+  - id: MY-COMP-MOTOR-THIRD-PARTY
+    title: Motor third-party insurance
+    statement: A compulsory motor third-party statement waits for the Road Transport Act entry to be source-quoted.
+    values: {protection: MOTOR_THIRD_PARTY, statute: MY-STAT-RTA-1987}
+    verification: *candidate
+
+regulatory_timelines: []
+
+complaint_ladder:
+  - id: MY-CL-INSURER
+    title: Insurer complaint
+    statement: A primary source is required before VERIS states the insurer complaint step to an owner.
+    values: {order: 1, time_limit_days: null}
+    verification: *candidate
+  - id: MY-CL-FINANCIAL-OMBUDSMAN
+    title: Financial ombudsman (ofs.org.my)
+    statement: The ombudsman's own site describes a free dispute resolution service for consumers who cannot resolve a complaint with their financial service provider.
+    values: {order: 2, time_limit_days: null}
+    verification:
+      status: SOURCE_QUOTED
+      source_url: "https://www.ofs.org.my/"
+      retrieved_on: 2026-10-11
+      quote: independent, fair and free dispute resolution service for consumers and investors who are unable to resolve their complaints with financial service providers or capital market intermediaries
+      verified_by: null
+      note: The site now presents itself as the Financial Markets Ombudsman Service. No time limit is recorded without its own quote.
+
+market_conventions: []
+
+document_kinds:
+  - kind: BASE_WORDING
+    author_class: INSURER
+    verification: &team_grading
+      status: HUMAN_VERIFIED
+      source_url: null
+      retrieved_on: null
+      quote: null
+      verified_by: VERIS team, evidence-class design (src/proven/grading.py)
+      note: The author class is an evidence model decision, not a regulatory statement.
+  - kind: SCHEDULE
+    author_class: INSURER
+    verification: *team_grading
+  - kind: ENDORSEMENT
+    author_class: INSURER
+    verification: *team_grading
+  - kind: TENANCY
+    author_class: THIRD_PARTY
+    absent_note: Tenancy agreement — premises and permitted use not verified
+    verification: *team_grading
+  - kind: ACCOUNTS
+    author_class: SELF
+    absent_note: Accounts — value at risk for stock not verified
+    verification: *team_grading
+  - kind: SUPPLIER_INVOICE
+    author_class: THIRD_PARTY
+    verification: *team_grading
+  - kind: PROPOSAL
+    author_class: SELF
+    verification: *team_grading
+  - kind: SELF_DECLARATION
+    author_class: SELF
+    verification: *team_grading
+  - kind: UNKNOWN
+    author_class: SELF
+    verification: *team_grading
+
+data_protection:
+  id: MY-DP-PDPA
+  title: Personal Data Protection Act 2010
+  statement: A primary source is required before VERIS states Malaysian data-protection obligations to an owner.
+  values: {}
+  verification: *candidate
+
+advice_boundary:
+  product_boundary: >
+    VERIS states what your documents say and where they say it. It does not recommend a
+    product, an insurer or a premium, and it never suggests that you buy, cancel, switch or
+    surrender cover. For advice, speak to a licensed adviser or to your insurer.
+  regulatory_basis:
+    id: MY-AB-INSURANCE-ADVICE
+    title: Insurance advice boundary
+    statement: A primary source is required before VERIS makes a Malaysia-specific statement about insurance advice regulation.
+    values: {}
+    verification: *candidate
+
+detection:
+  governing_law:
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\blaws? of Malaysia\b'
+    - '\b(?:governed by|construed in accordance with|interpreted in accordance with|determined in accordance with)\b[^.;]{0,60}?\bMalaysian [Ll]aw\b'
+  names:
+    - Bank Negara Malaysia
+    - Ombudsman for Financial Services
+    - Financial Markets Ombudsman Service
+    - Financial Services Act 2013
+    - Islamic Financial Services Act 2013
+    - Road Transport Act 1987
+    - Personal Data Protection Act 2010
+    - Companies Commission of Malaysia
+  currency_codes: [MYR]
+  currency_symbols: [RM]
+  registration_numbers:
+    # A company number in the older form printed on most wordings, e.g. "161086-D".
+    - '\b\d{5,7}-[A-Z]\b'
+  postcodes:
+    - '\b\d{5}\s+(?:Kuala Lumpur|Petaling Jaya|Shah Alam|Johor Bahru|George Town|Ipoh|Kota Kinabalu|Kuching|Selangor|Melaka|Putrajaya)\b'
+  phone_numbers:
+    - '\+60[\s-]?\d'

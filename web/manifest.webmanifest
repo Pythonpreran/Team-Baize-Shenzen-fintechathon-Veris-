@@ -1,0 +1,18 @@
+{
+  "id": "/app",
+  "name": "VERIS evidence-bound insurance agent",
+  "short_name": "VERIS",
+  "description": "Page-cited answers about the policies a household or small business already holds. A deterministic core computes every number.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "icons": [
+    { "src": "/static/icons/veris.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/static/icons/veris-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/veris-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

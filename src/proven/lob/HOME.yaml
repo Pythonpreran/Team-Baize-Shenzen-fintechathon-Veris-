@@ -1,0 +1,91 @@
+# Deterministic home-policy term profiles (T26).
+#
+# Each term names a structural mechanism in taxonomy/mechanisms.yaml. A term appears on a
+# card only when align.py proposes, VERIFIES and binds that mechanism in the linked
+# public wording; the card quotes the bound sentence and its page. Nothing here supplies a
+# value: a day count or amount is read from the verified clause, and a schedule operand is
+# read from the cited schedule line. A failed match yields no item.
+#
+# The profiles select the synthetic household's named public plan reference only. They
+# are not a carrier-agnostic shortcut for a user-uploaded policy.
+version: 1
+profiles:
+  - id: SG-AIG-HOMES-ADVANTAGE
+    country: SG
+    line_of_business: HOME
+    product_contains: Homes Advantage
+    corpus_id: sg-aig-homes-advantage-wording
+    terms:
+      - mechanism: HOME.COVERED.CONTENTS
+        mechanism_code: COVERED.HOME_CONTENTS_CLAUSE
+        label_key: home.item.contents_clause
+        display: CONDITION
+      - mechanism: HOME.LIMIT.SINGLE_ARTICLE
+        mechanism_code: LIMIT.SINGLE_ARTICLE
+        label_key: home.item.single_article
+        display: MONEY
+        value_slot: amount
+      - mechanism: HOME.CONDITION.SETTLEMENT_BASIS
+        mechanism_code: CONDITION.SUM_INSURED_BASIS
+        label_key: home.item.settlement_basis
+        display: CONDITION
+      - mechanism: HOME.ADEQ.INSURANCE_TO_VALUE
+        mechanism_code: CONDITION.INSURANCE_TO_VALUE
+        label_key: home.item.insurance_to_value
+        display: CONDITION
+      - mechanism: HOME.EXCL.THEFT_FORCIBLE_ENTRY
+        mechanism_code: CONDITION.THEFT_FORCIBLE_ENTRY
+        label_key: home.item.theft_forcible_entry
+        display: CONDITION
+      - mechanism: COND.UNOCCUPANCY
+        mechanism_code: CONDITION.UNOCCUPANCY
+        label_key: home.item.unoccupancy
+        display: DAYS_CONDITION
+        value_slot: days
+      - mechanism: HOME.DEADLINE.CLAIM_NOTICE
+        mechanism_code: DEADLINE.CLAIM_NOTICE
+        label_key: home.item.claim_notice
+        display: DAYS_CONDITION
+        value_slot: days
+      - mechanism: HOME.CONDITION.POLICE_REPORT
+        mechanism_code: CONDITION.POLICE_REPORT
+        label_key: home.item.police_report
+        display: CONDITION
+    # The household's own contents list against the schedule sum insured, read through
+    # this wording's insurance-to-value sentence. See home_travel.contents_shortfall().
+    contents_comparison:
+      condition_mechanism: HOME.ADEQ.INSURANCE_TO_VALUE
+      sum_insured_quote: contents_sum_insured
+
+  - id: IN-HDFC-ERGO-BHARAT-GRIHA-RAKSHA
+    country: IN
+    line_of_business: HOME
+    product_contains: Bharat Griha Raksha
+    corpus_id: in-hdfc-ergo-bharat-griha-raksha-wording
+    terms:
+      - mechanism: HOME.IN.BASIS.COST_OF_CONSTRUCTION
+        mechanism_code: CONDITION.SUM_INSURED_BASIS
+        label_key: home.item.cost_of_construction
+        display: CONDITION
+      - mechanism: HOME.COVERED.CONTENTS
+        mechanism_code: COVERED.HOME_CONTENTS_CLAUSE
+        label_key: home.item.contents_clause
+        display: CONDITION
+      - mechanism: HOME.IN.WAIVER.UNDERINSURANCE
+        mechanism_code: CONDITION.UNDERINSURANCE_WAIVED
+        label_key: home.item.underinsurance_waived
+        display: CONDITION
+      - mechanism: HOME.IN.THEFT.AFTER_INSURED_EVENT
+        mechanism_code: CONDITION.THEFT_AFTER_INSURED_EVENT
+        label_key: home.item.theft_after_insured_event
+        display: DAYS_CONDITION
+        value_slot: days
+      - mechanism: HOME.IN.DEADLINE.IMMEDIATE_NOTICE
+        mechanism_code: DEADLINE.CLAIM_NOTICE
+        label_key: home.item.immediate_notice
+        display: CONDITION
+    # The wording's built-in contents cover, computed only from its own stated share and
+    # cap and the schedule's cited building sum insured. See home_travel.built_in_contents().
+    built_in_contents:
+      mechanism: HOME.IN.CONTENTS.BUILT_IN
+      building_quote: building_sum_insured

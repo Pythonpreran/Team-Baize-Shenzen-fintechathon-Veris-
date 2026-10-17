@@ -825,8 +825,8 @@ class SignalHit:
 
 @dataclass
 class JurisdictionDetection:
-    """`code` is the country the documents establish, or GENERIC. It is NOT the pack: a
-    Malaysian wording is detected `MY` and then read under GENERIC because no MY pack
+    """`code` is the country the documents establish, or GENERIC. It is NOT the pack: an
+    Australian wording is detected `AU` and then read under GENERIC because no AU pack
     exists — see `applicable()`.
 
     Unpacks as `(code, confidence, reasons)`, the shape the plan names."""

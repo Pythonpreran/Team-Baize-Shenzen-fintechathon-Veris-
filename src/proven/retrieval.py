@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Optional
 
 from . import config
-from .lang import tokenizer_for_document, tokenizer_for_query
+from .lang import CJK, detect_script, tokenizer_for_document, tokenizer_for_query
 
 # Chunking. Policy prose is dense and clause bodies are short, so small chunks with
 # overlap retrieve better than page-sized blocks: a page-level chunk buries the one
@@ -41,6 +41,7 @@ from .lang import tokenizer_for_document, tokenizer_for_query
 CHUNK_CHARS = 700
 CHUNK_OVERLAP = 140
 MIN_CHUNK_CHARS = 60
+MIN_CJK_CHUNK_CHARS = 20
 
 
 @dataclass
@@ -114,11 +115,15 @@ def chunk_page(text: str, *, page_no: int, document_id: str, document_kind: str,
             # Prefer a sentence or line break within the last third of the window.
             window_start = cursor + (CHUNK_CHARS * 2) // 3
             boundary = max(text.rfind(". ", window_start, end),
-                           text.rfind("\n", window_start, end))
+                           text.rfind("\n", window_start, end),
+                           text.rfind("\u3002", window_start, end))  # Chinese full stop (T28)
             if boundary > cursor:
                 end = boundary + 1
         body = text[cursor:end]
-        if len(body.strip()) >= MIN_CHUNK_CHARS:
+        # A Han character carries roughly what an English word does, so a Chinese clause
+        # of twenty characters is a full sentence; English keeps its original minimum.
+        minimum = MIN_CJK_CHUNK_CHARS if detect_script(body) == CJK else MIN_CHUNK_CHARS
+        if len(body.strip()) >= minimum:
             chunks.append(Chunk(
                 id=next_id, document_id=document_id, document_kind=document_kind,
                 filename=filename, page_no=page_no, char_start=cursor,

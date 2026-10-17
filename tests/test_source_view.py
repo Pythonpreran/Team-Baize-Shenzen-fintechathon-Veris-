@@ -559,6 +559,59 @@ def test_an_exact_match_is_not_reported_as_off_page(client):
     assert d["highlight"]["method"] == sourceview.EXACT
 
 
+def test_a_found_highlight_reports_where_it_is_as_fractions_of_the_image(client):
+    """The viewer needs to be able to POINT at the mark.
+
+    The amber is burned into the bitmap, and at drawer width a one-line mark on an A4
+    page is a few pixels tall — visible in the file, invisible to the reader. `bounds`
+    comes from the renderer's own position converter on the same render that painted the
+    amber, so the ring the viewer draws cannot drift away from the mark underneath it.
+    Fractions rather than pixels, because display DPI and full-screen DPI are two
+    different renders of one page.
+    """
+    if not sourceview.available():
+        pytest.skip(RENDERER_ABSENT)
+    span = _first_span(client)
+    d = client.get(f"/api/source/{span['document_id']}/page/{span['page_no']}",
+                   params={"span_id": span["span_id"]}).json()
+    assert d["highlight"]["found"] is True
+    b = d["highlight"]["bounds"]
+    assert b is not None, "a found highlight must say where it is"
+    assert set(b) == {"x", "y", "w", "h"}
+    for key, value in b.items():
+        assert 0.0 <= value <= 1.0, f"{key}={value} is not a fraction of the image"
+    assert b["w"] > 0 and b["h"] > 0, "a zero-sized box is not a location"
+    assert b["x"] + b["w"] <= 1.0 + 1e-6 and b["y"] + b["h"] <= 1.0 + 1e-6
+
+
+def test_a_page_with_nothing_found_reports_no_bounds_rather_than_a_guess(client):
+    """A ring at a guessed position on a page of legal text points at the wrong clause,
+    which is worse than no ring at all."""
+    if not sourceview.available():
+        pytest.skip(RENDERER_ABSENT)
+    span = _first_span(client)
+    d = client.get(
+        f"/api/source/{span['document_id']}/page/{span['page_no']}").json()
+    assert d["highlight"]["found"] is False
+    assert d["highlight"]["bounds"] is None
+
+
+def test_the_new_bounds_field_does_not_reach_a_published_documents_response():
+    """`bounds` describes a page image. A corpus document has none, so the whole
+    highlight record — bounds included — stays absent rather than arriving empty."""
+    c = TestClient(app)
+    rows = _example_bundle(c)
+    wording_id = rows[WORDING]["document_id"]
+    span = next(s for f in c.get("/api/brief").json()["findings"]
+                for s in f.get("spans") or [] if s.get("document_id") == wording_id)
+    page = c.get(f"/api/source/{wording_id}/page/{span['page_no']}",
+                 params={"span_id": span["span_id"]}).json()
+    assert page["display"] == "EXCERPT"
+    assert "image" not in page
+    assert "highlight" not in page, "a page highlight was reported for a page never drawn"
+    assert "bounds" not in str(page.get("excerpt") or {})
+
+
 # ── the module's own contract ────────────────────────────────────────────────
 
 def test_the_renderer_reports_availability_by_detection():

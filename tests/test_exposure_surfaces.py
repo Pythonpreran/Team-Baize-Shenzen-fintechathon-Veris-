@@ -142,7 +142,7 @@ def test_wording_only_upload_does_not_break_any_exposure_screen(client):
     from proven import pipeline
     path = pipeline.CHUBB_PDF
     if not path.exists():                       # pragma: no cover - corpus not fetched
-        pytest.skip(f"published wording not in the corpus at {path}")
+        pytest.skip(f"published wording {pipeline.CHUBB_ID} not in the corpus at {path}")
 
     with path.open("rb") as fh:
         r = client.post("/api/bundle",

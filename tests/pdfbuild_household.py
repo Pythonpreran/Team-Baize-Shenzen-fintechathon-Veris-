@@ -18,7 +18,14 @@ def household_profile_pdf() -> bytes:
         "",
         "Assets recorded for this synthetic household:",
         "Singapore family car; Bengaluru family car; Singapore home contents.",
+        "Raghavan and Lakshmi's Bengaluru family home is insured under an India home policy.",
         "No nominee is recorded in this synthetic household profile.",
+        "",
+        "Contents list for the Singapore home (self-declared):",
+        "Furniture SGD 95,000; electronics and appliances SGD 88,000;",
+        "jewellery and watches SGD 162,000; clothing and personal effects SGD 45,000;",
+        "art and collectibles SGD 30,000.",
+        "Contents list total (self-declared): SGD 420,000.",
         "",
         "This profile is self-authored and is not policy wording.",
     ]], banner=SYNTHETIC_MARK)
@@ -43,11 +50,12 @@ def home_contents_schedule_pdf() -> bytes:
     return build_pdf([[
         "SYNTHETIC HOME CONTENTS POLICY SCHEDULE",
         "",
+        "Product: AIG Homes Advantage",
         "Insured household: Arjun Rao and Meera Rao",
         "Policy reference: ****-HOME3",
         "Period: 1 February 2026 to 31 January 2027",
+        "Cover selected: Household Contents",
         "Home contents sum insured: SGD 300,000",
-        "Synthetic contents list estimate: SGD 420,000",
         "Policy conditions and exclusions require the policy wording.",
     ]], banner=SYNTHETIC_MARK)
 
@@ -61,8 +69,10 @@ def singapore_motor_travel_schedule_pdf() -> bytes:
         "Motor period: 1 March 2026 to 28 February 2027",
         "",
         "Travel plan reference: ****-TRAVEL5",
+        "Travel product: AIG Travel Guard Direct",
         "Travellers: Arjun Rao, Meera Rao and Anya Rao",
         "Travel period: 1 June 2026 to 31 May 2027",
+        "Selected plan: not stated on this synthetic schedule",
         "Further limits and conditions require the policy wording.",
     ]], banner=SYNTHETIC_MARK)
 
@@ -95,6 +105,15 @@ def india_motor_schedule_pdf() -> bytes:
         "Third-party cover expiry: 18 October 2026",
         "Depreciation schedule: plastic parts 50%; metal parts 10% for a vehicle aged up to five years.",
         "Depreciation, deductibles and conditions require the policy wording.",
+        "",
+        "SYNTHETIC INDIA HOME POLICY SCHEDULE",
+        "Home product: HDFC ERGO Bharat Griha Raksha",
+        "Home policy reference: ****-HOME8",
+        "Insured: Raghavan and Lakshmi; insured property: Bengaluru family home",
+        "Home policy period: 1 April 2026 to 31 March 2027",
+        "Cover selected: Home Building and General Contents",
+        "Home Building sum insured (declared cost of construction): INR 4,500,000",
+        "General contents: the built-in cover stated in the policy wording.",
     ]], banner=SYNTHETIC_MARK)
 
 

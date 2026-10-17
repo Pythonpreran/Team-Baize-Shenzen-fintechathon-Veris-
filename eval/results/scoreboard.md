@@ -11,10 +11,10 @@
 
 | Case | Result | Local latency (ms) |
 | --- | --- | ---: |
-| canonical.cited_answer | PASS | 0.181 |
-| canonical.honest_abstention | PASS | 0.131 |
-| control.agent_read_plan | PASS | 76.528 |
-| security.redteam | PASS | 205.52 |
+| canonical.cited_answer | PASS | 0.238 |
+| canonical.honest_abstention | PASS | 0.161 |
+| control.agent_read_plan | PASS | 71.411 |
+| security.redteam | PASS | 193.588 |
 
 ## Explicitly mapped canonical task coverage
 

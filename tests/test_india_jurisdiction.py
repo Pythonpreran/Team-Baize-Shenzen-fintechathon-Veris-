@@ -86,8 +86,11 @@ def test_india_candidate_entries_never_become_owner_facing_statements():
 
 def test_india_pack_reference_exposes_the_complaint_route_with_status_and_source(client):
     index = client.get("/api/jurisdictions").json()
-    assert {pack["code"] for pack in index["packs"]} == {"GENERIC", "IN", "SG"}
-    assert {country["code"] for country in index["recognised_without_pack"]} == {"HK", "MY"}
+    # T27 deliberate (PLAN rule 26): Hong Kong and Malaysia now have packs, so
+    # Australia is the one country recognised without a pack. T28 adds the China pack.
+    assert {pack["code"] for pack in index["packs"]} == {"CN", "GENERIC", "HK", "IN", "MY",
+                                                          "SG"}
+    assert {country["code"] for country in index["recognised_without_pack"]} == {"AU"}
 
     body = client.get("/api/jurisdictions/IN").json()
     assert body["currency"]["grouping"] == "INDIAN"

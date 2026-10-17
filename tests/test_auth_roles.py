@@ -70,7 +70,7 @@ def test_the_account_catalogue_never_serves_a_hash(client):
     for account in auth.ACCOUNTS.values():
         assert account.password_hash not in body
     parsed = client.get("/api/auth/accounts").json()
-    assert len(parsed["accounts"]) == 3
+    assert len(parsed["accounts"]) == 4
     assert parsed["shared_password"] == PASSWORD
     assert "not a user management system" in parsed["notice"]
 
@@ -332,7 +332,7 @@ def test_health_does_not_overstate_the_auth_posture(client):
     assert body["authenticated"] is False
     assert body["auth"]["role_boundary_enforced"] is True
     assert body["auth"]["login_required_for_business_workspace"] is False
-    assert body["auth"]["seeded_accounts"] == 3
+    assert body["auth"]["seeded_accounts"] == 4
     assert "no signup" in body["auth_notice"].lower()
 
 

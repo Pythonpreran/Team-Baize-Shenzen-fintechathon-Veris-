@@ -213,7 +213,7 @@ def main() -> int:
     print("  The Malaysian row is the point: no clause map exists for these carriers,")
     print("  so anything found there was found from structure alone.")
     if india:
-        print(f"  India, targeted health terms recall {in_recall}"
+        print(f"  India, targeted health and home terms recall {in_recall}"
               f"  ({in_hits}/{in_hits + in_miss})")
     print("-" * 74)
 
@@ -229,7 +229,7 @@ def main() -> int:
     for s in scores:
         tag = ("" if s.jurisdiction == "SG" else
                "  [MY - generalisation test]" if s.jurisdiction == "MY" else
-               f"  [{s.jurisdiction} - targeted health terms]")
+               f"  [{s.jurisdiction} - targeted terms]")
         print(f"\n{s.carrier}{tag}")
         print(f"   proposals {s.proposals}  bound {s.verified}  "
               f"rejected {s.rejected}")

@@ -112,10 +112,26 @@ async function render() {
     queue.findings.forEach(finding => root.append(findingCard(finding, render)));
   } catch (error) { const pane = card(); pane.append(status(error.message, true)); root.append(pane); }
 }
+/* The reviewer console is an English-only professional screen. A reader who chose
+ * Chinese in the owner app is told so in Chinese (T28), from the Chinese catalogue. */
+async function chineseNotice() {
+  let locale = "";
+  try { locale = localStorage.getItem("veris_locale") || ""; } catch (_error) { return null; }
+  if (locale !== "zh-CN") return null;
+  try {
+    const zh = await (await fetch("/static/i18n/zh-CN.json", { credentials: "same-origin" })).json();
+    const text = zh && zh.locale && zh.locale.english_only;
+    if (typeof text !== "string") return null;
+    const note = status(text); note.lang = "zh-CN"; note.setAttribute("role", "note");
+    return note;
+  } catch (_error) { return null; }
+}
 async function main() {
   try { Object.assign(messages, await (await fetch("/static/i18n/en.json", { credentials: "same-origin" })).json()); }
   catch (_error) { /* Translation fallback keeps identifiers visible for diagnosis. */ }
   document.title = t("reviewer.title");
-  render();
+  await render();
+  const note = await chineseNotice();
+  if (note) root.prepend(note);
 }
 main();
