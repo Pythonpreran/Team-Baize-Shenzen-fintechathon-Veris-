@@ -13,7 +13,7 @@ import os
 import sys
 import tempfile
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -174,8 +174,13 @@ def _tool_results(runtime: AgentRuntime, owner: persistence.TenantScope,
 
     mandate = runtime.store.create_mandate(
         owner.tenant_id, scopes=["invoice.pay"], per_payment_cap="1.00",
-        payee_allowlist=["Lotus General (Sandbox)"], valid_from=date.today().isoformat(),
-        valid_until=(date.today() + timedelta(days=1)).isoformat(), advance_notice_required=True)
+        # UTC, because active_mandate() compares the window with the UTC date. A local date
+        # runs a day ahead between local midnight and the UTC offset (00:00-05:30 in IST),
+        # which made the mandate "not yet valid" and failed the run at night.
+        payee_allowlist=["Lotus General (Sandbox)"],
+        valid_from=datetime.now(timezone.utc).date().isoformat(),
+        valid_until=(datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat(),
+        advance_notice_required=True)
     payment = runtime.prepare(owner, tool_name="invoice.pay", payload={
         "invoice_id": "invoice-red", "invoice_payee": "Lotus General (Sandbox)",
         "invoice_amount": "2.00", "invoice_tenant_id": owner.tenant_id,

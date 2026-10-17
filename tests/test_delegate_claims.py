@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import base64
 import os
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 
@@ -35,7 +35,7 @@ def test_delegate_can_only_prepare_one_consented_members_claim(tmp_path, monkeyp
             scope, country="IN", line_of_business="HEALTH", insurer="Lotus General (Sandbox)",
             product="Delegated individual health plan", masked_number="****-DELEGATE", status="ACTIVE",
             insured_member_ids=[member["id"]], source_document_ids=[schedule["id"]])
-        start, end = date.today().isoformat(), (date.today() + timedelta(days=2)).isoformat()
+        start, end = datetime.now(timezone.utc).date().isoformat(), (datetime.now(timezone.utc).date() + timedelta(days=2)).isoformat()
         assert client.post("/api/privacy/consents", json={
             "purpose": "CLAIM_MANAGEMENT", "data_categories": ["HEALTH_DATA"],
             "recipient": "Synthetic household delegate", "valid_from": start, "valid_until": end,

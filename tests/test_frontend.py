@@ -798,6 +798,27 @@ def test_the_tour_is_keyboard_operable_and_respects_reduced_motion():
     assert "prefers-reduced-motion" in tail
 
 
+def test_escape_closes_the_evidence_drawer_and_focus_returns_to_its_opener():
+    """The drawer is aria-modal, so it must behave like a dialog: Escape closes it, focus
+    moves in on open and back to the opener on close. Escape used to close only the
+    full-screen page, leaving keyboard readers stuck in the drawer."""
+    start = CODE.index('document.addEventListener("keydown", ev => {\n  if (ev.key !== "Escape"')
+    listener = CODE[start:CODE.index("\n});", start)]
+    assert "S.pageFull" in listener and "S.drawer" in listener, "both layers must be handled"
+    # Innermost first: the full-screen page is checked before the drawer, in ONE listener,
+    # so a single Escape cannot close both.
+    assert listener.index("S.pageFull") < listener.index("S.drawer")
+    assert "closeEvidenceDrawer" in listener and "closePageFullscreen" in listener
+
+    close = _fn_body("function closeEvidenceDrawer")
+    assert "S.drawerReturn" in close and ".focus()" in close, "focus must return to the opener"
+    assert "S.drawerReturn" in _fn_body("async function openEvidenceDrawer")
+    paint = _fn_body("function paintDrawer")
+    assert ".v-drawer__close" in paint and ".focus()" in paint, "focus must move into the drawer"
+    # The close action goes through the same function, so a click and Escape agree.
+    assert '"drawer-close": () => closeEvidenceDrawer()' in JS
+
+
 # ── figure animation ───────────────────────────────────────────────────────
 
 def test_declared_data_to_is_trusted_over_placeholder_text():

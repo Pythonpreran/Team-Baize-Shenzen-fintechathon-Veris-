@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import base64
 import os
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,7 +24,7 @@ def test_privacy_artifacts_are_encrypted_tenant_scoped_and_delegate_gated(tmp_pa
     adult = repository.add_member(
         scope, name="Adult member", relationship="self", date_of_birth="1980-01-01",
         health_facts="Private health detail")
-    start, end = date.today().isoformat(), (date.today() + timedelta(days=7)).isoformat()
+    start, end = datetime.now(timezone.utc).date().isoformat(), (datetime.now(timezone.utc).date() + timedelta(days=7)).isoformat()
     consent = repository.create_privacy_consent(
         scope, purpose="CLAIM_MANAGEMENT", data_categories=["HEALTH_DATA", "CLAIM_DOCUMENTS"],
         recipient="Synthetic delegate", valid_from=start, valid_until=end, member_id=adult["id"])
@@ -59,8 +59,8 @@ def test_member_health_consent_refuses_a_minor(tmp_path):
     with pytest.raises(persistence.PortfolioValidationError, match="adult"):
         repository.create_privacy_consent(
             scope, purpose="CLAIM_MANAGEMENT", data_categories=["HEALTH_DATA"],
-            recipient="Synthetic delegate", valid_from=date.today().isoformat(),
-            valid_until=(date.today() + timedelta(days=1)).isoformat(), member_id=minor["id"])
+            recipient="Synthetic delegate", valid_from=datetime.now(timezone.utc).date().isoformat(),
+            valid_until=(datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat(), member_id=minor["id"])
 
 
 def test_privacy_api_requires_owner_scope_and_preserves_erase_step_up(tmp_path, monkeypatch):
@@ -78,7 +78,7 @@ def test_privacy_api_requires_owner_scope_and_preserves_erase_step_up(tmp_path, 
         repository = api._portfolio_repository()
         member = repository.add_member(
             scope, name="Adult API member", relationship="parent", date_of_birth="1970-01-01")
-        start, end = date.today().isoformat(), (date.today() + timedelta(days=3)).isoformat()
+        start, end = datetime.now(timezone.utc).date().isoformat(), (datetime.now(timezone.utc).date() + timedelta(days=3)).isoformat()
         created = client.post("/api/privacy/consents", json={
             "purpose": "CLAIM_MANAGEMENT", "data_categories": ["HEALTH_DATA"],
             "recipient": "Synthetic delegate", "valid_from": start, "valid_until": end,

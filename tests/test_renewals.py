@@ -53,8 +53,8 @@ def test_scheduler_payment_gate_needs_matching_live_mandate_and_keeps_confirmati
     assert blocked["eligible"] is False
     created = store.create_mandate(
         scope.tenant_id, scopes=["invoice.pay"], per_payment_cap="10.00",
-        payee_allowlist=["Lotus General (Sandbox)"], valid_from=date.today().isoformat(),
-        valid_until=(date.today() + timedelta(days=1)).isoformat(), advance_notice_required=True)
+        payee_allowlist=["Lotus General (Sandbox)"], valid_from=datetime.now(timezone.utc).date().isoformat(),
+        valid_until=(datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat(), advance_notice_required=True)
     ready = renewals.payment_authorisation(
         store, scope.tenant_id, invoice,
         notice_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat())

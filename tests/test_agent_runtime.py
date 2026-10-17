@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import base64
 import os
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pyotp
 import pytest
@@ -172,8 +172,8 @@ def test_tier_three_has_no_tool_and_deterministic_budgets_hold(client):
 
 
 def test_mandate_changes_require_step_up_and_totp_can_supply_it(client):
-    valid_from = date.today().isoformat()
-    valid_until = (date.today() + timedelta(days=30)).isoformat()
+    valid_from = datetime.now(timezone.utc).date().isoformat()
+    valid_until = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
     first = client.post("/api/agent/mandates", json={
         "scopes": ["invoice.pay"], "per_payment_cap": "500.00",
         "payee_allowlist": ["Lotus General (Sandbox)"],
@@ -208,8 +208,8 @@ def test_mandate_changes_require_step_up_and_totp_can_supply_it(client):
 
 def test_invoice_payment_resolves_a_tenant_invoice_and_binds_the_mandate_snapshot(client):
     _grant(client, "agent:act")
-    valid_from = date.today().isoformat()
-    valid_until = (date.today() + timedelta(days=30)).isoformat()
+    valid_from = datetime.now(timezone.utc).date().isoformat()
+    valid_until = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
     created = client.post("/api/agent/mandates", json={
         "scopes": ["invoice.pay"], "per_payment_cap": "1.00",
         "payee_allowlist": ["Lotus General (Sandbox)"],

@@ -424,11 +424,7 @@ const ACTIONS = {
    * screen, because "show me why" is the question this product exists to answer and making it
    * a navigation event buries it. */
   "gap-why": arg => openEvidenceDrawer(arg),
-  "drawer-close": () => {
-    S.drawer = null; S.pageFull = null; S.pageFullReturn = null;
-    document.getElementById("veris-drawer")?.remove();
-    document.getElementById("veris-pagefull")?.remove();
-  },
+  "drawer-close": () => closeEvidenceDrawer(),
   /* The source-page viewer inside the drawer. `drawer-page` switches which citation's
    * page is shown when a finding rests on more than one. */
   "drawer-page": arg => loadDrawerPage(Number(arg)),
@@ -5688,6 +5684,10 @@ async function smeGapSnapshot(el) {
  * it cannot show a citation the engine did not verify.
  */
 async function openEvidenceDrawer(ruleId) {
+  // Where focus goes back to on close. Kept as a selector, not the element: the screen
+  // behind the drawer can re-render while it is open, and a stored node would then be a
+  // detached one that focus() silently ignores.
+  S.drawerReturn = `[data-act="gap-why"][data-arg="${CSS.escape(String(ruleId))}"]`;
   S.drawer = { ruleId, loading: true };
   paintDrawer();
   try {
@@ -5772,19 +5772,30 @@ function closePageFullscreen() {
   if (back) back.focus();
 }
 
-/* Escape closes the full-screen page and Tab stays inside it.
+/* Escape closes the topmost layer (the full-screen page if open, otherwise the evidence
+ * drawer) and Tab stays inside it.
  *
  * Registered ONCE at module scope rather than on each open: a listener added per open is a
  * listener leaked per open, and the CSP (`script-src 'self'`) forbids an inline handler on
  * the overlay. The guard returns immediately when nothing is open, so this costs a
  * property read per keystroke. */
 document.addEventListener("keydown", ev => {
-  if (!S.pageFull) return;
-  const host = document.getElementById("veris-pagefull");
+  if (ev.key !== "Escape" && ev.key !== "Tab") return;
+  // One listener for both layers, innermost first. Two separate listeners would close
+  // BOTH on a single Escape: closePageFullscreen() clears S.pageFull synchronously, so
+  // a later drawer listener would see nothing open above it and close the drawer too.
+  let host, close;
+  if (S.pageFull) {
+    host = document.getElementById("veris-pagefull");
+    close = closePageFullscreen;
+  } else if (S.drawer) {
+    host = document.querySelector("#veris-drawer .v-drawer");
+    close = closeEvidenceDrawer;
+  }
   if (!host) return;
-  if (ev.key === "Escape") { ev.preventDefault(); closePageFullscreen(); return; }
-  if (ev.key !== "Tab") return;
-  const stops = [...host.querySelectorAll("button, [href]")]
+  if (ev.key === "Escape") { ev.preventDefault(); close(); return; }
+  const stops = [...host.querySelectorAll(
+    "button, [href], summary, input, select, textarea, [tabindex]:not([tabindex='-1'])")]
     .filter(el => !el.disabled && el.offsetParent !== null);
   if (!stops.length) return;
   const first = stops[0], last = stops[stops.length - 1];
@@ -6044,7 +6055,14 @@ function drawerWords(d, f) {
 }
 
 function paintDrawer() {
-  document.getElementById("veris-drawer")?.remove();
+  // The drawer repaints several times per open (loading, finding, then the page image),
+  // and each repaint replaces the focused node. Remember what had focus inside the old
+  // drawer so the new one can restore it; otherwise focus falls to <body> mid-read.
+  const prev = document.getElementById("veris-drawer");
+  const had = prev && prev.contains(document.activeElement) ? document.activeElement : null;
+  const restore = had ? { act: had.getAttribute("data-act"), arg: had.getAttribute("data-arg") } : null;
+  const opening = !prev;
+  prev?.remove();
   const d = S.drawer;
   if (!d) return;
   const host = document.createElement("div");
@@ -6085,6 +6103,30 @@ function paintDrawer() {
       ${body}
     </aside>`;
   document.body.appendChild(host);
+  // aria-modal promises the reader is inside the dialog, so focus must actually move
+  // there on open and stay there across repaints.
+  if (!opening && !restore) return;
+  // Looked up inside the <aside> only: the backdrop also carries data-act="drawer-close",
+  // comes first in the DOM and cannot take focus, so an unscoped match sent focus to <body>.
+  const dialog = host.querySelector(".v-drawer");
+  let target = null;
+  if (restore && restore.act) {
+    const sel = `[data-act="${CSS.escape(restore.act)}"]` +
+      (restore.arg != null ? `[data-arg="${CSS.escape(restore.arg)}"]` : "");
+    target = dialog.querySelector(sel);
+  }
+  (target || dialog.querySelector(".v-drawer__close"))?.focus();
+}
+
+/* Close the evidence drawer (and the full-screen page opened from it), then return focus
+ * to the control that opened it, or the reader is left at the top of the document. */
+function closeEvidenceDrawer() {
+  S.drawer = null; S.pageFull = null; S.pageFullReturn = null;
+  document.getElementById("veris-drawer")?.remove();
+  document.getElementById("veris-pagefull")?.remove();
+  const back = S.drawerReturn && document.querySelector(S.drawerReturn);
+  S.drawerReturn = null;
+  if (back) back.focus();
 }
 
 /* ── Page quality ─────────────────────────────────────────────────────────
