@@ -324,7 +324,7 @@ def test_explain_returns_deterministic_prose_and_real_citations(client, no_key):
     assert body["rule_id"] == rule_id
     assert body["available"] is False
     assert body["mode"] == "DETERMINISTIC_ONLY"
-    assert body["source"] == "TEMPLATE"
+    assert body["source"] == "DETERMINISTIC"
     assert body["text"].strip(), "no explanation produced"
     for citation in body["citations"]:
         assert citation["page_no"] and citation["quote"]

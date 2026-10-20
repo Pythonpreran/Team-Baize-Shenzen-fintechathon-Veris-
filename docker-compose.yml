@@ -3,7 +3,7 @@ services:
     build: .
     command: python -m uvicorn proven.api:app --host 0.0.0.0 --port 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       VERIS_MODE: local
       VERIS_PORTFOLIO_DB_PATH: /data/portfolio.sqlite

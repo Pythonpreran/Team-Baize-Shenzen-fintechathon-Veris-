@@ -404,6 +404,12 @@ const ACTIONS = {
   "demo-reset": () => { S.demoResetConfirm = true; render(); },
   "demo-reset-cancel": () => { S.demoResetConfirm = false; render(); },
   "demo-reset-confirm": () => demoReset(),
+  "judge-demo": arg => {
+    if (arg === "load") return loadHouseholdExample();
+    if (arg === "preflight") return demoPreflight();
+    if (arg === "export-evidence") return exportEvaluationEvidence();
+    return nav8(arg || "sme-portfolio");
+  },
   /* Landing page: move from marketing to the login form, and jump between sections.
    * `show-login` sets a flag rather than navigating, so the transition needs no round trip
    * and the browser Back button still returns to the landing page. */
@@ -2821,10 +2827,16 @@ async function smeHome(el) {
 
 /* ── Household portfolio and plan-layout cards ─────────────────────────── */
 
+function boundaryBadges() {
+  return `<div class="boundary-badges" role="note" aria-label="${esc(t("boundary.label"))}">
+    <span>${esc(t("boundary.local"))}</span><span>${esc(t("boundary.no_claim"))}</span>
+    <span>${esc(t("boundary.no_money"))}</span><span>${esc(t("boundary.no_decision"))}</span></div>`;
+}
+
 function portfolioSyntheticBanner(portfolio = null) {
   const provenance = portfolio?.household?.provenance || S.householdProvenance;
   return provenance?.kind === "SYNTHETIC_EXAMPLE"
-    ? `<div class="synthetic-banner">${esc(t("portfolio.synthetic_banner"))}</div>` : "";
+    ? `<div class="synthetic-banner">${esc(t("portfolio.synthetic_banner"))}</div>${boundaryBadges()}` : "";
 }
 
 const PLAN_LAYOUT_SECTIONS = [
@@ -3177,6 +3189,7 @@ async function smePortfolio(el) {
     + pageTitle(t("portfolio.title"), t("portfolio.lead"))
     + `<div class="btn-group mb-16"><button type="button" class="btn btn-secondary btn-sm" data-act="tour-household">
         ${esc(t("tour.household.start"))}</button></div>`
+    + judgeDemoCard(synthetic)
     + `<div class="portfolio-summary">
       ${portfolioCollection(t("portfolio.members"), members, member => `<div class="portfolio-row">
         <strong>${esc(member.name || "")}</strong><span>${esc(titleCase(member.relationship || ""))}</span></div>`, t("portfolio.no_members"))}
@@ -3190,6 +3203,38 @@ async function smePortfolio(el) {
     <section class="portfolio-policies" aria-label="${esc(t("portfolio.policies"))}">
       <h2>${esc(t("portfolio.policies"))}</h2>${policies.map(planLayoutCard).join("")}</section>`
     + (synthetic ? demoResetCard() : "");
+}
+
+function judgeDemoCard(synthetic) {
+  const first = synthetic ? "sme-ask" : "load";
+  const preflight = S.demoPreflight || null;
+  const storage = preflight?.storage || {};
+  const fixtures = preflight?.fixtures || {};
+  const corpus = preflight?.corpus || {};
+  const offline = preflight?.offline_boundary || {};
+  const state = value => value === true ? t("judge_demo.preflight_ok") : t("judge_demo.preflight_not_ready");
+  const checks = preflight ? `<dl class="demo-preflight__grid"><dt>${esc(t("judge_demo.preflight_storage"))}</dt><dd>${esc(state(storage.configured))}</dd>
+      <dt>${esc(t("judge_demo.preflight_fixture"))}</dt><dd>${esc(state(fixtures.household_fixture_complete))}</dd>
+      <dt>${esc(t("judge_demo.preflight_corpus"))}</dt><dd>${esc(corpus.complete === true
+        ? t("judge_demo.preflight_ok") : `${t("judge_demo.preflight_not_ready")} (${Number(corpus.available_count || 0)}/${Number(corpus.document_count || 0)})`)}</dd>
+      <dt>${esc(t("judge_demo.preflight_offline"))}</dt><dd>${esc(state(offline.local_mode === true && offline.live_sources_disabled === true && offline.deterministic_only === true))}</dd></dl>
+      <p class="text-xs text-muted">${esc(preflight.notice || "")}</p>`
+    : `<p class="text-xs text-muted">${esc(t("judge_demo.preflight_not_run"))}</p>`;
+  return `<section class="card mb-16 judge-demo" aria-labelledby="judge-demo-title">
+    <div class="card-head"><h2 id="judge-demo-title">${esc(t("judge_demo.title"))}</h2>
+      <span class="tag">${esc(t("judge_demo.local_only"))}</span></div>
+    <p class="text-sm">${esc(t("judge_demo.body"))}</p>
+    <p class="text-xs text-muted">${esc(t("judge_demo.boundary"))}</p>
+    <ol class="text-sm"><li>${esc(t("judge_demo.step_load"))}</li><li>${esc(t("judge_demo.step_ask"))}</li>
+      <li>${esc(t("judge_demo.step_evidence"))}</li><li>${esc(t("judge_demo.step_action"))}</li>
+      <li>${esc(t("judge_demo.step_receipt"))}</li></ol>
+    <p class="text-xs text-muted">${esc(t("judge_demo.recovery"))}</p>
+    <div class="btn-group"><button type="button" class="btn btn-primary btn-sm" data-act="judge-demo" data-arg="${first}">
+      ${esc(synthetic ? t("judge_demo.open_ask") : t("judge_demo.load_first"))}</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-act="judge-demo" data-arg="sme-claims">${esc(t("judge_demo.open_claims"))}</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-act="judge-demo" data-arg="preflight">${esc(t("judge_demo.preflight"))}</button></div>
+    <section class="demo-preflight mt-12" aria-live="polite"><h3>${esc(t("judge_demo.preflight_title"))}</h3>${checks}</section>
+  </section>`;
 }
 
 /* The demo reset. Two steps, because the second deletes stored records: the first click
@@ -3376,10 +3421,54 @@ function agentConfirmationPreview(item) {
     </section>`;
 }
 
+function agentActionReceipt(plan, agentStatus, inbox, ledger) {
+  const confirmation = (inbox.confirmations || [])[0] || null;
+  const result = S.agentConfirmation || null;
+  const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+  const verification = ledger?.verification || {};
+  return `<section class="card mb-16 agent-receipt" aria-labelledby="agent-receipt-title">
+    <div class="card-head"><h3 id="agent-receipt-title">${esc(t("agent.receipt_title"))}</h3>
+      <span class="tag">${esc(t("agent.receipt_local"))}</span></div>${boundaryBadges()}
+    <dl class="agent-receipt__grid"><dt>${esc(t("agent.receipt_consent"))}</dt><dd>${esc(String(agentStatus.consent?.granted === true))}</dd>
+      <dt>${esc(t("agent.receipt_plan"))}</dt><dd>${esc(steps.map(step => step.summary || step.state || "").filter(Boolean).join(" · ") || t("agent.receipt_none"))}</dd>
+      <dt>${esc(t("agent.receipt_confirmation"))}</dt><dd>${esc(confirmation?.payload_hash || result?.payload_hash || t("agent.receipt_none"))}</dd>
+      <dt>${esc(t("agent.receipt_result"))}</dt><dd>${esc(result?.result?.counterparty || result?.counterparty || t("agent.receipt_pending"))}</dd>
+      <dt>${esc(t("agent.receipt_ledger"))}</dt><dd>${esc(verification.valid === true ? t("agent.receipt_valid") : t("agent.receipt_pending"))}</dd></dl>
+    <p class="text-xs text-muted">${esc(t("agent.receipt_boundary"))}</p>
+    <button type="button" class="btn btn-secondary btn-sm" data-act="judge-demo" data-arg="export-evidence">${esc(t("judge_demo.evidence_export"))}</button>
+    <p class="text-xs text-muted">${esc(t("judge_demo.evidence_export_boundary"))}</p>
+  </section>`;
+}
+
+async function demoPreflight() {
+  try {
+    S.demoPreflight = await api("/api/demo/preflight");
+  } catch (error) {
+    S.demoPreflight = { notice: error.message || String(error) };
+  }
+  render();
+}
+
+async function exportEvaluationEvidence() {
+  try {
+    const doc = await api("/api/evaluation/evidence-export");
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "veris-evaluation-evidence.json";
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast(t("judge_demo.evidence_export_done"));
+  } catch (error) {
+    toast(error.message || String(error), "err");
+  }
+}
+
 async function smeClaims(el) {
   el.innerHTML = spinner(t("claims.loading"));
-  const [portfolio, claimData, agentStatus, inbox] = await Promise.all([
+  const [portfolio, claimData, agentStatus, inbox, ledger] = await Promise.all([
     api("/api/portfolio"), api("/api/claims"), api("/api/agent/status"), api("/api/agent/confirmations"),
+    api("/api/agent/ledger").catch(() => ({ records: [], verification: { valid: false } })),
   ]);
   if (!portfolio || !claimData || !agentStatus || !inbox) return;
   const policies = (portfolio.policies || []).filter(policy =>
@@ -3512,6 +3601,7 @@ async function smeClaims(el) {
       ${(S.settlementResult?.check?.notice || "") ? `<p class="text-sm mt-12">${esc(S.settlementResult.check.notice)}</p>` : ""}
       ${(S.reconciliation?.notice || "") ? `<p class="text-sm mt-12">${esc(S.reconciliation.notice)}</p>` : ""}
     </div>` : "")
+    + agentActionReceipt(plan, agentStatus, inbox, ledger)
     + `<div class="card mb-16 agent-trace" id="agent-trace" role="log" aria-live="polite" aria-relevant="additions text"
         aria-labelledby="agent-trace-title"><div class="card-head"><h3 id="agent-trace-title">${esc(t("agent.trace_title"))}</h3></div>${trace}${draftSummary}</div>
       <div class="card mb-16"><div class="card-head"><h3>${esc(t("agent.confirmations_title"))}</h3></div>

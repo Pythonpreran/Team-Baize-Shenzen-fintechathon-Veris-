@@ -395,7 +395,9 @@ class PresentationResult:
     available: bool
     mode: str
     presentation: dict = field(default_factory=dict)
+    # Retained for server logs and tests; transport diagnostics are not presentation copy.
     error: Optional[str] = None
+    public_error: Optional[str] = None
     cached: bool = False
     semantic_category: str = ""
     provider_used: Optional[str] = None
@@ -403,7 +405,7 @@ class PresentationResult:
     def as_dict(self) -> dict:
         return {
             "available": self.available, "mode": self.mode,
-            "presentation": self.presentation, "error": self.error,
+            "presentation": self.presentation, "error": self.public_error,
             "cached": self.cached, "semantic_category": self.semantic_category,
             "provider": self.provider_used,
             "boundary": ("The model chose the wording and the chart. Every number came "
@@ -426,6 +428,7 @@ def compose(purpose: str, verified_context: dict, *, model_allowed: bool = False
         return PresentationResult(
             True, "DETERMINISTIC_FALLBACK", base,
             error="AI processing needs the tenant's explicit consent.",
+            public_error="AI processing needs the tenant's explicit consent.",
             semantic_category=category)
 
     hit = _cache_get(key)
@@ -1113,7 +1116,7 @@ def status() -> dict:
             "and its wording is thrown away if it invents a figure or states a "
             "coverage outcome."
             if on else
-            "No model key is configured, so wording comes from written templates. Every "
-            "finding, number and piece of evidence works exactly the same either way."
+            "Evidence-grounded standard wording is active. Every finding, number and "
+            "piece of evidence remains traceable to the same deterministic sources."
         ),
     }

@@ -1,79 +1,129 @@
-# VERIS
+# VERIS V4
 
-VERIS is an **evidence-bound insurance agent** for households and small businesses. It reads policies already held, answers with page-cited evidence, maps documented gaps and overlaps, prepares local synthetic claim work, and stops for confirmation before a tier-2 synthetic action. A deterministic core computes every number; no model decides coverage, settlement, evidence class, premium, or product choice.
+VERIS is an evidence-bound insurance workflow demonstration for households and small businesses. It turns supplied or generated local policy material into page-cited answers, documented gaps and overlaps, deterministic illustrations, and controlled synthetic action preparation.
 
-> This repository contains local synthetic demonstrations and evidence only. It does not claim a real insurer/bank integration, payment, hosted deployment, video, registration, or submission.
+**Decision boundary:** citations, evidence states, calculations, rule outcomes, and action permissions are deterministic. Optional, consented language assistance may propose or present wording, but it cannot decide coverage, settlement, evidence class, premium, or product choice.
 
-## Quickstart
+## What VERIS does
+
+| Capability | Current implementation |
+| --- | --- |
+| Evidence-grounded review | Validates local policy inputs, retains page-cited evidence, and returns documented, missing-information, or authorised-review states instead of inventing an answer. |
+| Portfolio understanding | Maintains an encrypted, tenant-scoped household or small-business portfolio and maps documented protection gaps and overlaps. |
+| Deterministic workflows | Prepares synthetic claim, query, settlement-check, renewal, and escalation work from evidence and deterministic rules. |
+| Permissioned actions | Uses consent, canonical payloads, step-up confirmation, idempotency, and an HMAC-chained receipt ledger before a tier-2 synthetic action. |
+| Evaluation evidence | Provides an owner-scoped Agent Action Receipt and local evaluator-evidence export containing recorded citations, rule details, missing inputs, and action state. |
+
+## Architecture
+
+```text
+Local policy material or generated synthetic documents
+                    |
+                    v
+      Validated intake and page-cited evidence
+                    |
+                    v
+     Deterministic rules and calculations
+                    |
+                    v
+       Encrypted tenant-scoped portfolio
+            |                         |
+            v                         v
+ Cited answers, maps, drafts   Permissioned agent
+                                      |
+                                      v
+                  Private local synthetic sandbox + receipt ledger
+```
+
+Optional language assistance is constrained to source-backed proposal or presentation work. Deterministic evidence, rules, calculations, and action controls remain authoritative.
+
+## Five-minute local demo
+
+Start the local demo using the Windows setup below, then follow this 4–5 minute path:
+
+| Time | Action | Show |
+| --- | --- | --- |
+| 0:00–0:25 | Open `http://127.0.0.1:8000`, sign in as the listed local demo owner, then open **Portfolio → Guided Judge Demo → Check local prerequisites**. | Local configuration, fixture/corpus presence, role/session state, and offline switches. |
+| 0:25–1:40 | Start the labelled synthetic household and open **Ask VERIS**. Ask a supported policy question, then open its cited source. | Evidence state, page citation, and the source drawer. |
+| 1:40–2:35 | Ask an outcome question outside the available evidence. | A named missing input or authorised-review state rather than a coverage or payment decision. |
+| 2:35–3:20 | Open **Claims** and prepare the synthetic packet/checklist. | Cited checklist items and the exact confirmation boundary. |
+| 3:20–5:00 | Open **Agent Action Receipt** and download evaluator evidence. | Recorded consent, plan, payload hash, ledger state, and the owner-scoped JSON export. Stop before confirmation unless a private local sandbox rehearsal has been deliberately configured. |
+
+For recovery steps and the complete walkthrough, see the [local demo runbook](docs/DEMO-RUNBOOK.md).
+
+## Windows setup
+
+### Recommended safe start
+
+From PowerShell in this repository:
+
+```powershell
+.\scripts\start-local-demo.ps1 -Install -SeedCorpus
+```
+
+The script uses a project-local virtual environment, keeps the portfolio database outside Git, enables local deterministic/offline operation, and binds only to `127.0.0.1`. With `-SeedCorpus`, it verifies locally available corpus material by hash; unavailable or mismatched wording remains visibly absent rather than inferred.
+
+### Manual start
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt -e .
-python scripts/fetch_corpus.py --seed-from ../06-evidence
 $env:VERIS_PORTFOLIO_DB_PATH = "$env:LOCALAPPDATA\veris-demo\portfolio.sqlite"
-python -m uvicorn proven.api:app --port 8000
+$env:VERIS_LLM_PROFILE = "none"
+$env:PROVEN_LIVE_SOURCES = "0"
+python -m uvicorn proven.api:app --host 127.0.0.1 --port 8000
 ```
 
-`VERIS_PORTFOLIO_DB_PATH` is required: the encrypted household and business portfolio refuses to start without an explicit database path, and every portfolio screen says so until it is set. Keep it outside the repository. In local mode a development master key is generated beside the database on first use; hosted mode must supply `VERIS_MASTER_KEY`.
+Open `http://127.0.0.1:8000`. Keep local mode loopback-only: do not expose it through a LAN bind, tunnel, or public endpoint.
 
-Open `http://localhost:8000` and sign in as the business owner from the demo accounts the login screen lists, then load the example household from the Portfolio screen. The default local mode supports the offline synthetic demo and shows its seeded passwords openly, so do not expose it to a network or a tunnel; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for hosted mode.
+## Test and release gate
 
-To run the local synthetic claim-to-correction composition, follow the generated-local-credential instructions in [docs/DEMO-RUNBOOK.md](docs/DEMO-RUNBOOK.md), then run:
+| Purpose | Command |
+| --- | --- |
+| Full Python test suite | `python -m pytest -q -p no:warnings` |
+| Release gate | `.\scripts\run-release-gate.ps1` |
 
-```powershell
-docker compose up --build
-```
+The release gate runs corpus status, tests, deployment smoke checks, JavaScript syntax checks, repository and i18n checks, dependency and static-security scans, deterministic red-team checks, the evaluation benchmark, compliance, documentation, and evidence verification. It writes logs outside the repository and preserves corpus-dependent skips as skips.
 
-The sandbox stays private to the compose network and makes no real external call.
+## Repository structure
 
-## Verify
+| Path | Purpose |
+| --- | --- |
+| `src/proven/` | FastAPI application, evidence pipeline, deterministic rules, portfolio storage, and permissioned agent runtime. |
+| `web/` | Static owner-facing application and localisation resources. |
+| `scripts/` | Local startup, release-gate, smoke, corpus, documentation, and evidence checks. |
+| `tests/` | Offline unit, integration, security, and delivery-artifact tests. |
+| `docs/` | Technical, security, integration, evaluation, deployment, and demo documentation. |
+| `corpus/` | Manifest and hashes for third-party material stored outside the repository. |
+| `evidence/` and `security/` | Deterministic local evidence bundle and red-team material. |
+| `fixtures/` and `demo-documents/` | Labelled synthetic demonstration inputs. |
 
-```powershell
-python -m pytest -q -p no:warnings
-python scripts/smoke_deployment.py
-node --check web/app.js
-node --check web/reviewer.js
-python scripts/scan_repo.py
-python scripts/check_i18n.py
-pip-audit --progress-spinner off
-bandit -q -r src -ll
-python -m security.redteam
-python -m eval.bench --all
-python scripts/generate_compliance_matrix.py --check
-python scripts/check_docs.py
-python scripts/verify_evidence.py
-```
+## Documentation
 
-## Canonical test cases
+| Need | Start here |
+| --- | --- |
+| Documentation index | [docs/README.md](docs/README.md) |
+| Architecture and algorithms | [Technical documentation](docs/TECHNICAL.md) |
+| Demo walkthrough and recovery | [Local demo runbook](docs/DEMO-RUNBOOK.md) |
+| Judge-facing controls and evidence | [Judge-readiness package](docs/JUDGE-READINESS.md) |
+| Local synthetic adapter contract | [Integration readiness](docs/INTEGRATION-READINESS.md) |
+| Security controls and reporting | [Security policy](SECURITY.md) and [security self-assessment](docs/SECURITY-SELF-ASSESSMENT.md) |
+| Local benchmarks and evidence export | [Evaluation](docs/EVALUATION.md) and [evidence bundle](evidence/README.md) |
+| Current implementation boundary | [Current scope and implementation conditions](docs/disadvantages.md) |
 
-1. Cited declared-condition waiting-period answer.
-2. Honest abstention naming the missing document.
-3. Protection map with documented states and a sourced compulsory alert where evidence permits.
-4. Evidence-bound health illustration.
-5. Synthetic health-claim intake, checklist, packet, and confirmation boundary.
-6. Synthetic insurer-query reply preparation.
-7. Synthetic settlement check, dispute preparation, correction receipt, and reconciliation.
-8. Synthetic overdue-claim escalation gate.
-9. Renewal and synthetic insurer-invoice payment under a live mandate, with exact-payload confirmation and step-up — local test contract.
-10. Renewal comparison — local test contract.
-11. Time-limited consent to share with a named recipient, then revocation — local test contract.
-12. Small-business adviser action workflow — local test contract.
+## Scope and security
 
-## Documentation and evidence
+VERIS V4 is a controlled local/synthetic demonstration, not a live counterparty or production operation. The private sandbox represents no insurer, bank, TPA, payment rail, claim decision, settlement, or money movement. Third-party policy material remains outside the repository and is tracked through a manifest with source and hash metadata.
 
-Start at [docs/README.md](docs/README.md). The generated local evidence bundle is in [evidence/README.md](evidence/README.md); verify it with `python scripts/verify_evidence.py`.
+Use cited output, missing-information states, and authorised review as the product's decision boundary. Read the [current scope](docs/disadvantages.md), [security policy](SECURITY.md), and [integration-readiness contract](docs/INTEGRATION-READINESS.md) before hosting or considering any external connection.
 
-Published third-party policy documents are not in the repository. [corpus/manifest.yaml](corpus/manifest.yaml) records their source and hashes; `scripts/fetch_corpus.py` retrieves them into a separate corpus directory. The viewer displays cited excerpts and publisher links rather than full corpus pages.
+## Contributing
 
-## Security posture
+Contributions should be focused, preserve the evidence and local/synthetic boundaries, include appropriate tests and documentation, and pass the release gate before review.
 
-`VERIS_MODE=local` is an offline demo posture. `VERIS_MODE=hosted` requires invite-only login, CSRF, secure cookies, HSTS, parser limits, outbound allowlisting, and environment-only secrets. Read [docs/SECURITY-SELF-ASSESSMENT.md](docs/SECURITY-SELF-ASSESSMENT.md) before hosting.
+## License and credits
 
-## Licence
+VERIS is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) and [open-source component notices](OPEN-SOURCE.md) for attribution and third-party-material conditions.
 
-[Apache License 2.0](LICENSE) — see [NOTICE](NOTICE), [OPEN-SOURCE.md](OPEN-SOURCE.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and [SECURITY.md](SECURITY.md).
-
-## Team
-
-Preran S Gowda, Shamanth M S, Shreya Belavatha Jayaram and Shashank S.
+Created by Preran S Gowda, Shamanth M S, Shreya Belavatha Jayaram, and Shashank S.

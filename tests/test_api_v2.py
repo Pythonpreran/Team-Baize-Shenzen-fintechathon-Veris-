@@ -647,9 +647,13 @@ COVERED: set[tuple[str, str]] = {
     ("GET", "/api/policies/{policy_id}/coverage/{coverage_id}/evidence"),
     ("GET", "/api/portfolio/documents/{document_id}/page/{page_no}"),
     ("POST", "/api/portfolio/example-household"),
-    # Demo reset — covered in test_demo_reset.py: synthetic-only, idempotent, tenant-scoped,
-    # owner uploads kept, hosted mode behind sign-in and CSRF.
+    # Demo reset and preflight — covered in test_demo_reset.py and
+    # test_submission_readiness_api.py. Preflight is owner-only and reads local state only.
     ("POST", "/api/demo/reset"),
+    ("GET", "/api/demo/preflight"),
+    # Owner-only evaluator export; test_submission_readiness_api.py holds its tenant,
+    # citation, action-receipt and non-secret response contract.
+    ("GET", "/api/evaluation/evidence-export"),
     # The installable shell's service worker — covered in test_pwa.py.
     ("GET", "/sw.js"),
     # Encrypted portfolio privacy controls — covered in test_privacy.py. These are

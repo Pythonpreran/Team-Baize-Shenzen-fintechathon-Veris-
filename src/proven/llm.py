@@ -728,8 +728,11 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
         current.endpoint or "", data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers=headers)
     last_error = "Model transport did not return a response."
+    failure_result = "TRANSPORT_ERROR"
+    open_circuit = False
     body: Optional[dict] = None
     for attempt in range(current.retries + 1):
+        retryable = False
         try:
             with urllib.request.urlopen(request, timeout=current.timeout_seconds) as response:  # nosec B310
                 parsed = json.loads(response.read().decode("utf-8"))
@@ -738,22 +741,55 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
             body = parsed
             break
         except urllib.error.HTTPError as exc:
-            last_error = f"Model provider returned HTTP {exc.code}."
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            last_error = f"Model transport failed: {type(exc).__name__}."
-        except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
-            last_error = f"Model response was invalid: {type(exc).__name__}."
-        if attempt < current.retries:
-            continue
+            status = int(exc.code)
+            if status == 429:
+                # A quota/rate-limit response is authoritative for this request. Retrying it
+                # spends another request without producing a safer answer, so the caller must
+                # use the deterministic result immediately.
+                last_error = ("Model provider quota or rate limit is unavailable; "
+                              "deterministic output is being used.")
+                failure_result = "QUOTA_EXHAUSTED"
+                open_circuit = True
+            elif status in (401, 403):
+                last_error = ("Model provider authentication is unavailable; deterministic "
+                              "output is being used.")
+                failure_result = "AUTHENTICATION_ERROR"
+                open_circuit = True
+            elif 500 <= status <= 599:
+                last_error = ("Model provider is temporarily unavailable; deterministic "
+                              "output is being used.")
+                failure_result = "PROVIDER_5XX"
+                retryable = True
+            else:
+                last_error = ("Model provider rejected the request; deterministic output "
+                              "is being used.")
+                failure_result = f"HTTP_{status}"
+        except TimeoutError:
+            last_error = "Model provider timed out; deterministic output is being used."
+            failure_result = "TIMEOUT"
+            retryable = True
+        except (urllib.error.URLError, OSError):
+            last_error = "Model provider could not be reached; deterministic output is being used."
+            failure_result = "NETWORK_ERROR"
+            retryable = True
+        except (UnicodeDecodeError, ValueError):
+            last_error = "Model response was invalid; deterministic output is being used."
+            failure_result = "MALFORMED_RESPONSE"
+        if not retryable or attempt >= current.retries:
+            break
 
     intent_hash = sha256(intent.encode("utf-8")).hexdigest() if intent else None
     if body is None:
         _record_failure(current.profile.name)
+        if open_circuit:
+            with _LOCK:
+                _CIRCUIT_UNTIL[current.profile.name] = (
+                    time.monotonic() + _CIRCUIT_COOLDOWN_SECONDS)
         log_id = _append_prompt_log(
             tenant, profile=current.profile.name, model=current.model,
             model_version=current.model_version, purpose=purpose,
             messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
-            result="TRANSPORT_ERROR")
+            result=failure_result)
         return ChatResult(False, error=last_error, profile=current.profile.name,
                           model=current.model, model_version=current.model_version,
                           prompt_log_id=log_id, input_tokens=estimated, _redactor=vault)
@@ -767,16 +803,43 @@ def chat(messages: Sequence[Mapping[str, Any]], *, json_mode: bool = False,
             tenant, profile=current.profile.name, model=current.model,
             model_version=provider_model_version, purpose=purpose,
             messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
+            result="MALFORMED_RESPONSE")
+        return ChatResult(False, error="Model response was invalid; deterministic output is being used.",
+                          profile=current.profile.name, model=current.model,
+                          model_version=provider_model_version, prompt_log_id=log_id,
+                          input_tokens=estimated, _redactor=vault)
+
+    raw_content = message.get("content")
+    calls = _parse_tool_calls(message, offered_bindings, intent)
+    if raw_content is not None and not isinstance(raw_content, str):
+        _record_failure(current.profile.name)
+        log_id = _append_prompt_log(
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=provider_model_version, purpose=purpose,
+            messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
+            result="MALFORMED_RESPONSE")
+        return ChatResult(False, error="Model response was invalid; deterministic output is being used.",
+                          profile=current.profile.name, model=current.model,
+                          model_version=provider_model_version, prompt_log_id=log_id,
+                          input_tokens=estimated, _redactor=vault)
+    content = (raw_content or "").strip()
+    # Tool calls may intentionally carry no prose. Every non-tool user-facing path must
+    # reject an empty completion so it becomes a deterministic answer, never a blank card.
+    if not content and not tool_payload:
+        _record_failure(current.profile.name)
+        log_id = _append_prompt_log(
+            tenant, profile=current.profile.name, model=current.model,
+            model_version=provider_model_version, purpose=purpose,
+            messages=safe_messages, token_summary=vault.token_summary(), intent_hash=intent_hash,
             result="EMPTY_RESPONSE")
-        return ChatResult(False, error="Model response had no message.", profile=current.profile.name,
-                          model=current.model, model_version=provider_model_version,
-                          prompt_log_id=log_id, input_tokens=estimated, _redactor=vault)
+        return ChatResult(False, error="Model response was empty; deterministic output is being used.",
+                          profile=current.profile.name, model=current.model,
+                          model_version=provider_model_version, prompt_log_id=log_id,
+                          input_tokens=estimated, _redactor=vault)
 
     _record_success(current.profile.name)
-    content = str(message.get("content") or "").strip()
     usage = body.get("usage") if isinstance(body.get("usage"), Mapping) else {}
     output_tokens = int(usage.get("completion_tokens") or _estimate_tokens(content))
-    calls = _parse_tool_calls(message, offered_bindings, intent)
     log_id = _append_prompt_log(
         tenant, profile=current.profile.name, model=current.model,
         model_version=provider_model_version, purpose=purpose,
@@ -942,7 +1005,8 @@ def status() -> dict:
             "prompt_logs_redacted": True,
             "prompt_logs_record_model_version": True,
         },
-        "notice": ("The selected profile is disabled; deterministic processing remains available."
+        "notice": ("Evidence-grounded local processing is active."
                    if not current.enabled else
-                   "Model prompts are redacted, bounded and audited. Deterministic gates decide what may be shown."),
+                   "Optional provider prompts are redacted, bounded and audited. "
+                   "Deterministic gates decide what may be shown."),
     }

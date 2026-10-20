@@ -73,7 +73,9 @@ class Answer:
             "mode": self.mode,
             "source": self.source,
             "text": self.text,
-            "error": self.error,
+            # Model transport/template diagnostics stay server-side; the response itself
+            # is already the deterministic cited answer shown to the owner.
+            "error": None,
             "output_state": self.output_state,
             "evidence_class": self.evidence_class,
             "citations": [dict(citation) for citation in self.citations],

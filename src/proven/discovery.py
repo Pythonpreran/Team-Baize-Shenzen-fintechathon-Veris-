@@ -559,7 +559,10 @@ def propose_facts_from_text(text: str, source_name: str, *, model_allowed: bool 
         user_intent="Identify factual text on this selected public source",
     )
     if not result.available:
-        meta["error"] = (result.error or "model transport unavailable").split(":", 1)[0]
+        # Keep the detailed shared-boundary diagnostic server-side. This generic value is
+        # retained only for callers/tests that need to distinguish an attempted extraction
+        # from an empty factual page.
+        meta["error"] = "Model transport failed"
         return [], meta
     try:
         parsed = json.loads(result.display_text() or "{}")
@@ -1022,7 +1025,11 @@ def discover_business(
         meta["discarded_ungrounded"] = len(rej)
         facts.extend(kept)
         rejected.extend(rej)
-        extraction_log.append(meta)
+        public_meta = dict(meta)
+        # A usable source/evidence result stands on its own; provider diagnostics are
+        # retained by the call boundary and tests, not shown in the discovery workspace.
+        public_meta["error"] = None
+        extraction_log.append(public_meta)
 
     # ── Source 1: ACRA (authority) ──────────────────────────────────────────
     if live:

@@ -544,6 +544,269 @@ def demo_reset(body: DemoResetIn, session: Session = Depends(_session)):
     }
 
 
+# ── local demo preflight and evaluator evidence export ───────────────────────
+
+EVALUATION_EVIDENCE_EXPORT_FORMAT = "veris.evaluation-evidence.v1"
+
+
+def _preflight_corpus_state() -> dict:
+    """Report local corpus presence without paths, hashes, or network probes."""
+    try:
+        documents = corpus.documents()
+        absent = corpus.missing()
+    except corpus.CorpusError:
+        return {
+            "manifest_readable": False,
+            "document_count": None,
+            "available_count": None,
+            "missing_document_ids": [],
+            "complete": False,
+            "notice": "The local corpus manifest could not be read; no corpus status was inferred.",
+        }
+    return {
+        "manifest_readable": True,
+        "document_count": len(documents),
+        "available_count": len(documents) - len(absent),
+        "missing_document_ids": absent,
+        "complete": not absent,
+        "notice": (
+            "Presence only: this check does not download, contact a publisher, or re-verify "
+            "corpus hashes. Run scripts/verify_evidence.py and corpus-dependent tests for "
+            "release evidence."
+        ),
+    }
+
+
+def _preflight_fixture_state(session: Session) -> dict:
+    """State only the generated fixture and session marker; never open storage here."""
+    expected = [spec.filename for spec in household.DOCUMENTS]
+    available = [name for name in expected if (HOUSEHOLD_EXAMPLE_DIR / name).is_file()]
+    with session.lock:
+        loaded = bool(session.state.get("_household_example_case_id"))
+    return {
+        "household_fixture_expected": len(expected),
+        "household_fixture_available": len(available),
+        "household_fixture_complete": len(available) == len(expected),
+        "synthetic_household_loaded_in_this_session": loaded,
+        "notice": (
+            "Fixture availability and this browser session's load marker only. This does not "
+            "inspect, create, or alter a portfolio database."
+        ),
+    }
+
+
+@app.get("/api/demo/preflight")
+def demo_preflight(session: Session = Depends(_session)):
+    """Check local demo prerequisites without touching external services or secrets."""
+    _scope, principal = _agent_scope(session)
+    storage = persistence.status()
+    ai = config.ai_status()
+    mode = security.mode()
+    return {
+        "format": "veris.demo-preflight.v1",
+        "role": principal.role,
+        "storage": {
+            "configured": bool(storage.get("path_configured")),
+            "persistent": bool(storage.get("persistent")),
+            "encryption": storage.get("encryption"),
+            "master_key_source": storage.get("master_key_source"),
+        },
+        "fixtures": _preflight_fixture_state(session),
+        "corpus": _preflight_corpus_state(),
+        "offline_boundary": {
+            "mode": mode,
+            "local_mode": mode == "local",
+            "live_sources_disabled": not config.live_sources_enabled(),
+            "deterministic_only": ai.get("mode") == "DETERMINISTIC_ONLY",
+            "external_services_checked": False,
+            "notice": (
+                "This endpoint reads local configuration and fixture state only. It does not "
+                "contact an insurer, bank, TPA, model provider, corpus publisher, or sandbox."
+            ),
+        },
+        "notice": (
+            "This is a local prerequisite check, not a readiness assertion. It does not establish "
+            "insurance correctness, professional review, real interoperability, hosted deployment, "
+            "customer benefit, or submission status."
+        ),
+    }
+
+
+def _evidence_export_citations(value: object) -> list[dict]:
+    """Copy only the stable citation fields already stored with a finding."""
+    citations = []
+    for span in value if isinstance(value, list) else []:
+        if not isinstance(span, Mapping):
+            continue
+        citations.append({
+            "span_id": span.get("span_id"),
+            "document_id": span.get("document_id"),
+            "page": span.get("page_no", span.get("page")),
+            "char_start": span.get("char_start"),
+            "char_end": span.get("char_end"),
+            "quote": span.get("quote"),
+        })
+    return citations
+
+
+def _evidence_export_missing_inputs(detail: Mapping[str, object]) -> dict:
+    """Expose existing missing/conflict operands without inventing a new conclusion."""
+    names = (
+        "missing_documents", "missing_facts", "missing_from_schedule",
+        "required_document", "conflicting_values",
+    )
+    return {name: detail[name] for name in names if name in detail}
+
+
+def _evidence_export_session_findings(session: Session) -> dict:
+    """Export a session's existing rule outputs without lazily creating a demo case."""
+    with session.lock:
+        brief = session.state.get("brief")
+    if not isinstance(brief, Mapping):
+        return {
+            "available": False,
+            "findings": [],
+            "notice": "No session finding output exists yet; the export did not generate one.",
+        }
+    findings = []
+    for finding in brief.get("findings") or []:
+        if not isinstance(finding, Mapping):
+            continue
+        detail = finding.get("detail") if isinstance(finding.get("detail"), Mapping) else {}
+        findings.append({
+            "rule_id": finding.get("rule_id"),
+            "headline": finding.get("headline"),
+            "output_state": finding.get("state"),
+            "evidence_class": finding.get("class"),
+            "citation_spans": _evidence_export_citations(finding.get("spans")),
+            "rule_citations": detail.get("cite", []),
+            "missing_inputs": _evidence_export_missing_inputs(detail),
+            "deterministic_detail": dict(detail),
+            "resolution_path": finding.get("resolution_path"),
+        })
+    return {
+        "available": True,
+        "findings": findings,
+        "notice": "Existing session findings only; this export neither reruns rules nor validates them externally.",
+    }
+
+
+def _evidence_export_portfolio_items(repository: persistence.PortfolioRepository,
+                                      scope: persistence.TenantScope) -> list[dict]:
+    """Expose tenant-bound seeded evidence without serving document blobs or pages."""
+    portfolio = repository.portfolio(scope)
+    items = []
+    for policy in portfolio.get("policies") or []:
+        if not isinstance(policy, Mapping):
+            continue
+        policy_id = str(policy.get("id") or "")
+        binding = repository.get_seed_binding(scope, policy_id) if policy_id else None
+        for item in policy.get("coverage_items") or []:
+            if not isinstance(item, Mapping):
+                continue
+            citation = None
+            if isinstance(binding, Mapping):
+                resolved = household.evidence_for_seeded_policy(
+                    str(binding.get("seed_id") or ""), binding.get("policy_index"),
+                    str(item.get("mechanism_code") or ""))
+                if resolved is not None:
+                    source_policy, source_coverage = resolved
+                    citation = {
+                        "document": source_policy.document_filename,
+                        "page": None,
+                        "quote": source_coverage.wording,
+                        "kind": "SYNTHETIC_SCHEDULE_QUOTE",
+                    }
+            items.append({
+                "policy_id": policy_id,
+                "country": policy.get("country"),
+                "line_of_business": policy.get("line_of_business"),
+                "policy_source": policy.get("source"),
+                "coverage_item_id": item.get("id"),
+                "mechanism_code": item.get("mechanism_code"),
+                "value": item.get("value"),
+                "unit": item.get("unit"),
+                "evidence_class": item.get("evidence_class"),
+                "evidence_span_ids": item.get("evidence_span_ids", []),
+                "source_document_id": item.get("source_document_id"),
+                "citation": citation,
+            })
+    return items
+
+
+def _evidence_export_claims(scope: persistence.TenantScope) -> list[dict]:
+    """Project stored claim/checklist state, not a new coverage or settlement result."""
+    exported = []
+    for claim in _claims_repository().list(scope):
+        checklist = []
+        for item in claim.get("checklist") or []:
+            if not isinstance(item, Mapping):
+                continue
+            source = item.get("source") if isinstance(item.get("source"), Mapping) else {}
+            checklist.append({
+                "item": item.get("item"),
+                "document_kind": item.get("document_kind"),
+                "packet_required": item.get("packet_required"),
+                "reason": item.get("reason"),
+                "source_state": source.get("state"),
+                "required_document": source.get("required_document"),
+                "citation": {
+                    "document": source.get("document"),
+                    "page": source.get("page"),
+                    "quote": source.get("quote"),
+                },
+            })
+        exported.append({
+            "claim_id": claim.get("id"),
+            "policy_id": claim.get("policy_id"),
+            "state": claim.get("state"),
+            "mode": claim.get("mode"),
+            "country": claim.get("country"),
+            "synthetic": claim.get("synthetic"),
+            "packet_manifest_sha256": claim.get("packet_manifest_sha256"),
+            "packet": claim.get("packet"),
+            "deadline": claim.get("deadline"),
+            "checklist": checklist,
+            "settlement_check": claim.get("settlement_check"),
+        })
+    return exported
+
+
+@app.get("/api/evaluation/evidence-export")
+def evaluation_evidence_export(session: Session = Depends(_session)):
+    """Download existing tenant evidence/action context for local evaluation inspection."""
+    scope, _principal = _agent_scope(session)
+    repository = _portfolio_repository()
+    runtime = _agent_runtime()
+    store = runtime.store
+    doc = {
+        "format": EVALUATION_EVIDENCE_EXPORT_FORMAT,
+        "environment": security.mode().upper(),
+        "scope": {
+            "access": "Signed-in SME tenant only.",
+            "contents": "Existing stored deterministic findings, portfolio evidence, claims and action records only.",
+            "limitations": [
+                "Not professional insurance validation or a ground-truth accuracy report.",
+                "Not evidence of a real insurer, bank, TPA, payment, claim submission, or hosted deployment.",
+                "No model decides coverage, settlement, evidence class, premium, or product choice.",
+            ],
+        },
+        "session_findings": _evidence_export_session_findings(session),
+        "portfolio_evidence": _evidence_export_portfolio_items(repository, scope),
+        "claims": _evidence_export_claims(scope),
+        "action_receipt": {
+            "consent": store.consent(scope.tenant_id),
+            "pending_confirmations": runtime.confirmation_inbox(scope),
+            "ledger_verification": store.verify_ledger(scope.tenant_id),
+            "ledger_records": store.ledger(scope.tenant_id),
+        },
+    }
+    return JSONResponse(
+        content=doc,
+        headers={"Content-Disposition": 'attachment; filename="veris-evaluation-evidence.json"'},
+    )
+
+
 # ── portfolio privacy and delegated-claim controls ──────────────────────────
 
 class PrivacyConsentIn(BaseModel):
@@ -3936,10 +4199,17 @@ def revoke_ai_processing_consent(session: Session = Depends(_session)):
 
 @app.get("/api/ai/prompt-log")
 def ai_prompt_log(session: Session = Depends(_session)):
-    """Owner-only redacted prompt audit records for this tenant."""
+    """Owner-visible redacted prompt records without transport diagnostics."""
     with session.lock:
         scope = _portfolio_scope(session)
-    return {"entries": llm.prompt_log(scope.tenant_id),
+    entries = []
+    for entry in llm.prompt_log(scope.tenant_id):
+        public_entry = dict(entry)
+        # Failure classes are retained in the server-side record for support/tests, not
+        # surfaced in a demo workspace where the local answer is already complete.
+        public_entry["result"] = "RECORDED"
+        entries.append(public_entry)
+    return {"entries": entries,
             "notice": "Prompt entries contain reversible tokens, never raw personal values."}
 
 

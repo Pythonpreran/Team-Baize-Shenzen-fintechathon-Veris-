@@ -1,19 +1,21 @@
 # Five-minute demo-video script
 
-**0:00–0:20 — Boundary.** Say that the displayed household and counterparty are synthetic and local. State that VERIS cites terms and does not decide claim outcomes.
+This is a recording script for the controlled local demonstration. Present VERIS as an evidence-bound, permissioned workflow using local/synthetic data and auditable action controls; keep the local/synthetic badges visible. It does not depict a live counterparty or production service. Detailed policy, language, deployment, and validation conditions are in [disadvantages.md](disadvantages.md).
 
-**0:20–1:00 — Portfolio and cited answer.** Load the labelled synthetic household. Ask for the declared-condition waiting-period date and open the cited wording.
+**0:00–0:25 — Scope and local preflight.** Show the Portfolio safety labels and **Check local prerequisites**. Say that the household and any counterparty records are local synthetic data; preflight reads local configuration/fixture state only.
 
-**1:00–1:30 — Honest uncertainty.** Ask an unsupported outcome question. Show the authorised-review state and the named document needed rather than a yes/no answer.
+**0:25–1:10 — Portfolio and cited answer.** Start the labelled synthetic household. Ask a supported policy question and open the exact citation/source drawer.
 
-**1:30–2:10 — Protection map and illustrations.** Show overlap, a neutral not-assessed item, the home-contents comparison against the owner's own list, and a cited health illustration. Say each is an illustration, not an amount payable.
+**1:10–1:40 — Honest uncertainty.** Ask an outcome question outside the available evidence. Show the authorised-review/missing-document state rather than a yes/no answer.
 
-**2:10–3:10 — Permissioned claim flow.** Prepare a synthetic claim, show its checklist and deadline, then show the exact payload confirmation and step-up boundary. Do not imply an external submission.
+**1:40–2:35 — Permissioned claim preparation.** Prepare a synthetic claim, show the checklist, cited/missing evidence, packet state, and exact payload confirmation. Describe it as prepared local workflow evidence.
 
-**3:10–3:50 — Settlement loop.** Show the local synthetic deduction review, dispute preparation, corrected synthetic receipt, and ledger verification.
+**2:35–3:20 — Consent and receipt.** Show consent/step-up controls, then **Agent Action Receipt**. Explain that pending/not-established fields remain recorded status rather than an approval, settlement, or payment decision.
 
-**3:50–4:20 — Mandate and language.** Show a renewal countdown and a sandbox invoice that can be paid only inside a live mandate. Switch the language to 中文（简体）: owner screens change, amounts keep the policy's own format, and an adviser screen says it stays in English.
+**3:20–4:05 — Evaluation evidence.** Download evaluator evidence JSON and explain it contains recorded citations, evidence states, deterministic details, missing inputs, and action/ledger status.
 
-**4:20–5:00 — Security and evidence.** Show hosted security posture, red-team report, scoreboard limits, and the evidence verifier. End with the human actions still required: hosting, reviewer study, translation review, recording, and submission.
+**4:05–4:30 — Scope and language.** If shown, switch to 中文（简体） and identify it as the current partial owner-facing interface. Refer to [disadvantages.md](disadvantages.md) for full language and policy scope.
 
-Screen-record the running application after a human review. This script is not a completed recording.
+**4:30–5:00 — Security and current scope.** Show the local release-gate evidence and point to the security documentation and [disadvantages.md](disadvantages.md) for current operating and validation conditions.
+
+Record a second local backup take after visual rehearsal. Use [DEMO-RUNBOOK.md](DEMO-RUNBOOK.md) for recovery steps.

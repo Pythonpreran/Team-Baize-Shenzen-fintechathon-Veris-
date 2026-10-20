@@ -7,10 +7,10 @@
 5. **Protection map and what-if — 3:00–3:50.** Show documented overlap, neutral unknowns, the home-contents illustration against the owner's own list, and an evidence-bound health illustration.
 6. **Claim-to-correction loop — 3:50–5:20.** Prepare the local synthetic claim, show confirmation, settlement check, dispute, corrected synthetic receipt, and ledger verification. Mention that motor claims follow the same path with a surveyor step.
 7. **Mandates, renewals, and privacy — 5:20–6:00.** A renewal countdown and a sandbox invoice paid only inside a live mandate; a scoped, time-limited delegate; consent artefacts and crypto-shred behind step-up.
-8. **Security — 6:00–7:00.** Permission tiers, hosted-mode controls, red-team result, and why local sandbox evidence is not real-counterparty evidence.
-9. **Countries and languages — 7:00–7:40.** Singapore and India in depth; Hong Kong, Malaysia, and mainland China packs where unverified law stays `CANDIDATE`; a third-country wording read with no legal statement; owner screens in Simplified Chinese.
-10. **Evaluation — 7:40–8:30.** Show the `none` scoreboard, the alignment measurement, exact derivations, and the absent expert metrics.
+8. **Security — 6:00–7:00.** Permission tiers, hosted-mode controls, red-team evidence, and the auditable local sandbox workflow.
+9. **Countries and languages — 7:00–7:40.** Show the current supported policy packs and owner-facing Simplified Chinese interface; use [disadvantages.md](disadvantages.md) for precise policy, jurisdiction, and language conditions.
+10. **Evaluation — 7:40–8:30.** Show the `none` scoreboard, alignment measurement, exact derivations, and the distinction between local engineering evidence and external validation.
 11. **Innovation and roadmap — 8:30–9:15.** Evidence-first agent participation, reviewer console, and the design-only evidence-anchoring gate (Merkle roots and metadata hashes only, not implemented).
-12. **Limits and ask — 9:15–10:00.** Candidate rules (including the withheld India motor penalty), unreviewed translations, no formal penetration test, synthetic counterparty, human review and hosting actions required.
+12. **Current scope and next steps — 9:15–10:00.** Summarise the controlled local workflow and direct the audience to [disadvantages.md](disadvantages.md) for current operating, validation, and deployment conditions.
 
-Do not state that a video, deployment, registration, or submission has happened until a human has completed it.
+Statements about recording, deployment, registration, or submission must match completed human work.

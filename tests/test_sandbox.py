@@ -267,6 +267,8 @@ def test_local_compose_declares_private_sandbox_authority_and_cited_demo_inputs(
     assert {"veris", "sandbox"} <= set(compose["services"])
     veris = compose["services"]["veris"]
     counterparty = compose["services"]["sandbox"]
+    assert veris["ports"] == ["127.0.0.1:8000:8000"]
+    assert "--host 0.0.0.0" in veris["command"]
     assert "ports" not in counterparty
     assert counterparty["expose"] == ["8200"]
     assert "sandbox.app:app" in counterparty["command"]

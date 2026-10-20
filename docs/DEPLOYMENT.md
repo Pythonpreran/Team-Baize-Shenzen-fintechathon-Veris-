@@ -18,7 +18,7 @@ $env:VERIS_LOCAL_SANDBOX_ADMIN_TOKEN = "<local-only admin capability>"
 docker compose up --build
 ```
 
-It exposes VERIS on port 8000 and keeps the sandbox private to the compose network. It is not a hosted configuration.
+It publishes VERIS only on `127.0.0.1:8000` and keeps the sandbox private to the Compose network. It is not a hosted configuration and must not be exposed through a tunnel or LAN bind. For the default one-process owner demo, prefer `scripts/start-local-demo.ps1`, which applies the same loopback and outside-Git portfolio boundary.
 
 ## Hosted topology
 

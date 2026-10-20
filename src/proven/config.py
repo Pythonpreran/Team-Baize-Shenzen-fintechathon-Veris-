@@ -153,13 +153,11 @@ def ai_status() -> dict:
         "provider_guardrails": shared["guardrails"],
         "token_budgets": shared["token_budgets"],
         "notice": (
-            "AI proposes, explains and routes within explicit consent. It never decides "
-            "coverage, resolves precedence or computes a settlement figure; every "
-            "user-visible model statement passes redaction and grounding gates."
+            "Optional provider responses are redacted, bounded and audited. They never "
+            "decide coverage, precedence, settlement, evidence class, premium or product choice."
             if active else
-            "No usable model profile is configured, so the AI layer is off. Every finding, "
-            "score and figure is produced by the deterministic engine and retrieval falls "
-            "back to lexical scoring with page-anchored evidence."
+            "Evidence-grounded local processing is active. Findings, scores and figures "
+            "come from deterministic rules and lexical retrieval with page-anchored evidence."
         ),
         "key_source": "environment" if active and current.api_key else None,
     }

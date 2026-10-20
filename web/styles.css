@@ -3092,6 +3092,10 @@ tbody tr:hover td:first-child {
 [data-s="COMPULSORY_GAP"] .pm__state{font-weight:600}
 .demo-reset h3{margin-bottom:6px}
 .demo-reset .btn-group{margin-top:12px}
+.judge-demo ol{margin:10px 0 8px;padding-left:22px}.judge-demo li{margin:5px 0}
+.boundary-badges{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.boundary-badges span{border:1px solid var(--border-subtle);border-radius:999px;padding:3px 7px;font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text-2);background:var(--surface-alt)}
+.agent-receipt__grid{display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr);gap:8px 14px;margin:10px 0}.agent-receipt__grid dt{font-size:12px;font-weight:700;color:var(--text-3)}.agent-receipt__grid dd{margin:0;font-size:12px;overflow-wrap:anywhere}
+.demo-preflight{border-top:1px solid var(--border-subtle);padding-top:12px}.demo-preflight h3{margin-bottom:8px}.demo-preflight__grid{display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,1fr);gap:6px 12px}.demo-preflight__grid dt{font-size:12px;font-weight:700;color:var(--text-3)}.demo-preflight__grid dd{margin:0;font-size:12px;overflow-wrap:anywhere}
 
 /* The installed app's offline page. */
 .offline-page{max-width:520px;margin:12vh auto;padding:32px 28px;background:var(--surface);border:1px solid var(--border-subtle);

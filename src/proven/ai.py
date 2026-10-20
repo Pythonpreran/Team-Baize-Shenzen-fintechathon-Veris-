@@ -153,17 +153,20 @@ class Proposal:
 
 @dataclass
 class AIResult:
-    """Envelope for every AI call, so the caller always knows what it got."""
+    """Envelope for every AI call, with diagnostics separate from public response data."""
 
     available: bool
     mode: str
     text: str = ""
     payload: dict = field(default_factory=dict)
+    # Transport/model details remain available to server code, tests and prompt logs.
     error: Optional[str] = None
+    # Only evidence/permission-safe messages are serialized to a browser.
+    public_error: Optional[str] = None
 
     def as_dict(self) -> dict:
         return {"available": self.available, "mode": self.mode, "text": self.text,
-                "error": self.error, **self.payload}
+                "error": self.public_error, **self.payload}
 
 
 def _chat(messages: list[dict], *, json_mode: bool = False,
@@ -195,6 +198,7 @@ def propose_mechanisms(
                   if not model_allowed else
                   (llm.settings().disabled_reason or "AI layer is off."))
         return AIResult(False, "DETERMINISTIC_ONLY", error=reason,
+                        public_error=(reason if not model_allowed else None),
                         payload={"proposals": [], "verified_count": 0,
                                  "rejected_count": 0})
 
@@ -225,9 +229,9 @@ def propose_mechanisms(
        user_intent="Identify candidate mechanisms in my selected policy evidence")
 
     if content is None:
-        return AIResult(True, "LLM_ASSISTED", error=error,
+        return AIResult(False, "DETERMINISTIC_FALLBACK", error=error,
                         payload={"proposals": [], "verified_count": 0,
-                                 "rejected_count": 0})
+                                 "rejected_count": 0, "source": "DETERMINISTIC"})
 
     try:
         raw = json.loads(content).get("mechanisms", [])
@@ -394,11 +398,13 @@ def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
     } for s in evidence[:3]]
 
     if not model_allowed or not config.ai_enabled():
+        reason = ("AI processing needs the tenant's explicit consent."
+                  if not model_allowed else llm.settings().disabled_reason)
         return AIResult(False, "DETERMINISTIC_ONLY",
-                        text=_deterministic_explanation(finding),
-                        error=("AI processing needs the tenant's explicit consent."
-                               if not model_allowed else llm.settings().disabled_reason),
-                        payload={"citations": citations, "source": "TEMPLATE"})
+                        text=_deterministic_explanation(finding), error=reason,
+                        public_error=(reason if not model_allowed else None),
+                        payload=_finding_fallback_payload(
+                            finding, citations, source="DETERMINISTIC"))
 
     # Pull extra context for the clause, so the explanation is grounded in more than
     # the one span the finding happened to anchor.
@@ -430,21 +436,23 @@ def explain_finding(conn: sqlite3.Connection, retriever: Retriever,
        user_intent="Explain this evidence-bound finding in plain language")
 
     if content is None:
-        return AIResult(True, "LLM_ASSISTED", text=_deterministic_explanation(finding),
-                        error=error,
-                        payload={"citations": citations, "source": "TEMPLATE"})
+        return AIResult(False, "DETERMINISTIC_FALLBACK",
+                        text=_deterministic_explanation(finding), error=error,
+                        payload=_finding_fallback_payload(
+                            finding, citations, source="DETERMINISTIC"))
 
     safe, rejection = llm.guard_user_visible(
         content, {"finding": finding, "facts": facts, "quoted": quoted, "passages": passages},
         citations=citations, require_citations=True)
     if not safe:
-        return AIResult(True, "LLM_ASSISTED", text=_deterministic_explanation(finding),
-                        error=rejection,
-                        payload={"citations": citations,
-                                 "source": "TEMPLATE_AFTER_REJECTION"})
+        return AIResult(False, "DETERMINISTIC_FALLBACK",
+                        text=_deterministic_explanation(finding), error=rejection,
+                        public_error=rejection,
+                        payload=_finding_fallback_payload(
+                            finding, citations, source="DETERMINISTIC_AFTER_REJECTION"))
 
     return AIResult(True, "LLM_ASSISTED", text=content,
-                    payload={"citations": citations, "source": "LLM",
+                    payload={**_finding_fallback_payload(finding, citations, source="LLM"),
                              "retrieval_method": retriever.method,
                              "passages_used": len(extra)})
 
@@ -474,73 +482,352 @@ def _sgd(value: object) -> str:
         return str(value or "")
 
 
-def _deterministic_explanation(finding: dict) -> str:
-    """Template fallback. Always available, always safe, never adjudicating."""
+def _readable_input(value: object) -> str:
+    return " ".join(str(value or "").replace("_", " ").split()).lower()
+
+
+def _missing_inputs(finding: dict) -> tuple[str, ...]:
+    """Return only operands the deterministic finding already marks as absent."""
     detail = finding.get("detail") or {}
+    if not isinstance(detail, dict):
+        return ()
+    values: list[str] = []
+    for key in ("missing_documents", "missing_facts"):
+        raw = detail.get(key) or ()
+        if isinstance(raw, str):
+            raw = (raw,)
+        if not isinstance(raw, (list, tuple, set)):
+            continue
+        for item in raw:
+            readable = _readable_input(item)
+            if readable and readable not in values:
+                values.append(readable)
+    required = _readable_input(detail.get("required_document"))
+    if required and required not in values:
+        values.append(required)
+    return tuple(values)
+
+
+def _finding_citations(finding: dict) -> list[dict]:
+    """Project stored finding spans without manufacturing a document description."""
+    citations: list[dict] = []
+    for span in finding.get("spans") or ():
+        if not isinstance(span, dict):
+            continue
+        quote = str(span.get("quote") or "").strip()
+        if not quote:
+            continue
+        page = span.get("page", span.get("page_no"))
+        citations.append({
+            "document": str(span.get("document") or "cited policy evidence"),
+            "document_id": span.get("document_id"),
+            "page": page,
+            "page_no": page,
+            "char_start": span.get("char_start"),
+            "char_end": span.get("char_end"),
+            "quote": quote,
+        })
+    return citations
+
+
+def _hit_citations(hits: list[Hit]) -> list[dict]:
+    """Expose verified retrieval spans in the field names the Ask UI renders."""
+    citations: list[dict] = []
+    for hit in hits:
+        citation = hit.as_dict()
+        citation["document"] = hit.chunk.filename
+        citation["page"] = hit.chunk.page_no
+        citations.append(citation)
+    return citations
+
+
+def _merge_citations(*groups: list[dict]) -> tuple[dict, ...]:
+    """Keep a bounded, de-duplicated set of source spans from current case data."""
+    merged: list[dict] = []
+    seen: set[tuple[object, ...]] = set()
+    for group in groups:
+        for citation in group:
+            key = (
+                citation.get("document_id"), citation.get("page", citation.get("page_no")),
+                citation.get("char_start"), citation.get("char_end"), citation.get("quote"),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(dict(citation))
+            if len(merged) >= 6:
+                return tuple(merged)
+    return tuple(merged)
+
+
+def _finding_fallback_payload(finding: dict, citations: list[dict], *, source: str) -> dict:
+    """Attach only existing rule state, evidence class and missing inputs to prose."""
+    payload: dict = {"citations": citations, "source": source}
     state = finding.get("state")
-    parts = [finding.get("headline", "")]
-    if detail.get("adequacy_ratio"):
+    evidence_class = finding.get("class")
+    if isinstance(state, str) and state:
+        payload["output_state"] = state
+    if isinstance(evidence_class, str) and evidence_class:
+        payload["evidence_class"] = evidence_class
+    missing = _missing_inputs(finding)
+    if missing:
+        payload["required_document"] = ", ".join(missing)
+    return payload
+
+
+def _deterministic_explanation(finding: dict) -> str:
+    """Explain an existing rule outcome without adding a new interpretation."""
+    detail = finding.get("detail") or {}
+    if not isinstance(detail, dict):
+        detail = {}
+    state = str(finding.get("state") or "")
+    state_label = str(finding.get("state_label") or state.replace("_", " ").title())
+    evidence_class = str(finding.get("class") or "")
+    parts = [str(finding.get("headline") or "").strip()]
+    if state or evidence_class:
+        status = f"The review records this as {state_label}"
+        if evidence_class:
+            status += f" with {evidence_class} evidence"
+        parts.append(status + ".")
+    if detail.get("adequacy_ratio") is not None:
         parts.append(
-            f"The documents put your cover at {detail['adequacy_ratio']} of the value "
-            f"at risk. Where a policy's average condition applies, a shortfall "
-            f"reduces what is paid proportionately.")
+            f"The documented inputs put cover at {detail['adequacy_ratio']} of the value "
+            "at risk. This is a deterministic illustration, not a settlement decision.")
+    missing = _missing_inputs(finding)
+    if missing:
+        parts.append("The required input is: " + ", ".join(missing) + ".")
     if state == "INFORMATION_MISSING":
-        missing = detail.get("missing_documents") or []
-        if missing:
-            parts.append(
-                "This could not be established because these documents were not "
-                "provided: " + ", ".join(
-                    m.replace("_", " ").lower() for m in missing) + ".")
-        parts.append("The engine reports this rather than estimating it.")
+        parts.append("The engine leaves this unestablished rather than estimating it.")
     if state == "REQUIRES_AUTHORISED_REVIEW":
         parts.append(
-            "The engine locates and quotes the term but does not decide its effect. "
-            "That is a judgement for a licensed adviser.")
-    return " ".join(p for p in parts if p)
+            "The engine can locate and quote the term but cannot decide its effect; a "
+            "licensed adviser must review it with the full facts.")
+    resolution = " ".join(str(finding.get("resolution_path") or "").split())
+    if resolution:
+        parts.append("Next safe action: " + resolution)
+    elif missing:
+        parts.append("Next safe action: provide the required input above.")
+    return " ".join(part for part in parts if part)
 
 
 # ── 3. ASK PULSE — the copilot ──────────────────────────────────────────────
 
+@dataclass(frozen=True)
+class _DeterministicAnswer:
+    """Local prose and metadata assembled only from already-verified case material."""
+
+    text: str
+    citations: tuple[dict, ...] = ()
+    output_state: Optional[str] = None
+    evidence_class: Optional[str] = None
+    required_document: Optional[str] = None
+
+    def payload(self, *, source: str) -> dict:
+        payload: dict = {"citations": [dict(citation) for citation in self.citations],
+                         "source": source}
+        if self.output_state:
+            payload["output_state"] = self.output_state
+        if self.evidence_class:
+            payload["evidence_class"] = self.evidence_class
+        if self.required_document:
+            payload["required_document"] = self.required_document
+        return payload
+
+
+_OUTCOME_QUESTION = re.compile(
+    r"\b(?:will|would|can|could|should)\b[^?.!]{0,80}\b(?:pay|paid|cover|covered|"
+    r"approve|approved|deny|denied|settle|settlement|claim)\b|"
+    r"\b(?:is|are)\b[^?.!]{0,40}\b(?:covered|payable|approved|denied)\b|"
+    r"\b(?:recommend|buy|cancel|switch|surrender)\b",
+    re.IGNORECASE)
+
+
+def _finding_for_question(question: str, findings: list[dict]) -> Optional[dict]:
+    """Select a current rule outcome by literal question/headline overlap only."""
+    terms = set(re.findall(r"[a-z0-9]{4,}", question.lower()))
+    if not terms:
+        return None
+    ranked: list[tuple[int, dict]] = []
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        haystack = " ".join((str(finding.get("headline") or ""),
+                               str(finding.get("rule_id") or ""))).lower()
+        score = sum(term in haystack for term in terms)
+        if score:
+            ranked.append((score, finding))
+    return max(ranked, key=lambda item: item[0])[1] if ranked else None
+
+
+def _finding_for_rule(rule_id: object, findings: list[dict]) -> Optional[dict]:
+    return next((finding for finding in findings
+                 if isinstance(finding, dict) and finding.get("rule_id") == rule_id), None)
+
+
+def _answer_from_finding(finding: dict, *, prefix: Optional[str] = None,
+                         citations: tuple[dict, ...] = ()) -> _DeterministicAnswer:
+    state = str(finding.get("state") or "") or None
+    evidence_class = str(finding.get("class") or "") or None
+    state_label = str(finding.get("state_label") or (state or "").replace("_", " ").title())
+    headline = str(finding.get("headline") or "").strip()
+    parts = [prefix or headline]
+    if prefix and headline:
+        parts.append(headline)
+    if state:
+        detail = f"The current rule outcome is {state_label}"
+        if evidence_class:
+            detail += f" with {evidence_class} evidence"
+        parts.append(detail + ".")
+    missing = _missing_inputs(finding)
+    if missing:
+        parts.append("Required input: " + ", ".join(missing) + ".")
+    if state == "REQUIRES_AUTHORISED_REVIEW":
+        parts.append("A licensed adviser must review how this term applies to the full facts.")
+    else:
+        resolution = " ".join(str(finding.get("resolution_path") or "").split())
+        if resolution:
+            parts.append("Next safe action: " + resolution)
+        elif missing:
+            parts.append("Next safe action: provide the required input above.")
+    return _DeterministicAnswer(
+        text=" ".join(part for part in parts if part),
+        citations=_merge_citations(list(citations), _finding_citations(finding)),
+        output_state=state, evidence_class=evidence_class,
+        required_document=", ".join(missing) if missing else None)
+
+
+def _compose_deterministic_answer(question: str, brief: dict, score: Optional[dict],
+                                  hits: list[Hit]) -> _DeterministicAnswer:
+    """Compose local, evidence-bound prose; never infer an insurance outcome."""
+    lowered = question.lower()
+    findings = [finding for finding in brief.get("findings", []) if isinstance(finding, dict)]
+    hit_citations = _hit_citations(hits)
+
+    if _OUTCOME_QUESTION.search(question):
+        return _DeterministicAnswer(
+            text=("I can provide verified policy text and deterministic figures, but I "
+                  "cannot decide whether a policy covers, pays, approves, or otherwise "
+                  "resolves this situation. A licensed adviser must review the full facts."),
+            citations=_merge_citations(hit_citations),
+            output_state="REQUIRES_AUTHORISED_REVIEW", evidence_class="UNESTABLISHED")
+
+    if score and score.get("overall") is not None and any(
+            term in lowered for term in ("score", "rating", "why is my")):
+        dimensions = [dimension for dimension in score.get("dimensions", [])
+                      if isinstance(dimension, dict) and dimension.get("assessed")]
+        dimensions.sort(key=lambda dimension: dimension.get("score", 101))
+        lowest = dimensions[:3]
+        supporting: list[dict] = []
+        for dimension in lowest:
+            for deduction in dimension.get("deductions", []) or ():
+                if isinstance(deduction, dict):
+                    finding = _finding_for_rule(deduction.get("rule_id"), findings)
+                    if finding is not None:
+                        supporting.append(finding)
+        sources = _merge_citations(
+            hit_citations, *[_finding_citations(finding) for finding in supporting])
+        parts = [f"The deterministic protection score is {score['overall']} out of 100"
+                 + (f" ({score.get('status')})." if score.get("status") else "."),
+                 "It is calculated from current rule outcomes and page-anchored evidence."]
+        if lowest:
+            areas = "; ".join(
+                f"{dimension.get('label')}: {dimension.get('score')}/100"
+                for dimension in lowest)
+            parts.append("The lowest assessed areas are " + areas + ".")
+        missing = next((finding for finding in findings if _missing_inputs(finding)), None)
+        if missing is not None:
+            inputs = _missing_inputs(missing)
+            parts.append("Next safe action: provide " + ", ".join(inputs) + ".")
+        return _DeterministicAnswer(text=" ".join(parts), citations=sources)
+
+    missing_findings = [finding for finding in findings if _missing_inputs(finding)]
+    if any(term in lowered for term in ("missing", "what should i", "next", "do first",
+                                        "priority", "upload", "document")) and missing_findings:
+        return _answer_from_finding(
+            missing_findings[0],
+            prefix="The current review has a documented missing input for this request.",
+            citations=_merge_citations(hit_citations))
+
+    if score and any(term in lowered for term in ("exposure", "at risk", "how much", "money",
+                                                   "cost", "shortfall")):
+        exposure = score.get("headline_exposure")
+        if isinstance(exposure, dict) and exposure.get("amount_sgd") is not None:
+            finding = _finding_for_rule(exposure.get("rule_id"), findings)
+            sources = _merge_citations(
+                hit_citations, _finding_citations(finding) if finding is not None else [])
+            parts = ["The largest deterministic illustrative shortfall is "
+                     + _sgd(exposure.get("amount_sgd")) + "."]
+            if (exposure.get("assessed_loss_sgd") is not None
+                    and exposure.get("illustrated_settlement_sgd") is not None):
+                parts.append("It is calculated from an assessed loss of "
+                             + _sgd(exposure.get("assessed_loss_sgd"))
+                             + " and an illustrative amount of "
+                             + _sgd(exposure.get("illustrated_settlement_sgd")) + ".")
+            if exposure.get("caveat"):
+                parts.append(str(exposure["caveat"]))
+            if finding is not None:
+                answer = _answer_from_finding(
+                    finding, prefix=" ".join(parts), citations=sources)
+                return answer
+            return _DeterministicAnswer(text=" ".join(parts), citations=sources)
+
+    matching = _finding_for_question(question, findings)
+    if matching is not None:
+        return _answer_from_finding(matching, citations=_merge_citations(hit_citations))
+
+    if hits:
+        top = hits[0]
+        return _DeterministicAnswer(
+            text=(f"The closest verified source passage is {top.chunk.filename}, page "
+                  f"{top.chunk.page_no}. Its complete text and source details are shown "
+                  "in the citation below. This retrieves document evidence only; it does "
+                  "not decide coverage, settlement, evidence class, premium, or product choice."),
+            citations=_merge_citations(hit_citations))
+
+    return _DeterministicAnswer(
+        text=("I cannot establish a factual answer from the current rule outcomes, "
+              "computed figures, or verified source passages. Add the relevant policy "
+              "wording or schedule; a licensed adviser can review how a term applies to "
+              "the full facts."),
+        required_document="the relevant policy wording or schedule")
+
+
 def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: str,
                     brief: dict, score: Optional[dict] = None, *,
                     model_allowed: bool = False, tenant_id: str = "unscoped") -> AIResult:
-    """Answer a question about THIS case, from this case's evidence only.
-
-    Grounded and bounded: the model gets the findings, the score breakdown and
-    retrieved passages, and is told to refuse rather than speculate. Every retrieved
-    citation is re-verified against the source before it is returned, so the citations
-    under an answer are checkable even if the prose is imperfect.
-    """
+    """Answer from scoped verified evidence, with a visible local fallback."""
     question = (question or "").strip()
     if not question:
         return AIResult(False, "DETERMINISTIC_ONLY",
                         text="Ask a question about your protection review.",
-                        payload={"citations": []})
+                        payload={"citations": [], "source": "DETERMINISTIC"})
 
     hits = retriever.search(question, top_k=config.MAX_CONTEXT_CHUNKS)
-    verified_hits = [h for h in hits if retriever.verify_hit(conn, h)]
-    citations = [h.as_dict() for h in verified_hits]
+    verified_hits = [hit for hit in hits if retriever.verify_hit(conn, hit)]
+    fallback = _compose_deterministic_answer(question, brief, score, verified_hits)
+    fallback_payload = {
+        **fallback.payload(source="DETERMINISTIC"),
+        "retrieval_method": retriever.method,
+    }
 
     if not model_allowed or not config.ai_enabled():
+        reason = ("AI processing needs the tenant's explicit consent."
+                  if not model_allowed else llm.settings().disabled_reason)
         return AIResult(
-            False, "DETERMINISTIC_ONLY",
-            text=_deterministic_answer(question, brief, score, verified_hits),
-            error=("AI processing needs the tenant's explicit consent."
-                   if not model_allowed else llm.settings().disabled_reason),
-            payload={"citations": citations, "source": "DETERMINISTIC",
-                     "retrieval_method": retriever.method})
+            False, "DETERMINISTIC_ONLY", text=fallback.text, error=reason,
+            public_error=(reason if not model_allowed else None), payload=fallback_payload)
 
     findings_summary = "\n".join(
-        f"- [{f['state']}/{f['class']}] {f['headline']}"
-        for f in brief.get("findings", [])[:20]) or "No findings."
+        f"- [{finding['state']}/{finding['class']}] {finding['headline']}"
+        for finding in brief.get("findings", [])[:20]) or "No findings."
     score_summary = json.dumps({
         "overall": (score or {}).get("overall"),
-        "dimensions": {d["key"]: d["score"]
-                       for d in (score or {}).get("dimensions", [])},
+        "dimensions": {dimension["key"]: dimension["score"]
+                       for dimension in (score or {}).get("dimensions", [])},
     }, default=str) if score else "Not computed."
     passages = "\n\n".join(
-        llm.untrusted_document(f"{h.chunk.filename} page {h.chunk.page_no}", h.chunk.text)
-        for h in verified_hits) or "No retrieved evidence."
+        llm.untrusted_document(f"{hit.chunk.filename} page {hit.chunk.page_no}", hit.chunk.text)
+        for hit in verified_hits) or "No retrieved evidence."
 
     content, error = _chat([
         {"role": "system", "content": _ASK_SYSTEM},
@@ -555,87 +842,22 @@ def answer_question(conn: sqlite3.Connection, retriever: Retriever, question: st
        user_intent=question)
 
     if content is None:
-        return AIResult(
-            True, "LLM_ASSISTED",
-            text=_deterministic_answer(question, brief, score, verified_hits),
-            error=error,
-            payload={"citations": citations, "source": "DETERMINISTIC"})
+        return AIResult(False, "DETERMINISTIC_FALLBACK", text=fallback.text, error=error,
+                        payload=fallback_payload)
 
+    citations = [dict(citation) for citation in fallback.citations]
     safe, rejection = llm.guard_user_visible(
         content, {"brief": brief, "score": score, "passages": passages},
         citations=citations, require_citations=True)
     if not safe:
         return AIResult(
-            True, "LLM_ASSISTED",
-            text=("I can't answer that in those terms. This engine locates and "
-                  "quotes what your documents say; whether cover applies is a "
-                  "judgement for a licensed adviser. "
-                  + _deterministic_answer(question, brief, score, verified_hits)),
-            error=rejection,
-            payload={"citations": citations, "source": "DETERMINISTIC_AFTER_REJECTION"})
+            False, "DETERMINISTIC_FALLBACK", text=fallback.text, error=rejection,
+            public_error=rejection,
+            payload={**fallback.payload(source="DETERMINISTIC_AFTER_REJECTION"),
+                     "retrieval_method": retriever.method})
 
     return AIResult(True, "LLM_ASSISTED", text=content,
-                    payload={"citations": citations, "source": "LLM",
+                    payload={**fallback.payload(source="LLM"),
                              "retrieval_method": retriever.method,
                              "passages_verified": len(verified_hits),
                              "passages_retrieved": len(hits)})
-
-
-def _deterministic_answer(question: str, brief: dict, score: Optional[dict],
-                          hits: list[Hit]) -> str:
-    """A useful answer with no model at all.
-
-    Not a stub: it answers the questions people actually ask by reading the structured
-    data the engine already produced. With no key configured, the copilot still works.
-    """
-    lowered = question.lower()
-    findings = brief.get("findings", [])
-
-    if score and any(w in lowered for w in ("score", "72", "why is my", "rating")):
-        lines = [f"Your protection score is {score['overall']} out of 100 "
-                 f"({score['status']}). It is computed only from findings the engine "
-                 f"could evidence. The largest deductions are:"]
-        for d in sorted(score.get("dimensions", []), key=lambda x: x["score"])[:3]:
-            lines.append(f"- {d['label']}: {d['score']}/100 — {d['reason']}")
-        return " ".join(lines)
-
-    if any(w in lowered for w in ("missing", "what should i", "next", "do first",
-                                  "priority", "upload")):
-        missing: list[str] = []
-        for f in findings:
-            for doc in (f.get("detail") or {}).get("missing_documents", []) or []:
-                if doc not in missing:
-                    missing.append(doc)
-        if missing:
-            return ("The highest-value thing you can do is provide the documents the "
-                    "engine could not find: "
-                    + ", ".join(m.replace("_", " ").lower() for m in missing)
-                    + ". Each one turns an unestablished item into a measured one.")
-        return ("Every document the engine needed was present. The remaining items "
-                "are ones requiring a licensed adviser's judgement.")
-
-    if any(w in lowered for w in ("exposure", "at risk", "how much", "money",
-                                 "cost", "shortfall")):
-        for f in findings:
-            detail = f.get("detail") or {}
-            if detail.get("adequacy_ratio"):
-                return (f"On the documents provided, cover sits at "
-                        f"{detail['adequacy_ratio']} of the value at risk. The engine "
-                        f"illustrates a reduced settlement of "
-                        f"{_sgd(detail.get('illustration', '?'))} on an assessed loss of "
-                        f"{_sgd(detail.get('loss', '?'))}. That is an illustration, not "
-                        f"the amount payable — this policy states the trigger but not "
-                        f"the formula.")
-        return ("No adequacy shortfall was computed from the documents provided. "
-                "Sums insured and a value at risk are both needed to compute one.")
-
-    if hits:
-        top = hits[0]
-        return (f"The most relevant passage in your documents is on page "
-                f"{top.chunk.page_no} of {top.chunk.filename}: "
-                f"\u201c{top.chunk.text[:280]}\u2026\u201d. "
-                f"There is no AI key configured, so this is a retrieval result rather "
-                f"than a written answer.")
-
-    return ("I don't have evidence in your documents to answer that. Upload the "
-            "relevant document, or ask a licensed adviser to review it.")
