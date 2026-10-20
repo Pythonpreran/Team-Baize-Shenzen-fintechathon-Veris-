@@ -1,102 +1,128 @@
-# VERIS V4
+# VERIS
 
-VERIS is an evidence-bound insurance workflow demonstration for households and small businesses. It turns supplied or generated local policy material into page-cited answers, documented gaps and overlaps, deterministic illustrations, and controlled synthetic action preparation.
+**FinTechathon submission by Team Baize**
+**2026 Shenzhen International FinTech Competition · International Track · Topic D — Insurance Assistant**
 
-**Decision boundary:** citations, evidence states, calculations, rule outcomes, and action permissions are deterministic. Optional, consented language assistance may propose or present wording, but it cannot decide coverage, settlement, evidence class, premium, or product choice.
+VERIS is an evidence-bound insurance workflow for policyholders, households, and small businesses. It helps people work from the policy material they hold: understand what the evidence says, identify documented gaps or overlaps, see what evidence is missing, and take the next safe action without presenting an unsupported coverage or payment outcome as fact.
 
-## What VERIS does
+## The problem
 
-| Capability | Current implementation |
+Policyholders and SMEs often face fragmented policy evidence, unclear coverage boundaries, incomplete claim or renewal paperwork, and uncertainty about what to do next. A useful assistant must make the evidence and uncertainty visible rather than turn incomplete documents into confident conclusions.
+
+## The solution
+
+VERIS combines natural-language interaction with deterministic authority for policy evidence, rules, calculations, and action permissions. It returns page-cited answers when support exists; names missing information or requires authorised review when it does not; and prepares controlled synthetic actions only within explicit consent and confirmation boundaries. Every eligible action is bound to a canonical payload, a confirmation step, and an auditable receipt so that the workflow remains inspectable.
+
+## Evaluation alignment
+
+| Evaluation theme | What evaluators can inspect in VERIS |
 | --- | --- |
-| Evidence-grounded review | Validates local policy inputs, retains page-cited evidence, and returns documented, missing-information, or authorised-review states instead of inventing an answer. |
-| Portfolio understanding | Maintains an encrypted, tenant-scoped household or small-business portfolio and maps documented protection gaps and overlaps. |
-| Deterministic workflows | Prepares synthetic claim, query, settlement-check, renewal, and escalation work from evidence and deterministic rules. |
-| Permissioned actions | Uses consent, canonical payloads, step-up confirmation, idempotency, and an HMAC-chained receipt ledger before a tier-2 synthetic action. |
-| Evaluation evidence | Provides an owner-scoped Agent Action Receipt and local evaluator-evidence export containing recorded citations, rule details, missing inputs, and action state. |
+| **Task Completion** | Cited policy questions, documented gap and overlap mapping, missing-evidence states, synthetic claim-work preparation, and an owner-scoped evidence export support an end-to-end review workflow. |
+| **Security & Compliance** | Deterministic evidence and calculation paths, tenant-scoped encrypted storage, consent, exact-payload confirmation, step-up controls, idempotency, and an HMAC-chained receipt ledger make authority and action boundaries visible. |
+| **Innovation & Interaction** | Natural-language assistance is separated from consequential decisions. The guided local flow, source drawer, abstention states, action receipt, and evaluator evidence export make both capability and uncertainty easy to inspect. |
 
-## Architecture
+These are evaluation-alignment points, not performance claims or outcome metrics. The local evidence and validation materials show the recorded behaviour of this build under its documented conditions.
+
+## Current capabilities
+
+| Capability | Current behaviour |
+| --- | --- |
+| Evidence-bound review | Validates supplied or generated local material, retains cited source spans, and presents documented, missing-information, or authorised-review states. |
+| Portfolio understanding | Maintains a tenant-scoped encrypted household or small-business portfolio and maps documented protection gaps and overlaps. |
+| Deterministic calculations | Uses deterministic rules and `Decimal` arithmetic for supported illustrations; missing operands remain missing rather than being substituted. |
+| Controlled action preparation | Prepares typed synthetic claim, query, settlement-check, renewal, and escalation work under a fixed permission model. |
+| Consent and confirmation | Requires active consent, a canonical payload, and step-up confirmation for eligible synthetic actions; mandate checks apply where required. |
+| Auditability | Records plans, confirmations, tool results, and verification state in an HMAC-chained ledger and exposes an owner-scoped Agent Action Receipt. |
+
+## Compact architecture
 
 ```text
-Local policy material or generated synthetic documents
-                    |
-                    v
-      Validated intake and page-cited evidence
-                    |
-                    v
-     Deterministic rules and calculations
-                    |
-                    v
-       Encrypted tenant-scoped portfolio
-            |                         |
-            v                         v
- Cited answers, maps, drafts   Permissioned agent
-                                      |
-                                      v
-                  Private local synthetic sandbox + receipt ledger
+Owner-held policy material and supplied facts
+                  |
+                  v
+Validated intake → retained page-cited evidence
+                  |
+                  v
+Deterministic evidence grading, policy rules, and calculations
+                  |
+                  v
+Encrypted tenant-scoped portfolio
+        |                                  |
+        v                                  v
+Cited answers, gap maps, and abstention   Permissioned action runtime
+                                           |
+                                           v
+                         Consent → canonical payload → confirmation
+                                           |
+                                           v
+                    Private local synthetic sandbox + receipt ledger
 ```
 
-Optional language assistance is constrained to source-backed proposal or presentation work. Deterministic evidence, rules, calculations, and action controls remain authoritative.
+Optional language assistance can propose or present wording, but it is outside the decision path. VERIS keeps evidence states, calculations, coverage boundaries, and action permissions deterministic.
 
-## Five-minute local demo
+## Run the safe local demo
 
-Start the local demo using the Windows setup below, then follow this 4–5 minute path:
-
-| Time | Action | Show |
-| --- | --- | --- |
-| 0:00–0:25 | Open `http://127.0.0.1:8000`, sign in as the listed local demo owner, then open **Portfolio → Guided Judge Demo → Check local prerequisites**. | Local configuration, fixture/corpus presence, role/session state, and offline switches. |
-| 0:25–1:40 | Start the labelled synthetic household and open **Ask VERIS**. Ask a supported policy question, then open its cited source. | Evidence state, page citation, and the source drawer. |
-| 1:40–2:35 | Ask an outcome question outside the available evidence. | A named missing input or authorised-review state rather than a coverage or payment decision. |
-| 2:35–3:20 | Open **Claims** and prepare the synthetic packet/checklist. | Cited checklist items and the exact confirmation boundary. |
-| 3:20–5:00 | Open **Agent Action Receipt** and download evaluator evidence. | Recorded consent, plan, payload hash, ledger state, and the owner-scoped JSON export. Stop before confirmation unless a private local sandbox rehearsal has been deliberately configured. |
-
-For recovery steps and the complete walkthrough, see the [local demo runbook](docs/DEMO-RUNBOOK.md).
-
-## Windows setup
-
-### Recommended safe start
-
-From PowerShell in this repository:
+Use PowerShell from the repository root with Python 3.11 or newer:
 
 ```powershell
 .\scripts\start-local-demo.ps1 -Install -SeedCorpus
 ```
 
-The script uses a project-local virtual environment, keeps the portfolio database outside Git, enables local deterministic/offline operation, and binds only to `127.0.0.1`. With `-SeedCorpus`, it verifies locally available corpus material by hash; unavailable or mismatched wording remains visibly absent rather than inferred.
+This is the reproducible safe-default path. It creates or uses a project-local virtual environment, stores the portfolio database outside the repository, selects local deterministic operation, disables live sources, and binds the server only to `127.0.0.1`. Corpus seeding checks locally available material by hash; unavailable or mismatched wording is surfaced as absent rather than inferred.
 
-### Manual start
+Open `http://127.0.0.1:8000` and sign in with the listed local demo owner account. Keep local mode loopback-only: do not bind it to a LAN address, tunnel it, or expose it through a public endpoint. For setup recovery and operational detail, read the [local demo runbook](docs/DEMO-RUNBOOK.md).
+
+### Manual local setup
+
+For a developer-managed local environment, use the same local-only defaults explicitly:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt -e .
+$env:VERIS_MODE = "local"
 $env:VERIS_PORTFOLIO_DB_PATH = "$env:LOCALAPPDATA\veris-demo\portfolio.sqlite"
 $env:VERIS_LLM_PROFILE = "none"
 $env:PROVEN_LIVE_SOURCES = "0"
 python -m uvicorn proven.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000`. Keep local mode loopback-only: do not expose it through a LAN bind, tunnel, or public endpoint.
+## 4–5 minute judge demo
 
-## Test and release gate
+| Time | Demonstrate | What it establishes |
+| --- | --- | --- |
+| 0:00–0:25 | In **Portfolio**, open **Guided Judge Demo** and run **Check local prerequisites**. | The local configuration, fixture or corpus presence, role/session state, and offline switches are visible. |
+| 0:25–1:10 | Start the labelled synthetic household, open **Ask VERIS**, ask a supported question, and open its source drawer. | The answer is tied to an evidence state and page citation. |
+| 1:10–1:40 | Ask an outcome question that the available evidence cannot support. | VERIS names the missing input or requires authorised review instead of inventing a coverage or payment decision. |
+| 1:40–2:35 | Open **Claims** and prepare the synthetic packet or checklist. | The checklist distinguishes cited material from missing evidence and keeps preparation separate from a real submission. |
+| 2:35–3:20 | Show the canonical payload and step-up confirmation boundary. | The user-facing confirmation is exact and deliberate; stop before confirmation unless a private local synthetic rehearsal was deliberately configured. |
+| 3:20–5:00 | Open **Agent Action Receipt** and download evaluator evidence. | Recorded consent, plan, payload hash, ledger state, citations, rule details, missing inputs, and action status can be inspected. |
 
-| Purpose | Command |
-| --- | --- |
-| Full Python test suite | `python -m pytest -q -p no:warnings` |
-| Release gate | `.\scripts\run-release-gate.ps1` |
+The [judge-readiness package](docs/JUDGE-READINESS.md) and [demo runbook](docs/DEMO-RUNBOOK.md) provide the complete walkthrough and recovery guidance.
 
-The release gate runs corpus status, tests, deployment smoke checks, JavaScript syntax checks, repository and i18n checks, dependency and static-security scans, deterministic red-team checks, the evaluation benchmark, compliance, documentation, and evidence verification. It writes logs outside the repository and preserves corpus-dependent skips as skips.
+## Validation and release gates
 
-## Repository structure
+Run these commands from the repository root after using the local setup above:
+
+| Purpose | Command | What the output establishes |
+| --- | --- | --- |
+| Check Markdown links | `.\.venv\Scripts\python.exe scripts\check_docs.py` | `Documentation links are valid` confirms that repository-local Markdown targets resolve. |
+| Run the Python suite | `.\.venv\Scripts\python.exe -m pytest -q -p no:warnings -ra` | Reports the current offline test results and explicitly preserves corpus-dependent skips; a skip is not a pass. |
+| Run the release gate | `.\scripts\run-release-gate.ps1` | Runs corpus status, tests, deployment smoke checks, JavaScript syntax checks, repository and i18n checks, dependency and static-security scans, deterministic red-team checks, the evaluation benchmark, compliance, documentation, and evidence verification. It writes command logs outside the repository and reports their location. |
+
+A successful command establishes only the checks it actually ran in the local environment. It does not convert unavailable corpus material, human review, or external validation into a passing claim.
+
+## Repository guide
 
 | Path | Purpose |
 | --- | --- |
 | `src/proven/` | FastAPI application, evidence pipeline, deterministic rules, portfolio storage, and permissioned agent runtime. |
-| `web/` | Static owner-facing application and localisation resources. |
-| `scripts/` | Local startup, release-gate, smoke, corpus, documentation, and evidence checks. |
+| `web/` | Static owner-facing application, accessibility behaviour, and localisation resources. |
+| `scripts/` | Local startup, release-gate, corpus, documentation, and evidence-validation tools. |
 | `tests/` | Offline unit, integration, security, and delivery-artifact tests. |
 | `docs/` | Technical, security, integration, evaluation, deployment, and demo documentation. |
 | `corpus/` | Manifest and hashes for third-party material stored outside the repository. |
-| `evidence/` and `security/` | Deterministic local evidence bundle and red-team material. |
+| `evidence/` and `security/` | Deterministic local evidence and red-team materials. |
 | `fixtures/` and `demo-documents/` | Labelled synthetic demonstration inputs. |
 
 ## Documentation
@@ -105,25 +131,26 @@ The release gate runs corpus status, tests, deployment smoke checks, JavaScript 
 | --- | --- |
 | Documentation index | [docs/README.md](docs/README.md) |
 | Architecture and algorithms | [Technical documentation](docs/TECHNICAL.md) |
-| Demo walkthrough and recovery | [Local demo runbook](docs/DEMO-RUNBOOK.md) |
+| Local setup and walkthrough | [Local demo runbook](docs/DEMO-RUNBOOK.md) |
 | Judge-facing controls and evidence | [Judge-readiness package](docs/JUDGE-READINESS.md) |
-| Local synthetic adapter contract | [Integration readiness](docs/INTEGRATION-READINESS.md) |
-| Security controls and reporting | [Security policy](SECURITY.md) and [security self-assessment](docs/SECURITY-SELF-ASSESSMENT.md) |
-| Local benchmarks and evidence export | [Evaluation](docs/EVALUATION.md) and [evidence bundle](evidence/README.md) |
-| Current implementation boundary | [Current scope and implementation conditions](docs/disadvantages.md) |
+| Local synthetic adapter boundary | [Integration readiness](docs/INTEGRATION-READINESS.md) |
+| Validation and local evidence | [Evaluation](docs/EVALUATION.md) and [evidence bundle](evidence/README.md) |
+| Security and current scope | [Security policy](SECURITY.md), [security self-assessment](docs/SECURITY-SELF-ASSESSMENT.md), and [scope and implementation conditions](docs/disadvantages.md) |
 
-## Scope and security
+## Scope boundary
 
-VERIS V4 is a controlled local/synthetic demonstration, not a live counterparty or production operation. The private sandbox represents no insurer, bank, TPA, payment rail, claim decision, settlement, or money movement. Third-party policy material remains outside the repository and is tracked through a manifest with source and hash metadata.
+VERIS is a controlled local and synthetic demonstration, not a live insurance, banking, TPA, payment, claims, settlement, or production service. Its private sandbox represents no external counterparty and creates no real transaction, claim submission, approval, settlement, or money movement. VERIS does not decide coverage, underwriting, claim outcomes, premiums, product choice, legal matters, or medical matters; it makes evidence and review boundaries visible for human or authorised review.
 
-Use cited output, missing-information states, and authorised review as the product's decision boundary. Read the [current scope](docs/disadvantages.md), [security policy](SECURITY.md), and [integration-readiness contract](docs/INTEGRATION-READINESS.md) before hosting or considering any external connection.
+Published third-party policy material remains outside the repository and is tracked through manifest and hash metadata. Synthetic inputs are labelled as such. Read the [current scope and implementation conditions](docs/disadvantages.md) before treating this demonstration as a hosting, integration, or professional-decision solution.
 
-## Contributing
+## Team
 
-Contributions should be focused, preserve the evidence and local/synthetic boundaries, include appropriate tests and documentation, and pass the release gate before review.
+**Baize**
 
-## License and credits
+Preran S Gowda · Shamanth M S · Shreya Belavatha Jayaram · Shashank S
+
+## Contributing and license
+
+Contributions should preserve the evidence, deterministic-authority, consent, and local/synthetic boundaries; include appropriate tests and documentation; and pass the release gate before review.
 
 VERIS is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) and [open-source component notices](OPEN-SOURCE.md) for attribution and third-party-material conditions.
-
-Created by Preran S Gowda, Shamanth M S, Shreya Belavatha Jayaram, and Shashank S.
